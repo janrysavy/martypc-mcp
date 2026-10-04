@@ -225,7 +225,7 @@ loss fails native tick output before JSON comparison.243 core tests pass;4620
 native continuations and eleven controls are retained across frozen receipts.
 Only test/HANDOFF changes after9d72968c; production restore is byte-identical.
 Focused review confirms the nonzero cursor gap closed; no scoped witness flaw.
-Final publication/Windows-Linux CI remain pending.
+PR19 is published against main; final Windows/Linux CI and integration pending.
 
 NEXT: publish/integrate final-tested CRTC; CGA,
 video/audio, disks and pending host
