@@ -441,7 +441,7 @@ impl Agent {
                 "time_base":"system crystal ticks (independent of turbo)",
                 "unsupported":["trace","hardware.trace","video","vnc","serial","input.keyboard","io","machine.snapshot",
                     "memory_read_breakpoints","memory_write_breakpoints","memory_access_breakpoints",
-                    "interrupt_breakpoints","step_over","dosctrl","frontend_file_transfer",
+                    "interrupt_breakpoints","step_over","frontend_file_transfer",
                     "frontend_speed_control","frontend_cursor_control","ppi_software_turbo"]}),
                 )
             }

@@ -5,9 +5,12 @@ expansions, using active bus mapping and exact device bounds. Three new tests
 bring the native suite to 25 passing tests: actual CPU/RPC mailbox word exchange,
 absent/boundary/hash/ROM/running refusals, and read-only/card extent checks.
 Fresh Windows headless build passes. No implicit upper-memory allocation and
-no video/EMS/ROM write permission. Parent is testing real DOSCTRL/VHD file
-operations; command execution and complete snapshots are not yet proven.
-Focused review and final-head Windows/Linux CI are pending before integration.
+no video/EMS/ROM write permission. Parent's unchanged PyPC DOSCTRL client has
+uploaded/read/renamed/deleted files, captured stdout/stderr and child exit7,
+and freshly compiled a TP6 unit on a writable VHD. Deleting that TPU before a
+syntax-error compile leaves no stale product. These are bounded parent receipts,
+not full snapshot/gameplay proof. Focused source review found no defects;
+final-head Windows/Linux CI remains pending before integration.
 
 FINISHED: limited native headless JSON-lines debugger; see
 [JSON_RPC_API.md](JSON_RPC_API.md) for the supported PyPC-compatible methods and
