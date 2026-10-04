@@ -193,7 +193,10 @@ loss controls fail, then235 core tests pass.1028 native continuation restores
 and eight initial storage roundtrips are covered. The initial0.0001 hold example
 was below the nominal maximum; it is corrected to0.001, with0.01 used to prove
 out-of-range continuation. Native runtime algorithms remain unchanged.
-Follow-up review, fresh frontend builds and publication/final CI are pending.
+Follow-up review confirms all three findings closed and no remaining concrete
+scoped defect. All38 RPC/config tests and fresh Windows UI/headless builds pass.
+The parent retains both source/product-bound receipts, actual mutation driver
+and before-fix regression. Final publication/CI/integration remain pending.
 
 NEXT: publish monitor component, integrate final-tested input/monitor; CRTC/CGA,
 video/audio, disks and pending host
