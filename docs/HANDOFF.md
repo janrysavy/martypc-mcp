@@ -184,7 +184,16 @@ Seven actual lost phase/drift/edge/enable/timer/polarity controls fail native
 callbacks or PLL APIs; exact source restoration returns233 green. Native monitor
 and PLL runtime algorithms are unchanged. This preserves the current model;
 no physical monitor or CGA/VRAM/full-machine/restart proof is claimed.
-Independent review, fresh frontend builds, publication/final CI remain pending.
+Initial review found a real negative last_period_ticks validation gap and two
+coverage gaps. A new regression fails before repair. Negative observed periods
+are now refused atomically; zero remains initial/unobserved. All four independent
+h/v polarity pairs and a native hold/phase above2.0 case are covered. New swapped-
+polarity, clipped-hold and normalized-phase controls fail actual APIs. All ten
+loss controls fail, then235 core tests pass.1028 native continuation restores
+and eight initial storage roundtrips are covered. The initial0.0001 hold example
+was below the nominal maximum; it is corrected to0.001, with0.01 used to prove
+out-of-range continuation. Native runtime algorithms remain unchanged.
+Follow-up review, fresh frontend builds and publication/final CI are pending.
 
 NEXT: publish monitor component, integrate final-tested input/monitor; CRTC/CGA,
 video/audio, disks and pending host

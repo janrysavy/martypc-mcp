@@ -75,10 +75,15 @@ mod tests {
     fn monitor_json_restore_continues_native_sync_and_hold() {
         let mut total_callbacks = (0, 0);
         for enabled in [false, true] {
-            for polarity in [SyncPolarity::Positive, SyncPolarity::Negative] {
+            for (polarity, vertical_polarity) in [
+                (SyncPolarity::Positive, SyncPolarity::Positive),
+                (SyncPolarity::Positive, SyncPolarity::Negative),
+                (SyncPolarity::Negative, SyncPolarity::Positive),
+                (SyncPolarity::Negative, SyncPolarity::Negative),
+            ] {
                 let mut reference = FifteenHertzMonitor::default();
                 reference.set_enabled(enabled);
-                reference.set_sync_polarities(polarity, polarity);
+                reference.set_sync_polarities(polarity, vertical_polarity);
                 reference.horizontal_pll.adjust_hold(0.000001);
                 reference.vertical_pll.adjust_hold(-0.00000001);
                 let mut restored = restore(&reference);
@@ -87,12 +92,13 @@ mod tests {
                     let active_h = n % 4 == 0 || n % 4 == 1;
                     let active_v = n % 32 == 0 || n % 32 == 1;
                     let invert = polarity == SyncPolarity::Negative;
+                    let invert_v = vertical_polarity == SyncPolarity::Negative;
                     let ticks = [0, 32, 880, 0][n % 4];
-                    let actual = run(&mut reference, ticks, active_h ^ invert, active_v ^ invert);
+                    let actual = run(&mut reference, ticks, active_h ^ invert, active_v ^ invert_v);
                     total_callbacks.0 += actual.0;
                     total_callbacks.1 += actual.1;
                     assert_eq!(
-                        run(&mut restored, ticks, active_h ^ invert, active_v ^ invert),
+                        run(&mut restored, ticks, active_h ^ invert, active_v ^ invert_v),
                         actual,
                         "native sync callbacks enabled={enabled} polarity={polarity:?} n={n}"
                     );
@@ -109,7 +115,7 @@ mod tests {
                     assert_eq!(json(&reference), json(&restored));
                 }
             }
-        } //512 destructive continuation restores, plus four initial restores
+        } //1024 destructive continuation restores, plus eight initial storage restores
         assert!(total_callbacks.0 > 0 && total_callbacks.1 > 0);
     }
 
@@ -136,7 +142,7 @@ mod tests {
         let mut reference = FifteenHertzMonitor::default();
         assert_eq!(run(&mut reference, 0, true, true), (1, 1));
         run(&mut reference, 500, false, false);
-        reference.horizontal_pll.adjust_hold(0.0001); // native API, allowed beyond nominal range
+        reference.horizontal_pll.adjust_hold(0.001); // exceeds native horizontal max_drift (~0.00011)
         let mut restored = restore(&reference);
         let actual = run(&mut reference, 500, true, false);
         assert_eq!(
@@ -150,6 +156,49 @@ mod tests {
             "restored actual period/drift API"
         );
         assert_eq!(json(&reference), json(&restored));
+    }
+
+    #[test]
+    fn monitor_restore_preserves_native_out_of_range_hold_and_once_only_wrap() {
+        let mut reference = FifteenHertzMonitor::default();
+        reference.horizontal_pll.adjust_hold(0.01);
+        run(&mut reference, 1000, false, false);
+        let phase = reference.horizontal_pll.phase();
+        assert!(phase > 2.0, "must actually exceed normalized phase");
+        let state = json(&reference);
+        let bits = |field: &str| f64::from_bits(state["monitor"]["horizontal_pll"][field].as_u64().unwrap());
+        assert!(
+            bits("drift_offset") > bits("max_drift"),
+            "must actually exceed nominal hold"
+        );
+        let mut restored = restore(&reference);
+        assert_eq!(run(&mut reference, 0, false, false), (0, 0));
+        assert_eq!(reference.horizontal_pll.phase().to_bits(), (phase - 1.0).to_bits());
+        assert_eq!(run(&mut restored, 0, false, false), (0, 0));
+        assert_eq!(
+            observed(&reference.horizontal_pll),
+            observed(&restored.horizontal_pll),
+            "restored out-of-range hold/once-only wrap"
+        );
+        assert_eq!(json(&reference), json(&restored));
+    }
+
+    #[test]
+    fn monitor_refuses_negative_observed_period_before_mutation() {
+        let mut monitor = FifteenHertzMonitor::default();
+        run(&mut monitor, 100, false, false);
+        let saved = json(&monitor);
+        for axis in ["horizontal_pll", "vertical_pll"] {
+            let mut invalid = saved.clone();
+            invalid["monitor"][axis]["last_period_ticks"] = (-1.0f64).to_bits().into();
+            invalid["monitor"]["emulate_hsync"] = false.into();
+            let decoded = serde_json::from_value(invalid).unwrap();
+            assert!(
+                monitor.restore_state(&decoded).is_err(),
+                "negative native period {axis}"
+            );
+            assert_eq!(json(&monitor), saved);
+        }
     }
 
     #[test]

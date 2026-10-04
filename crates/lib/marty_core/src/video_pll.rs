@@ -132,7 +132,8 @@ impl VideoHoldPll {
             self.kp, self.ki, self.free_drift_term, self.window_size, self.vco_phase,
             self.debug_phase, self.last_error, self.drift_offset,
         ].iter().all(|v| v.is_finite()) || self.ticks_per_second <= 0.0
-            || self.target_period_ticks <= 0.0 || self.min_drift > self.max_drift {
+            || self.target_period_ticks <= 0.0 || self.last_period_ticks < 0.0
+            || self.min_drift > self.max_drift {
             return Err("invalid monitor PLL clocks/limits");
         }
         // Native adjust_hold may exceed nominal drift bounds; run only wraps
