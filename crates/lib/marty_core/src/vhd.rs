@@ -47,6 +47,9 @@ use uuid::Uuid;
 
 use crate::bytebuf::{ByteBuf, ByteBufWriter};
 
+mod state;
+pub(crate) use state::{DiskCaptureMode, VhdState};
+
 /// A trait alias for objects that support reading, writing, and seeking.
 pub trait VhdIO: Read + Write + Seek {}
 
@@ -116,7 +119,8 @@ pub struct VirtualHardDisk {
     cur_sector: u32,
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct VHDGeometry {
     pub c: u16,
     pub h: u8,
@@ -124,7 +128,8 @@ pub struct VHDGeometry {
 }
 
 // TODO: Refactor this with binrw
-#[derive(Default)]
+#[derive(Default, Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct VHDFileFooter {
     cookie: [u8; 8],
     features: u32,

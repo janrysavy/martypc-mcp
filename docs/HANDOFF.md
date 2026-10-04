@@ -260,9 +260,22 @@ review findings, actual controls and precise native implementation-suffix scope.
 Final CI/integration pending. Whole-machine/bus/disks/frontend/audio/process restart/Pyro/physical
 timing remain OPEN.
 
-NEXT: publish/integrate final-tested CGA;
-video/audio, disks and pending host
-I/O, with atomic dependency preflight, then real process-restart continuation.
+FINISHED local VHD component: cached metadata and exact backing size/SHA-256/
+I/O position, with binary payload separate from JSON. Auto embeds to an explicit
+limit and refuses larger disks without an embed/reference choice. Replacement
+preflights a supplied fresh provider without mutating the live disk. All260 core
+tests pass:64 native sector continuations, native failed-write/footer-cache
+divergence, and actual RW File close/reopen into a separate copy. Four DELIBERATE
+MUTANTS fail named tests; exact restored source returns260 green. Two controls
+test storage-only cursor/checksum fields. Native sector algorithms are unchanged.
+Review, fresh frontend builds, publication and final CI/integration are pending.
+Caller-owned access policy/backend/path, atomic multi-disk dependencies,
+Disk/ATA/XT-IDE transfer state and actual process/machine restart remain OPEN.
+The parent retains source/product-bound raw transcripts and control recipes.
+
+NEXT: integrate final-tested CGA; review/publish the VHD component, then native
+Disk/ATA/XT-IDE pending transfers, remaining devices/bus clocks/audio/host I/O,
+atomic whole-machine dependency preflight and real process-restart continuation.
 Hardware trace,VNC,keyboard/serial RPC and physical XT/gameplay parity remain
 OPEN. Controlled BIOS-ring input is not hardware IRQ input.
 
