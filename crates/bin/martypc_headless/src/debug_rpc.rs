@@ -27,6 +27,8 @@ const METHODS: &[&str] = &[
     "state.set_registers",
     "memory.read",
     "memory.write",
+    "input.joystick",
+    "input.joystick.state",
     "breakpoints.create",
     "breakpoints.list",
     "breakpoints.delete",
@@ -150,6 +152,24 @@ fn peek(machine: &Machine, start: usize, length: usize) -> Result<Vec<u8>> {
     (start..start + length)
         .map(|a| machine.bus().peek_u8(a).map_err(|_| ("bus memory read failed", -32603)))
         .collect()
+}
+
+fn joystick_state(machine: &Machine, revision: u64) -> Value {
+    let Some(port) = machine.bus().game_port().as_ref() else {
+        return json!({"joysticks":[], "state_revision":revision});
+    };
+    let state = port.get_state();
+    let count = port.get_controller_count();
+    let button_count = if count == 1 { 4 } else { 2 };
+    let sticks: Vec<_> = (0..count)
+        .map(|i| {
+            json!({
+                "joystick":i, "x":state.sticks[i].0, "y":state.sticks[i].1,
+                "buttons":state.buttons[i * button_count..(i + 1) * button_count]
+            })
+        })
+        .collect();
+    json!({"joysticks":sticks, "state_revision":revision})
 }
 
 #[derive(Clone)]
@@ -420,7 +440,7 @@ impl Agent {
                 "execution_step_unit":"native machine boundary (including device/interrupt work)",
                 "breakpoint_kinds":["execution"],"step_modes":["into"],
                 "time_base":"system crystal ticks (independent of turbo)",
-                "unsupported":["trace","hardware.trace","video","vnc","serial","input","io","machine.snapshot",
+                "unsupported":["trace","hardware.trace","video","vnc","serial","input.keyboard","io","machine.snapshot",
                     "memory_read_breakpoints","memory_write_breakpoints","memory_access_breakpoints",
                     "interrupt_breakpoints","step_over","dosctrl","frontend_file_transfer",
                     "frontend_speed_control","frontend_cursor_control","ppi_software_turbo"]}),
@@ -439,6 +459,42 @@ impl Agent {
                 )
             }
             "state.get" | "state.get_registers" => Ok(registers(machine, self.revision)),
+            "input.joystick.state" => Ok(joystick_state(machine, self.revision)),
+            "input.joystick" => {
+                self.paused()?;
+                let port = machine
+                    .bus()
+                    .game_port()
+                    .as_ref()
+                    .ok_or(("no game port configured", -32602))?;
+                let index = number(&p["joystick"])?;
+                if index >= port.get_controller_count() as u64 {
+                    return invalid("joystick index outside configured layout");
+                }
+                let axis = |name: &str| -> Result<f64> {
+                    let value = p[name].as_f64().ok_or(("numeric joystick axis required", -32602))?;
+                    if !value.is_finite() || !(-1.0..=1.0).contains(&value) {
+                        return invalid("joystick axes must be finite in -1..1");
+                    }
+                    Ok(value)
+                };
+                let x = axis("x")?;
+                let y = axis("y")?;
+                let count = if port.get_controller_count() == 1 { 4 } else { 2 };
+                let buttons = p["buttons"].as_array().ok_or(("joystick buttons required", -32602))?;
+                if buttons.len() != count || buttons.iter().any(|b| !b.is_boolean()) {
+                    return invalid("buttons must match configured layout and be booleans");
+                }
+                // Preflight everything before mutation. RPC Y increases towards down;
+                // native frontend setter negates Y to obtain potentiometer position.
+                let port = machine.bus_mut().game_port_mut().as_mut().unwrap();
+                port.set_stick_pos(index as usize, 0, Some(x), Some(-y));
+                for (button, pressed) in buttons.iter().enumerate() {
+                    port.set_button(index as usize, button, pressed.as_bool().unwrap());
+                }
+                self.revision += 1;
+                Ok(joystick_state(machine, self.revision))
+            }
             "state.set_registers" => {
                 self.paused()?;
                 if number(&p["expected_state_revision"])? != self.revision {
@@ -757,6 +813,9 @@ mod tests {
         machine_with_options(ppi_turbo, OnHaltBehavior::Warn)
     }
     fn machine_with_options(ppi_turbo: Option<bool>, halt: OnHaltBehavior) -> Machine {
+        machine_with_game_port(ppi_turbo, halt, false)
+    }
+    fn machine_with_game_port(ppi_turbo: Option<bool>, halt: OnHaltBehavior, game_port: bool) -> Machine {
         let mut config =
             marty_config::read_config(include_str!("../../../../install/martypc.toml"), Default::default()).unwrap();
         assert!(config.emulator.rpc_port.is_none()); // Missing Option keys deserialize as None.
@@ -765,6 +824,10 @@ mod tests {
         let description = MachineConfiguration {
             machine_type: MachineType::Ibm5160,
             ppi_turbo,
+            game_port: game_port.then_some(marty_core::machine_config::GamePortConfig {
+                io_base: 0x201,
+                controller_layout: None,
+            }),
             ..Default::default()
         };
         let mut machine = MachineBuilder::new()
@@ -787,6 +850,39 @@ mod tests {
     }
     fn call(a: &mut Agent, m: &mut Machine, method: &str, params: Value) -> Value {
         a.handle(m, method, &params).unwrap()
+    }
+    #[test]
+    fn joystick_rpc_drives_native_game_port_and_preflights_all_input() {
+        let mut absent = machine();
+        let mut a = Agent::new(2301);
+        let event = json!({"joystick":0,"x":-1.0,"y":1.0,"buttons":[true,false]});
+        assert!(a.handle(&mut absent, "input.joystick", &event).is_err());
+        assert_eq!(
+            call(&mut a, &mut absent, "input.joystick.state", json!({}))["joysticks"],
+            json!([])
+        );
+        let mut m = machine_with_game_port(None, OnHaltBehavior::Warn, true);
+        let clock = m.cpu().get_cycle_ct();
+        let state = call(&mut a, &mut m, "input.joystick", event.clone());
+        assert_eq!(state["joysticks"][0], event);
+        assert_eq!(m.cpu().get_cycle_ct(), clock);
+        for bad in [
+            json!({"joystick":2,"x":0,"y":0,"buttons":[false,false]}),
+            json!({"joystick":0,"x":0,"y":1.01,"buttons":[false,false]}),
+            json!({"joystick":0,"x":0,"y":0,"buttons":[false,1]}),
+        ] {
+            assert!(a.handle(&mut m, "input.joystick", &bad).is_err());
+            assert_eq!(call(&mut a, &mut m, "input.joystick.state", json!({})), state);
+        }
+        let port = m.bus_mut().game_port_mut().as_mut().unwrap();
+        port.reset_oneshots();
+        assert_eq!(port.port_read() & 0x13, 0x03); // Active-low button, both axes charging.
+        port.run(26.0);
+        assert_eq!(port.port_read() & 3, 2); // Left axis charged, down still charging.
+        port.run(1100.0);
+        assert_eq!(port.port_read() & 3, 0);
+        a.running = true;
+        assert!(a.handle(&mut m, "input.joystick", &event).is_err());
     }
     #[test]
     fn inspection_and_rpc_steps_preserve_native_cpu_device_cycles() {

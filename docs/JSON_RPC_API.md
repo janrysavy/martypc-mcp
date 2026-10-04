@@ -44,6 +44,8 @@ RAM: a working transport does **not** establish DOSCTRL support.
 | `state.set_registers` | Paused only. Requires `expected_state_revision`, `expected` values and nonempty `set`. AX/BX/CX/DX/SP/BP/SI/DI/CS/DS/ES/SS/IP/FLAGS, lowercase. All guards and Word ranges checked before any write. Returns `before`/`after`. |
 | `memory.read` | `address`, optional `length` (default 1, maximum 65536). Returns physical address, byte count, hex, base64, SHA-256 and revision. Uses native bus peeks. |
 | `memory.write` | Paused only. `address`, `data_base64`, optional `expected_sha256` (case insensitive). Preflights the entire range; only unmapped conventional RAM is writable. Returns before/after hashes and revision. |
+| `input.joystick.state` | Configured `joysticks` with index `joystick`, normalized `x`/`y`, boolean `buttons`, and revision. An absent game port reports an empty array. |
+| `input.joystick` | Paused only. Complete `joystick`, finite `x`/`y` in -1..1 and `buttons` matching the configured layout (two buttons per stick, or four on a single stick). Entire request preflighted before native potentiometer/button mutation; guest clock does not advance. Returns the same state schema. |
 | `breakpoints.create` | Optional `kind:"execution"` (default), `address`, optional boolean `once`, `condition`, `hit_filter`, bounded `length` (default 1). Returns `breakpoint_id` and descriptor. Maximum 256 persistent breakpoints. |
 | `breakpoints.list` | Returns `breakpoints` array. |
 | `breakpoints.delete` | `breakpoint_id`; unknown IDs are errors. |
@@ -87,6 +89,12 @@ Stop kinds are `breakpoint`, `run_until`, `pause`, `step`, `cpu_halt`, and
 `emulated_time_limit`. Every completed operation retains its reason and stop
 registers. JSON errors use -32700 (parse), -32600 (envelope), -32601 (unsupported
 method), -32602 (invalid parameters/guards), -32603 (bus failure).
+
+Joystick axes use -1 for left/up, +1 for right/down, zero for center. Positions
+set the native game-port resistance; port201h one-shot timing and active-low
+buttons remain native device behavior. This does not inject keys or alter Pyro
+memory. Configure `[machine.game_port]` with `io_base = 0x201` to attach a card.
+Host input is a paused boundary operation; explicitly resume after setting it.
 
 **Unsupported:** instruction/hardware tracing, memory/interrupt watchpoints,
 step-over, video/VNC, keyboard injection, serial channels, DOSCTRL, snapshots,

@@ -2,7 +2,7 @@
 
 FINISHED: limited native headless JSON-lines debugger; see
 [JSON_RPC_API.md](JSON_RPC_API.md) for the supported PyPC-compatible methods and
-explicit gaps. Twenty-one native tests cover direct/RPC CPU+RAM+PIT equality, guarded
+explicit gaps. Twenty-two native tests cover direct/RPC CPU+RAM+PIT equality, guarded
 writes, breakpoint resumes, private predicates, turbo-independent deadlines,
 operation retention and persistent TCP framing. Windows local build passes.
 The parent probe uses the unchanged PyPC client against the real executable.
@@ -47,3 +47,10 @@ original-game timing runs. No physical XT or full gameplay parity claim.
 CI is Windows/Linux headless tests+build, no artifacts/caches. macOS/WASM are
 manual. Local Pyro workspace uses installed Rust1.98.0 via `cargo +1.98.0`, with
 CARGO_HOME/TARGET_DIR and TEMP/TMP inside its ignored `re/_build/`.
+
+FINISHED locally: `input.joystick`/`input.joystick.state` expose the configured
+native game port. Complete normalized axes/buttons are atomically validated;
+tests check absent card, invalid late fields, paused-only writes, active-low
+buttons and both charge durations. Clock unchanged by injection. Keyboard is
+still unsupported. Shared PyPC implementation, wire/game probes, review and
+final-head CI remain WIP; do not assume they exist.
