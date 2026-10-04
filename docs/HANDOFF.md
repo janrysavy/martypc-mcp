@@ -75,14 +75,18 @@ Final Windows/Linux CI/integration pending.
 This is PIC-owned state only, not physical 8259 timing or whole-machine restart.
 
 WIP DMA component: every native controller/channel field, partial register
-I/O, request bits, transfer address/count/page and terminal status are captured.
+I/O, controller request_reg, transfer address/count/page and terminal status
+are captured. Native channel.request status flags are not updated by service
+calls; request-status behavior is not proven by this snapshot component.
 Three tests and206 core tests pass.1536 destructive JSON continuation restores
 compare untouched native controllers and256KiB RAM across all four channels,
 read/write/verify and read auto-init;64 additional storage-only restores preserve
 all mode combinations/full page bytes. Six actual lost-state controls fail;
 exact source restoration returns206 green. Unsupported decrement transfers,
-write auto-init and other native service gaps remain unchanged. Review,
-frontend rebuild and final CI/integration pending. Not full bus/device/restart.
+write auto-init and other native service gaps remain unchanged. Review found
+no restore defect; request-status wording is clarified. All38 RPC/config tests
+and fresh Windows UI/headless builds pass. Final CI/integration pending.
+Not full bus/device/restart.
 
 NEXT: PPI/video/audio/input, disks and pending host
 I/O, with atomic dependency preflight, then real process-restart continuation.
