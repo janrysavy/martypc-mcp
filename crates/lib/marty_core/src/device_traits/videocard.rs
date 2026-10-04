@@ -122,7 +122,7 @@ pub enum VideoCardSubType {
     Hercules,
 }
 
-#[derive(Copy, Clone, Debug, Deserialize, PartialEq, Default)]
+#[derive(Copy, Clone, Debug, Deserialize, Serialize, PartialEq, Default)]
 pub enum ClockingMode {
     Default,
     Cycle,
@@ -222,7 +222,7 @@ pub type VideoCardState = MartyHashMap<String, Vec<(String, VideoCardStateEntry)
 
 /// All valid graphics modes for CGA, EGA and VGA Cards
 #[allow(dead_code)]
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub enum DisplayMode {
     Disabled,
     Mode0TextBw40,
@@ -331,7 +331,8 @@ pub struct DisplayApertureDesc {
 /// horizontal and vertical offsets from the origin (0,0)
 /// Additionally, a debug flag is set to indicate whether an aperture should render debugging
 /// information along with pixel data.
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct DisplayAperture {
     pub w: u32,
     pub h: u32,
@@ -340,7 +341,8 @@ pub struct DisplayAperture {
     pub debug: bool,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct DisplayExtents {
     pub apertures: Vec<DisplayAperture>, // List of display aperture definitions.
     pub field_w: u32,                    // The total width of the video field

@@ -49,6 +49,8 @@ mod draw;
 mod mmio;
 mod tablegen;
 mod videocard;
+mod state;
+pub(crate) use state::CgaState;
 
 use super::*;
 
@@ -59,7 +61,7 @@ use crate::{
     tracelogger::TraceLogger,
 };
 
-#[derive(Copy, Clone, Default)]
+#[derive(Copy, Clone, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
 enum RwSlotType {
     #[default]
     Mem,
@@ -70,7 +72,8 @@ enum RwSlotType {
 // Up to two IO operations (16-bit IO) or 4 memory operations (16-bit mov)
 // We maintain 4 slots of RwSlot structs to keep data about these operations.
 // The slot index is reset on call to run().
-#[derive(Copy, Clone, Default)]
+#[derive(Copy, Clone, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 struct RwSlot {
     t:    RwSlotType,
     data: u8,

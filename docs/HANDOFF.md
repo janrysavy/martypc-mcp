@@ -232,7 +232,21 @@ overflow in debug builds before any first port write. Two regressions fail
 before repair; explicit wrapping negation preserves release arithmetic.
 All245 native core tests pass, including258 phase vectors and actual first
 zero-clock CRTC port writes. No broader timing/card/machine proof is claimed.
-Review, final CGA publication/CI and full snapshot owner tests remain WIP.
+Scoped phase review found no defect; final CGA CI/integration remain WIP.
+
+FINISHED local CGA state:109 native non-trace fields,16KiB VRAM,both raster
+buffers and nested CRTC/monitor are retained. Seven tests and252 core tests
+pass.195 destructive JSON native continuations cover24 video/clock/monitor
+configurations, pending character clock, native reset crop and pending snow
+pixels.25 extra initial/legacy-slot restores are storage-only. Ten actual
+restore omissions fail native raster/ports/MMIO/CRTC observations; omitting a
+field fails independent native inventory. Exact source restoration returns252
+green. Strict schemas, geometry/clock/version/trace refusals and unchanged
+live state on invalid input are tested. Native runtime is unchanged after the
+separate tested phase repair. The parent retains source/product-bound evidence.
+Independent review and fresh frontend checks are pending; final CI/integration
+pending. Whole-machine/bus/disks/frontend/audio/process restart/Pyro/physical
+timing remain OPEN.
 
 NEXT: publish/integrate final-tested CRTC; CGA,
 video/audio, disks and pending host
