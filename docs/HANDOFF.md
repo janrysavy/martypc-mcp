@@ -7,6 +7,8 @@ writes, breakpoint resumes, private predicates, turbo-independent deadlines,
 operation retention and persistent TCP framing. Windows local build passes.
 The parent probe uses the unchanged PyPC client against the real executable.
 Independent review and remote CI are pending at this checkpoint.
+Initial Linux CI exposed missing libudev development files used by existing
+host serial enumeration; the workflow now installs that dependency.
 
 WIP: DOS/Pyro boot, hardware/instruction trace, VNC, input/serial, snapshots and
 DOSCTRL are not implemented or validated. Do not infer them from transport
