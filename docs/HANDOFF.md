@@ -69,7 +69,9 @@ references across edge/level and Auto-EOI modes, every IRQ, port reads/vector
 acknowledgment and the three-tick mask-change delay. Five actual resets of
 restored IRR/timer/initialization/read-selection/statistics fail; exact source
 restoration returns203 green. Schema keys and atomic invalid-state refusal
-are tested. Review, native frontend rebuild and final CI/integration pending.
+are tested. Independent review found no defect within this bounded scope;
+all38 RPC/config tests and fresh Windows UI/headless builds pass.
+Final Windows/Linux CI/integration pending.
 This is PIC-owned state only, not physical 8259 timing or whole-machine restart.
 
 NEXT: DMA/PPI/video/audio/input, disks and pending host
