@@ -28,7 +28,7 @@ use std::{fmt::Display, str::FromStr};
 
 use serde::Deserialize;
 
-#[derive(Copy, Clone, Default, Debug, PartialEq, Hash, Deserialize)]
+#[derive(Copy, Clone, Default, Debug, PartialEq, Hash, Deserialize, serde::Serialize)]
 pub enum ControllerLayout {
     #[default]
     TwoJoysticksTwoButtons,

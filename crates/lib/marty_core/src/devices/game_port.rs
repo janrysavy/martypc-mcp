@@ -73,14 +73,18 @@ pub const POT_OHMS: f64 = 100_000.0;
 pub const BASE_CHARGE_TIME_US: f64 = 25.2;
 pub const CHARGE_FACTOR: f64 = 0.011;
 
-#[derive(Default)]
+#[derive(Clone, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Axis {
+    #[serde(with = "crate::snapshot_codec::f64_bits")]
     pos:    f64,
+    #[serde(with = "crate::snapshot_codec::f64_bits")]
     time:   f64,
     timing: bool,
 }
 
-#[derive(Default)]
+#[derive(Clone, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Stick {
     x: Axis,
     y: Axis,
@@ -93,7 +97,10 @@ pub struct GamePortState {
     pub resistance: [(f64, f64); 2],
 }
 
-#[derive(Default)]
+mod state;
+
+#[derive(Clone, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct GamePort {
     port_base: u16,
     layout:    ControllerLayout,

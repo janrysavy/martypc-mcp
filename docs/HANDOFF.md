@@ -74,7 +74,7 @@ all38 RPC/config tests and fresh Windows UI/headless builds pass.
 Final Windows/Linux CI passed; integrated linearly, source branch deleted.
 This is PIC-owned state only, not physical 8259 timing or whole-machine restart.
 
-WIP DMA component: every native controller/channel field, partial register
+INTEGRATED DMA PR13 atca691f98: every native controller/channel field, partial register
 I/O, controller request_reg, transfer address/count/page and terminal status
 are captured. Native channel.request status flags are not updated by service
 calls; request-status behavior is not proven by this snapshot component.
@@ -85,7 +85,8 @@ all mode combinations/full page bytes. Six actual lost-state controls fail;
 exact source restoration returns206 green. Unsupported decrement transfers,
 write auto-init and other native service gaps remain unchanged. Review found
 no restore defect; request-status wording is clarified. All38 RPC/config tests
-and fresh Windows UI/headless builds pass. Final CI/integration pending.
+and fresh Windows UI/headless builds pass. Final Windows/Linux CI passed;
+integrated linearly, source branch deleted. PPI PR14 now targets main.
 Not full bus/device/restart.
 
 WIP PPI component: raw control byte, modes/latches/dirty flags and four exact
@@ -110,7 +111,16 @@ preserve this existing behavior; per-byte protocol/hardware correction is OPEN.
 External PIC/PIT/cassette/keyboard queues and complete restart remain OPEN;
 these tests do not establish physical keyboard or8255 timing.
 
-NEXT: review/publish PPI, video/audio/input, disks and pending host
+WIP game-port component: positions/buttons and all four in-flight charge timers
+are serialized without retriggering or host sampling. Four tests and216 core
+tests pass.1024 destructive JSON native continuations cover both layouts and
+default/alternate ports;64 seeded IEEE-bit cases prove storage only. Four actual
+lost-state controls fail, then exact source restoration returns216 green.
+Strict nested keys/array lengths and atomic version/port/layout/axis preflight
+are tested. Review/frontend builds/final CI pending. Not physical analog timing,
+full input queues, complete machine state or restart proof.
+
+NEXT: publish game port, integrate final-tested PPI, keyboard/video/audio, disks and pending host
 I/O, with atomic dependency preflight, then real process-restart continuation.
 Hardware trace,VNC,keyboard/serial RPC and physical XT/gameplay parity remain
 OPEN. Controlled BIOS-ring input is not hardware IRQ input.
