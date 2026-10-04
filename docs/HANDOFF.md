@@ -283,11 +283,15 @@ Caller-owned access policy/backend/path, atomic multi-disk dependencies,
 Disk/ATA/XT-IDE transfer state and actual process/machine restart remain OPEN.
 The parent retains source/product-bound raw transcripts and control recipes.
 
-WIP Disk wrapper PR22 has265 core tests and four paired deliberate omissions;
-review/frontend/final CI remain pending. Its parent-bound receipts retain exact
-source/product hashes; complete machine/controller restart is not proven.
+FINISHED local Disk wrapper initial gate:264 core tests passed before rebase;
+24 native JSON continuations
+preserve seek/next-sector behavior, reads/writes and geometry differing from
+VHD. A native unload/rebind keeps stale CHS. Strict required/unknown keys,
+provider-presence/hash/version refusals and independent Disk/CHS/geometry field
+inventories pass. Fresh rebased gate, omissions, review/publication/final CI
+are still pending. VHD follow-up fixes are included; no native algorithm changes.
 
-NEXT: finish VHD exact-head CI, then Disk review/frontend gates;
+NEXT: finish VHD exact-head CI; Disk omission/review gates;
 ATA/XT-IDE pending transfers, remaining devices/bus clocks/audio/host I/O,
 atomic whole-machine dependency preflight and real process-restart continuation.
 Hardware trace,VNC,keyboard/serial RPC and physical XT/gameplay parity remain

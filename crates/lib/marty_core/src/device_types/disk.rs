@@ -36,6 +36,9 @@ use crate::{
 use core::fmt;
 use std::fmt::Debug;
 
+mod state;
+pub(crate) use state::DiskState;
+
 pub struct Disk {
     position: DiskChs,
     geometry: DriveGeometry,
