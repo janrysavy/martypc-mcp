@@ -1,135 +1,48 @@
 # Fork handoff
 
-BIU component is locally tested: explicit version1 queue/address/data/8288 pin,
-T/TA/pipeline/READY/wait/transfer state, without reconstructing or flushing fetches.
-Two native CPU types exercise1000 JSON restores each with explicit subsequent
-cycles against an untouched reference; actual T1-T4/address/preload are asserted. Invalid,
-missing/unknown fields and queue errors refuse before any component mutation.
-All187 native core tests pass. This is not a CPU or machine snapshot: EU/registers,
-interrupt/DMA/clocks, the owned bus/devices/disks and restart proof remain WIP.
-Negative control exposed a test flaw: destroying via the restorer could mask
-an omitted assignment. Independent corruption now makes a lost T-cycle fail.
-Review's zero-transfer concern is false: native Passive/reset explicitly sets0;
-the old field comment is corrected. Nested queue required fields are also tested.
-Focused follow-up review and final-head CI are pending.
+NEXT: complete restartable snapshots before further Pyro timing research.
+No complete CPU/machine snapshot or process-restart continuation proof exists.
+Contract and launch/input rules: [JSON_RPC_API.md](JSON_RPC_API.md).
 
-QUEUE REVIEW fixes: refuse unreachable in-range fetch policies while preserving
-both existing Default and constructor values. Refusal tests now exercise in-range
-ring/policy errors, and the4000 continuation vectors assert actual wraps/preloads.
-`discard` is currently never read by the queue/BIU; its test proves stored-bit
-preservation only. The original184-test claim was freshly measured outside the
-reviewer's read-only sandbox; Ubuntu PR7 CI also passed. Full snapshots remain WIP.
-UI follow-up review found no defect in its bounded patch; final-head CI is pending.
+PR6 is locally tested and independently reviewed: native Rust/wgpu UI and
+headless share one Machine debugger. RPC replaces the normal GUI runner.
+Local keyboard/hotkeys/joystick mappings, mouse/light pen, gamepads and
+focus-loss clearing default off; --local-input explicitly permits manual input.
+Frontend worker mutations and GUI execution controls cannot take ownership.
+All38 debugger/disk/config tests and fresh Windows builds pass. A live GUI/peer
+receipt agrees over paused reads,64 BIOS boundaries,RAM/CGA/ROM and5ms execution.
+The bounded64-request queue/soft8ms pump has a flood regression rejecting the
+old full-batch drain. Live host-key injection/audio/pixel equality remain OPEN.
+Final-head CI is pending; do not assume PR6 is integrated yet.
 
-REVIEW follow-up: request backlog is bounded to64 and the soft8ms pump budget
-is checked between atomic requests (one request/instruction may overrun it).
-New flood regression rejects the original full-batch drain. Frontend worker
-completions cannot attach media/write guest state under RPC. OSD events now obey
-local-input policy, including explicit manual input; reboot/menu/debug-step
-hotkeys cannot take ownership. Looping audio uses actual RPC run state. These
-fix verified review findings; 28 debugger/disk and ten config tests pass locally,
-with fresh native builds. Live injected-input/audio/pixel proof remains open.
-The bounded parent UI peer receipt is committed in parent55986c75, rather than
-only scratch. Focused follow-up review and final-head CI are pending.
+PR7 is a tested internal queue component, not a whole snapshot: version1
+ring/stale storage/preload/discard/fetch policies, with complete preflight.
+Four tests include4000 JSON restores/continuations and invalid-field refusals.
+Reachable-policy review fixes pass all184 core tests. Follow-up found no
+production defect; existing tests disprove its Default/wrap objections.
+Discard is currently never read; only storage preservation is proven.
+Final-head CI/integration is pending.
 
-FINISHED component, WIP whole machine: version1 instruction-queue state preserves
-ring storage/indices, preload, discard and actual fetch policy. Strict required
-fields/version/configuration/ring validation precedes mutation. Four tests cover
-4000 JSON restores/continuations, wrapping/odd fetch/flush/default-policy state
-and invalid/missing/unknown-field refusals. All184 native core tests pass. Adding
-JSON codec tests exposed ambiguous service enum `.into()` comparisons; explicit
-u8/u16 conversions retain the existing register widths and all service tests pass.
-No CPU/bus/device/disk snapshot export or restart proof exists yet. NEXT: the
-remaining CPU state including prefetch/bus phase, then complete devices/disks,
-atomic dependency preflight and real continuation after process restart.
+PR8 adds the internal BIU component: queue/address/data/8288 pins/fetch PC,
+T/TA/pipeline/READY/wait/transfer state. All187 core tests pass;1000 JSON restores
+per8088/8086 execute two subsequent native cycles against an untouched reference.
+The first negative control exposed destruction via the restorer masking an
+omitted assignment. Independent corruption now rejects lost T-state, physical
+queue storage, either policy field and discard restorations in five actual
+mutation runs. Exact source restoration returns187 tests green. Follow-up found
+no production defect; its queue-coverage concern is fixed and tested, without
+another review. transfer0 is native idle/reset; the old field comment is fixed.
+EU/registers, interrupt/DMA/clocks, owned bus/devices/disks and restart proof
+remain WIP. Wait-state/device scenarios are not yet dynamically proven.
+PR8 final-head CI is pending. Rebase/integrate stacked PRs in6,7,8 order.
 
-FINISHED locally: the native `martypc` Rust/wgpu UI and headless frontend share
-`marty_debug_rpc` on the same Machine. RPC owns execution; repaint never starts
-a second runner. Local keyboard/hotkeys, keyboard-to-joystick, mouse/light pen,
-gamepads and focus-loss clearing default off under RPC. Explicit `--local-input`
-enables manual experiments; GUI machine controls remain hidden. See
-[JSON_RPC_API.md](JSON_RPC_API.md). Twenty-seven debugger/disk tests and ten config
-tests pass; fresh Windows GUI/headless builds pass. A live native window and
-headless peer agree over paused reads, 64 BIOS boundaries, low64KiB RAM/CGA/ROM,
-and a bounded5ms guest-time run. The new idle-connection test covers a Windows
-accepted-socket nonblocking inheritance failure found in the live run.
-Review and final-head Windows/Linux CI are pending. This is not complete
-snapshot, keyboard-RPC, full gameplay or physical XT timing proof.
-NEXT: complete restartable snapshots before further game timing, including
-8088 prefetch/CPU phase, RAM, devices/events, pending input, video and disk I/O.
-No full snapshot implementation exists; memory/register dumps do not meet it.
+Integrated baseline48cd3cdb provides bounded headless RPC, configured disks,
+guarded mailbox RAM, joystick control and actual DOSCTRL/TP6 compilation.
+The parent retains receipts under docs/evidence/martypc_*_20261004 and
+joystick_rpc_20261004, including all original startup/compiler limitations.
+Hardware trace,VNC,keyboard/serial RPC and physical XT/gameplay parity remain
+OPEN. Controlled BIOS-ring input is not hardware IRQ input.
 
-FINISHED locally: guarded RPC writes now recognize installed writable RAM
-expansions, using active bus mapping and exact device bounds. Three new tests
-bring the native suite to 25 passing tests: actual CPU/RPC mailbox word exchange,
-absent/boundary/hash/ROM/running refusals, and read-only/card extent checks.
-Fresh Windows headless build passes. No implicit upper-memory allocation and
-no video/EMS/ROM write permission. Parent's unchanged PyPC DOSCTRL client has
-uploaded/read/renamed/deleted files, captured stdout/stderr and child exit7,
-and freshly compiled a TP6 unit on a writable VHD. Deleting that TPU before a
-syntax-error compile leaves no stale product. These are bounded parent receipts,
-not full snapshot/gameplay proof. Focused source review found no defects;
-PR5 is integrated at48cd3cdb after final-head Windows/Linux CI passed.
-
-FINISHED: limited native headless JSON-lines debugger; see
-[JSON_RPC_API.md](JSON_RPC_API.md) for the supported PyPC-compatible methods and
-explicit gaps. Twenty-two native tests cover direct/RPC CPU+RAM+PIT equality, guarded
-writes, breakpoint resumes, private predicates, turbo-independent deadlines,
-operation retention and persistent TCP framing. Windows local build passes.
-The parent probe uses the unchanged PyPC client against the real executable.
-Initial review completed; fixed stale breakpoint stop after stepping and
-clarified capability/session metadata. PR1 is integrated after focused review
-and passing final-head Windows/Linux checks.
-Follow-up confirms step-stop/PPI fixes; unsupported metadata is expanded.
-Execution length remains exact-address metadata as in PyPC, tested explicitly;
-the review's range-matching objection does not describe the shared contract.
-Initial Linux CI exposed missing libudev development files used by existing
-host serial enumeration; the workflow now installs that dependency.
-Live alias probes exposed rejection of default execution kind and a false
-segmented alias hit. Both are fixed with native and parent client regressions.
-Flag text matches PyPC's trap-bit order. PPI software-turbo configurations are
-refused until frame housekeeping is supported, rather than running incorrectly.
-Review's missing-config-key and halt-hang claims are disproved by fresh config
-parsing and 100 CLI/HLT steps under each Continue/Warn/Stop policy. See tests.
-
-FINISHED locally: headless configured disks dispatch to Xebec/XT-IDE/Jr-IDE,
-preserve drive-slot holes and fail startup on load/parse/controller errors.
-Native slave IDENTIFY confirms attachment; missing/unsupported disks and excess
-slots fail. Headless frontend now enables matching EGA/VGA ROM requirements.
-Paused parent startup reproduced missing XT-IDE attachment and VGA BIOS before
-these fixes. PR2 is integrated after review and final-head Windows/Linux CI.
-The review found main-config drive numbers were ignored; explicit indexed
-overrides now preserve sparse/out-of-order entries and reject duplicate/excess
-slots. The parent is exercising real startup failures and bounded DOS boot.
-
-FINISHED locally: RPC continue versus normal batched native Run, including
-PIT IRQ0, REP copies and inspection at every boundary. Twelve comparisons agree
-on CPU/prefetch, clocks, PIC, PIT and low32KiB RAM; 366 copies/293 IRQ entries
-execute in300144 CPU cycles. All21 tests pass. PR3 is integrated at5026107d
-after focused review and Windows/Linux CI; parent retains the probe receipt.
-This closes a test gap, not every possible scheduling defect.
-
-The parent workspace boots MS-DOS6.22/original Pyro tutorial and menu with its
-pinned patched GLaBIOS and CGA; loaded code matches, CRT calibration103 observed.
-Automatic disk selection still fails. Hardware/instruction trace, VNC,
-keyboard/serial RPC and complete snapshots remain unsupported. DOSCTRL is
-now proven through configured mailbox RAM and a writable VHD (PR5). Controlled
-BIOS-ring input bypasses hardware IRQs. Next: observation/input for comparable
-original-game timing runs. No physical XT or full gameplay parity claim.
-
-CI is Windows/Linux headless tests+build, no artifacts/caches. macOS/WASM are
-manual. Local Pyro workspace uses installed Rust1.98.0 via `cargo +1.98.0`, with
-CARGO_HOME/TARGET_DIR and TEMP/TMP inside its ignored `re/_build/`.
-
-FINISHED locally: `input.joystick`/`input.joystick.state` expose the configured
-native game port. Complete normalized axes/buttons are atomically validated;
-tests check absent card, invalid late fields, paused-only writes, active-low
-buttons and both charge durations. Clock unchanged by injection. Keyboard is
-still unsupported. Shared PyPC implementation and actual guest OUT/IN201h TCP
-probes now pass; the parent retains the receipts. PyPC live ZIP restore during
-charge passes too. Focused review's Y-sign objection is false: RPC passes -y
-to the native frontend setter, which negates it into potentiometer position y.
-The actual guest at200us reads EEh for x=-1/y=+1 (X expired, Y charging),
-then E0h after1.5ms. This is not merely an echoed input value.
-Physical timing and Pyro calibration/gameplay remain unproven. Final-head CI
-and linear integration are tracked by PR4; parent records the integrated pins.
+CI: Windows/Linux debugger/core tests and native builds; no artifacts/caches.
+macOS/WASM are manual. Native Pyro work uses cargo +1.98.0 with CARGO_HOME,
+CARGO_TARGET_DIR and TEMP/TMP under the parent's ignored re/_build tree.

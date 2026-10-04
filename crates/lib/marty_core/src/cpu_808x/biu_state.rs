@@ -108,7 +108,13 @@ mod tests {
     // assignment would then leave the old value in place on BOTH calls and
     // falsely pass. Mutate fields independently, keeping only configuration.
     fn destroy_component(cpu: &mut Intel808x) {
-        cpu.queue.flush();
+        cpu.queue = if cpu.bus_width == BusWidth::Word {
+            // Default's distinct valid policy must also be replaced by restore.
+            InstructionQueue::default()
+        } else {
+            InstructionQueue::new(4, 1)
+        };
+        cpu.queue.set_discard(); // saved native vectors have the opposite bit
         cpu.address_bus ^= 0xFFFFF;
         cpu.address_latch ^= 0xFFFFF;
         cpu.data_bus ^= 0xFFFF;
