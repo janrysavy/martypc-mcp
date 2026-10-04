@@ -1,5 +1,14 @@
 # Fork handoff
 
+FINISHED locally: guarded RPC writes now recognize installed writable RAM
+expansions, using active bus mapping and exact device bounds. Three new tests
+bring the native suite to 25 passing tests: actual CPU/RPC mailbox word exchange,
+absent/boundary/hash/ROM/running refusals, and read-only/card extent checks.
+Fresh Windows headless build passes. No implicit upper-memory allocation and
+no video/EMS/ROM write permission. Parent is testing real DOSCTRL/VHD file
+operations; command execution and complete snapshots are not yet proven.
+Focused review and final-head Windows/Linux CI are pending before integration.
+
 FINISHED: limited native headless JSON-lines debugger; see
 [JSON_RPC_API.md](JSON_RPC_API.md) for the supported PyPC-compatible methods and
 explicit gaps. Twenty-two native tests cover direct/RPC CPU+RAM+PIT equality, guarded

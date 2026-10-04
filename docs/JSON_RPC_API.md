@@ -33,8 +33,9 @@ polling does not advance a paused machine.
 This is a **subset** of the PyPC debugger contract. The existing PyPC
 `guest.dos_control.RPC` transport, `read` and `write` methods work unchanged for
 supported memory ranges. Query `agent.capabilities` before using higher-level
-controllers. In particular DOSCTRL's `D800:0000` mailbox is outside conventional
-RAM: a working transport does **not** establish DOSCTRL support.
+controllers. DOSCTRL's `D800:0000` mailbox requires explicit installed RAM:
+normal upper-memory holes remain unwritable. A working transport alone does
+**not** establish DOSCTRL command execution or file-transfer support.
 
 | Method | Parameters and result |
 | --- | --- |
@@ -43,7 +44,7 @@ RAM: a working transport does **not** establish DOSCTRL support.
 | `state.get`, `state.get_registers` | Exact aliases; `general`, `segments`, architectural `ip`, `flags`, `flags_text`, CPU `clock`, `emulated_time_ns`, `in_hlt`, `state_revision`. |
 | `state.set_registers` | Paused only. Requires `expected_state_revision`, `expected` values and nonempty `set`. AX/BX/CX/DX/SP/BP/SI/DI/CS/DS/ES/SS/IP/FLAGS, lowercase. All guards and Word ranges checked before any write. Returns `before`/`after`. |
 | `memory.read` | `address`, optional `length` (default 1, maximum 65536). Returns physical address, byte count, hex, base64, SHA-256 and revision. Uses native bus peeks. |
-| `memory.write` | Paused only. `address`, `data_base64`, optional `expected_sha256` (case insensitive). Preflights the entire range; only unmapped conventional RAM is writable. Returns before/after hashes and revision. |
+| `memory.write` | Paused only. `address`, `data_base64`, optional `expected_sha256` (case insensitive). Preflights the entire range; only installed writable RAM is writable (base RAM or configured conventional RAM expansion). ROM, video, EMS and other MMIO devices remain refused. Returns before/after hashes and revision. |
 | `input.joystick.state` | Configured `joysticks` with index `joystick`, normalized `x`/`y`, boolean `buttons`, and revision. An absent game port reports an empty array. |
 | `input.joystick` | Paused only. Complete `joystick`, finite `x`/`y` in -1..1 and `buttons` matching the configured layout (two buttons per stick, or four on a single stick). Entire request preflighted before native potentiometer/button mutation; guest clock does not advance. Returns the same state schema. |
 | `breakpoints.create` | Optional `kind:"execution"` (default), `address`, optional boolean `once`, `condition`, `hit_filter`, bounded `length` (default 1). Returns `breakpoint_id` and descriptor. Maximum 256 persistent breakpoints. |
