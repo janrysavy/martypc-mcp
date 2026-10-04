@@ -60,7 +60,7 @@ pub enum OperandSelect {
     SecondOperand,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum InstructionWidth {
     Byte,
     Word,
@@ -93,7 +93,8 @@ impl From<&InstructionWidth> for OperandSize {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Instruction {
     pub decode_idx: usize,
     pub opcode: u8,
@@ -102,7 +103,9 @@ pub struct Instruction {
     pub size: u32,
     pub width: InstructionWidth,
     pub mnemonic: Mnemonic,
+    #[serde(deserialize_with = "crate::snapshot_codec::required_option")]
     pub xi: Option<Xi>,
+    #[serde(deserialize_with = "crate::snapshot_codec::required_option")]
     pub segment_override: Option<Segment>,
     pub operand1_type: OperandType,
     pub operand2_type: OperandType,

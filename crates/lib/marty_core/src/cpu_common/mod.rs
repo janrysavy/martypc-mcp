@@ -92,7 +92,7 @@ pub enum CpuArch {
     I8080,
 }
 
-#[derive(Debug, Default, PartialEq)]
+#[derive(Debug, Default, PartialEq, Clone, serde::Serialize, serde::Deserialize)]
 pub enum ExecutionResult {
     #[default]
     Okay,
@@ -104,7 +104,7 @@ pub enum ExecutionResult {
     Halt,
 }
 
-#[derive(Debug, Copy, Clone, Default, PartialEq)]
+#[derive(Debug, Copy, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum CpuException {
     #[default]
     NoException,
@@ -168,7 +168,7 @@ impl From<Register8_8080> for Register16 {
     }
 }
 
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum Register8 {
     AL,
     CL,
@@ -194,7 +194,7 @@ impl Register8 {
     }
 }
 
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum Register16 {
     AX,
     CX,
@@ -443,7 +443,7 @@ impl CpuType {
     }
 }
 
-#[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq)]
+#[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, serde::Serialize)]
 pub enum CpuSubType {
     #[default]
     None,
@@ -516,7 +516,7 @@ pub enum StepResult {
 // Internal Emulator interrupt service events. These are returned to the machine when
 // the internal service interrupt is called to request an emulator action that cannot
 // be handled by the CPU alone.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum ServiceEvent {
     /// A request for the machine-level service interrupt manager to handle a function.
     ServiceInterrupt(u8),

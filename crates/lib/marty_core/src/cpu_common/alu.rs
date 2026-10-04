@@ -34,7 +34,7 @@
 /// The ALU operation specifier 'Xi' determines the ALU operation by decoding 5 bits from the group
 /// decode rom, opcode, and optionally modrm. We don't bother decoding Xi. Instead, Xi is stored
 /// in the precalculated decode table.
-#[derive(Copy, Clone, Default, Debug)]
+#[derive(Copy, Clone, Default, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum Xi {
     #[default]
     ADD,

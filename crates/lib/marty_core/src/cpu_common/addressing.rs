@@ -33,7 +33,7 @@
 use crate::cpu_common::{calc_linear_address, Register16};
 use std::{fmt, fmt::Display};
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum Displacement {
     NoDisp,
     Pending8,
@@ -42,7 +42,7 @@ pub enum Displacement {
     Disp16(i16),
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum AddressingMode {
     BxSi,
     BxDi,
@@ -187,7 +187,7 @@ impl Display for WithSign<Displacement> {
     }
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub enum CpuAddress {
     Flat(u32),
     Segmented(u16, u16),

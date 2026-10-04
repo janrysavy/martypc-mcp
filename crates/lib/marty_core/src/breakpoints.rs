@@ -31,6 +31,7 @@
 */
 
 #[allow(dead_code)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum BreakPointType {
     StepOver(u32),       // Breakpoint on next decoded instruction
     Execute(u16, u16),   // Breakpoint on CS:IP
@@ -57,7 +58,8 @@ pub struct StopWatchData {
     pub total_duration: u64,
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct CycleStopWatch {
     pub start: u32,
     pub stop: u32,

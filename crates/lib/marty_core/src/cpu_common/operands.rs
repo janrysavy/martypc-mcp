@@ -32,7 +32,7 @@
 
 use crate::cpu_common::{AddressingMode, Register16, Register8};
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum OperandType {
     Immediate8(u8),
     Immediate16(u16),

@@ -35,6 +35,7 @@ use std::fmt;
 /// Mnemonics for 8080 instructions
 #[allow(dead_code)]
 #[derive(PartialEq, Copy, Clone, Debug, Default)]
+#[derive(serde::Serialize, serde::Deserialize)]
 pub enum Mnemonic8080 {
     #[default]
     Invalid,
@@ -131,7 +132,7 @@ pub enum Mnemonic8080 {
 
 /// Mnemonics for x86 instructions
 #[allow(dead_code)]
-#[derive(PartialEq, Copy, Clone, Debug, Default)]
+#[derive(PartialEq, Copy, Clone, Debug, Default, serde::Serialize, serde::Deserialize)]
 pub enum Mnemonic {
     #[default]
     Invalid,

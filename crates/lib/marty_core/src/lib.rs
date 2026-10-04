@@ -54,6 +54,7 @@ pub mod machine_preferences;
 pub mod machine_types;
 pub mod memerror;
 pub mod service_interrupt;
+mod snapshot_codec;
 #[cfg(feature = "sound")]
 pub mod sound;
 pub mod tracelogger;

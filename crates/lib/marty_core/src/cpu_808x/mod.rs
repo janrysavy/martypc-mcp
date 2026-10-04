@@ -76,6 +76,7 @@ mod modrm;
 mod muldiv;
 mod queue;
 mod stack;
+mod state;
 mod step;
 mod string;
 
@@ -297,14 +298,14 @@ pub const SREGISTER_LUT: [Register16; 8] = [
     Register16::DS,
 ];
 
-#[derive(Debug, Copy, Clone, PartialEq, Default)]
+#[derive(Debug, Copy, Clone, PartialEq, Default, serde::Serialize, serde::Deserialize)]
 pub enum CpuState {
     #[default]
     Normal,
     BreakpointHit,
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum CallStackEntry {
     Call {
         cs: u16,
@@ -344,7 +345,7 @@ pub enum Flag {
     Overflow,
 }
 
-#[derive(Copy, Clone, Default, Debug)]
+#[derive(Copy, Clone, Default, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum DmaState {
     #[default]
     Idle,
@@ -356,7 +357,7 @@ pub enum DmaState {
     //DmaWait(u8)
 }
 
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum RepType {
     #[default]
     NoRep,
@@ -367,7 +368,7 @@ pub enum RepType {
 }
 
 #[allow(dead_code)]
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum InterruptType {
     NMI,
     Exception,
@@ -393,6 +394,7 @@ pub enum FetchState {
     Halted,
 }
 
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum HistoryEntry {
     InstructionEntry {
         cs: u16,
