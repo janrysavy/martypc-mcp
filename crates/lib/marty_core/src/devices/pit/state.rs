@@ -248,14 +248,24 @@ mod tests {
                     }
                     if n % 11 == 0 {
                         for c in 0..3 {
-                            reference.channels[c].latch_count();
-                            restored.channels[c].latch_count();
-                            assert_eq!(reference.data_read(c), restored.data_read(c));
+                            // Exercise actual PIT port dispatch and monotonic
+                            // I/O catch-up deltas before the outer bus run.
+                            let delta = DeviceRunTimeUnit::SystemTicks(5 + c as u32);
+                            reference.write_u8(PIT_COMMAND_REGISTER, (c as u8) << 6, Some(&mut bus_a), delta, None);
+                            restored.write_u8(PIT_COMMAND_REGISTER, (c as u8) << 6, Some(&mut bus_b), delta, None);
+                            assert_eq!(
+                                reference.read_u8(0x40 + c as u16, delta),
+                                restored.read_u8(0x40 + c as u16, delta)
+                            );
                         } // preserve each channel's pending read MSB
                     }
                     if n % 11 == 1 {
                         for c in 0..3 {
-                            assert_eq!(reference.data_read(c), restored.data_read(c));
+                            let delta = DeviceRunTimeUnit::SystemTicks(0);
+                            assert_eq!(
+                                reference.read_u8(0x40 + c as u16, delta),
+                                restored.read_u8(0x40 + c as u16, delta)
+                            );
                         }
                     }
                     if n % 23 == 0 {

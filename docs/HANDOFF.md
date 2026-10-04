@@ -48,12 +48,12 @@ restart remain excluded. Final Windows/Linux CI/integration remain pending.
 WIP PIT component: all three channels, latches/partial I/O/gates, clock phase,
 timewarp, dirty markers and exact pending speaker sample bits are serialized.
 Five tests and200 core tests pass.2048 destructive JSON continuation restores
-cover all6 modes on8253/8254, every channel's partial reads, native I/O/PPI gates,
+cover all6 modes on8253/8254, every channel's latched partial reads through actual PIT ports, native I/O/PPI gates,
 PIC observations and newly emitted PCM bits. A seeded legacy FIFO consumer
 probe checks emitted output before state equality; normal producer stays empty.
 Five real restore omissions and reversed FIFO order fail; the latter changes
 emitted PCM. Exact source restoration returns200 green. Review coverage gaps
-are fixed; exact-source follow-up is running. The first review accidentally
+are fixed; port-dispatch follow-up review is pending. The first review accidentally
 captured a deliberate mutation and is NOT a production review. All38 RPC/config
 tests and fresh Windows UI/headless builds pass; later changes affect tests only.
 External emitted audio queues, PIC/DMA/PPI/bus/device/disk/machine restart remain
