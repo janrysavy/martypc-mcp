@@ -112,12 +112,16 @@ External PIC/PIT/cassette/keyboard queues and complete restart remain OPEN;
 these tests do not establish physical keyboard or8255 timing.
 
 WIP game-port component: positions/buttons and all four in-flight charge timers
-are serialized without retriggering or host sampling. Four tests and216 core
+are serialized without retriggering or host sampling. Five tests and217 core
 tests pass.1024 destructive JSON native continuations cover both layouts and
 default/alternate ports;64 seeded IEEE-bit cases prove storage only. Four actual
-lost-state controls fail, then exact source restoration returns216 green.
+lost-state controls fail, then exact source restoration returns217 green.
+Ten additional restores cross native charge deadlines on actual port reads;
+lost position/time/active fields fail those I/O checks, buttons fail native I/O.
+Initial review's missing-time-control claim is false: the exact prompt contained
+that actual failure. Native runtime tail/constants are byte-identical to base.
 Strict nested keys/array lengths and atomic version/port/layout/axis preflight
-are tested. Review/frontend builds/final CI pending. Not physical analog timing,
+are tested. Focused follow-up/final frontend builds/CI pending. Not physical analog timing,
 full input queues, complete machine state or restart proof.
 
 NEXT: publish game port, integrate final-tested PPI, keyboard/video/audio, disks and pending host

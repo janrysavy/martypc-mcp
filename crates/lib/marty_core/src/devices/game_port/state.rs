@@ -114,6 +114,47 @@ mod tests {
     }
 
     #[test]
+    fn game_port_restored_charge_deadline_matches_port_reads() {
+        for layout in LAYOUTS {
+            // These prefixes stop just before the native model's charge
+            // deadlines. They do not establish physical analog calibration.
+            for (pos, prefix) in [
+                (-1.0, 25.0625),
+                (-0.5, 300.0625),
+                (0.0, 575.0625),
+                (0.5, 850.0625),
+                (1.0, 1125.0625),
+            ] {
+                let mut reference = GamePort::new(None, Some(layout));
+                reference.set_stick_pos(0, 0, Some(pos), Some(-pos));
+                reference.set_button(0, 0, true);
+                reference.write_u8(GAMEPORT_DEFAULT_PORT, 0, None, DeviceRunTimeUnit::SystemTicks(0), None);
+                reference.run(prefix);
+                let before = reference.read_u8(GAMEPORT_DEFAULT_PORT, DeviceRunTimeUnit::SystemTicks(0));
+                assert_ne!(before & STICK1_X, 0, "native charge still active pos={pos}");
+                let wire = serde_json::to_vec(&reference.snapshot_state().unwrap()).unwrap();
+                let mut restored = GamePort::new(None, Some(layout));
+                restored.restore_state(&serde_json::from_slice(&wire).unwrap()).unwrap();
+                assert_eq!(
+                    restored.read_u8(GAMEPORT_DEFAULT_PORT, DeviceRunTimeUnit::SystemTicks(0)),
+                    before
+                );
+                reference.run(0.25);
+                restored.run(0.25);
+                let after = reference.read_u8(GAMEPORT_DEFAULT_PORT, DeviceRunTimeUnit::SystemTicks(0));
+                assert_eq!(after & STICK1_X, 0, "native charge completed pos={pos}");
+                // Test the guest-visible deadline before any serialized-state
+                // comparison can reject a lost elapsed clock merely as storage.
+                assert_eq!(
+                    restored.read_u8(GAMEPORT_DEFAULT_PORT, DeviceRunTimeUnit::SystemTicks(0)),
+                    after,
+                    "restored charge deadline pos={pos}"
+                );
+            }
+        }
+    }
+
+    #[test]
     fn game_port_exact_axis_bits_roundtrip_without_retrigger() {
         for n in 0..64 {
             let mut port = GamePort::new(None, Some(LAYOUTS[n % 2]));
