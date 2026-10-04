@@ -29,7 +29,7 @@
 //! This can be used for either the vertical or horizontal sync signals.
 
 /// Sync pulse polarity initialization parameter.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum SyncPolarity {
     #[default]
     Positive, // Idle Low, Pulse High
@@ -72,31 +72,48 @@ pub struct VideoHoldPllDebug {
     pub is_locked: bool,
 }
 
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct VideoHoldPll {
     enabled: bool,
     /// Master pixel clock frequency.
     /// - 16.25 Mhz for MDA
     /// - 14.31818 Mhz for CGA and 320 column EGA modes
+    #[serde(with = "crate::snapshot_codec::f64_bits")]
     ticks_per_second: f64,
+    #[serde(with = "crate::snapshot_codec::f64_bits")]
     target_period_ticks: f64,
+    #[serde(with = "crate::snapshot_codec::f64_bits")]
     last_period_ticks: f64,
+    #[serde(with = "crate::snapshot_codec::f64_bits")]
     base_phase_step: f64, // Phase increment per clock tick
+    #[serde(with = "crate::snapshot_codec::f64_bits")]
     max_drift: f64,       // Upper bound of the integrator
+    #[serde(with = "crate::snapshot_codec::f64_bits")]
     min_drift: f64,       // Lower bound of the integrator
+    #[serde(with = "crate::snapshot_codec::f64_bits")]
     max_error: f64,
 
     // Loop Filter gain values. There is no rigorous derivation here, just trial and error.
+    #[serde(with = "crate::snapshot_codec::f64_bits")]
     kp: f64, // Proportional term: Directly corrects phase
+    #[serde(with = "crate::snapshot_codec::f64_bits")]
     ki: f64, // Integral term: Corrects frequency drift (dampening factor)
 
+    #[serde(with = "crate::snapshot_codec::f64_bits")]
     free_drift_term: f64,
     /// Size of the sync window (in phase units)
+    #[serde(with = "crate::snapshot_codec::f64_bits")]
     window_size: f64,
     /// Progress through current frame [0.0, 1.0]
+    #[serde(with = "crate::snapshot_codec::f64_bits")]
     vco_phase: f64,
+    #[serde(with = "crate::snapshot_codec::f64_bits")]
     debug_phase: f64,
+    #[serde(with = "crate::snapshot_codec::f64_bits")]
     last_error: f64,
     /// The "V-Hold" adjustment to the base frequency
+    #[serde(with = "crate::snapshot_codec::f64_bits")]
     drift_offset: f64,
     last_sync_active: bool,
 
@@ -108,6 +125,21 @@ pub struct VideoHoldPll {
 }
 
 impl VideoHoldPll {
+    pub(crate) fn validate_snapshot(&self) -> Result<(), &'static str> {
+        if ![
+            self.ticks_per_second, self.target_period_ticks, self.last_period_ticks,
+            self.base_phase_step, self.max_drift, self.min_drift, self.max_error,
+            self.kp, self.ki, self.free_drift_term, self.window_size, self.vco_phase,
+            self.debug_phase, self.last_error, self.drift_offset,
+        ].iter().all(|v| v.is_finite()) || self.ticks_per_second <= 0.0
+            || self.target_period_ticks <= 0.0 || self.min_drift > self.max_drift {
+            return Err("invalid monitor PLL clocks/limits");
+        }
+        // Native adjust_hold may exceed nominal drift bounds; run only wraps
+        // phase once. Preserve those finite states, not an idealized PLL.
+        Ok(())
+    }
+
     pub fn new(clock_base: f64, ref_clock: f64, terms: VideoPllParams) -> Self {
         Self {
             enabled: true,

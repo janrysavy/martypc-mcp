@@ -173,7 +173,20 @@ exist. Audit with full inherited code disproves all three objections and finds
 no remaining concrete scoped restore defect. Parent retains source/product-bound
 proof and both review answers. Final publication/CI/integration remain pending.
 
-NEXT: publish input component, integrate final-tested keyboard/input; CGA,
+INTEGRATED keyboard PR16/cb724cd0 after final Windows/Linux CI; source branch
+deleted. Input PR17/df27e5f0 is published on main, final CI pending.
+WIP monitor component: both native synchronization PLLs and all monitor fields
+are captured with exact finite IEEE clock bits and strict nested schemas.
+233 core tests pass.515 destructive native continuation restores cover enabled/
+disabled operation, both polarities, hold adjustment, callback edges and actual
+observed periods. Four initial configuration roundtrips are storage only.
+Seven actual lost phase/drift/edge/enable/timer/polarity controls fail native
+callbacks or PLL APIs; exact source restoration returns233 green. Native monitor
+and PLL runtime algorithms are unchanged. This preserves the current model;
+no physical monitor or CGA/VRAM/full-machine/restart proof is claimed.
+Independent review, fresh frontend builds, publication/final CI remain pending.
+
+NEXT: publish monitor component, integrate final-tested input/monitor; CRTC/CGA,
 video/audio, disks and pending host
 I/O, with atomic dependency preflight, then real process-restart continuation.
 Hardware trace,VNC,keyboard/serial RPC and physical XT/gameplay parity remain

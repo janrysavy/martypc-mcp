@@ -33,6 +33,11 @@ use crate::{
     video_pll::{SyncPolarity, VideoHoldPll, VideoPllParams},
 };
 
+mod state;
+pub(crate) use state::MonitorState;
+
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct FifteenHertzMonitor {
     emulate_vsync:  bool,
     emulate_hsync:  bool,
