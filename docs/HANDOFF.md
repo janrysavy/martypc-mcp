@@ -174,7 +174,8 @@ no remaining concrete scoped restore defect. Parent retains source/product-bound
 proof and both review answers. Final publication/CI/integration remain pending.
 
 INTEGRATED keyboard PR16/cb724cd0 after final Windows/Linux CI; source branch
-deleted. Input PR17/df27e5f0 is published on main, final CI pending.
+deleted. Input PR17/df27e5f0 is integrated after final Windows/Linux CI; source branch
+deleted and monitor PR18 retargeted to main.
 WIP monitor component: both native synchronization PLLs and all monitor fields
 are captured with exact finite IEEE clock bits and strict nested schemas.
 233 core tests pass.515 destructive native continuation restores cover enabled/
@@ -198,7 +199,19 @@ scoped defect. All38 RPC/config tests and fresh Windows UI/headless builds pass.
 The parent retains both source/product-bound receipts, actual mutation driver
 and before-fix regression. Final publication/CI/integration remain pending.
 
-NEXT: publish monitor component, integrate final-tested input/monitor; CRTC/CGA,
+WIP CRTC component:37 native fields are captured, retaining selected register,
+raw registers, pending frame/address latches, cursor dividers, interlaced parity
+and sync/raster counters. Six new tests and241 core tests pass.4614 destructive
+JSON native continuations cover three interlace modes, three sync widths, all
+four cursor modes, partial port writes, lightpen reads, actual blink output and
+native VTA32-to-half-line transition. Strict schemas and atomic counter/version/
+trace refusals are tested. Seven actual lost-state controls fail native output;
+omitting a native slot fails the independent field inventory, then exact source
+restoration returns241 green. Console/file trace handles are refused; card VRAM,
+monitor/bus/frontend state, physical timing and complete restart are not proven.
+Native CRTC runtime is unchanged. Review, frontend builds and final CI pending.
+
+NEXT: publish CRTC component, integrate final-tested monitor/CRTC; CGA,
 video/audio, disks and pending host
 I/O, with atomic dependency preflight, then real process-restart continuation.
 Hardware trace,VNC,keyboard/serial RPC and physical XT/gameplay parity remain

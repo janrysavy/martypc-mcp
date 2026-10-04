@@ -59,7 +59,7 @@ const HORIZONTAL_SYNC_WIDTH_MASK: u8 = 0x0F;
 
 const REGISTER_UNREADABLE_VALUE: u8 = 0xFF;
 
-#[derive(Copy, Clone, Debug, Default)]
+#[derive(Copy, Clone, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum InterlacedParity {
     #[default]
     Even,
@@ -98,7 +98,7 @@ pub enum CursorStatus {
     SlowBlink,
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, strum_macros::EnumCount)]
+#[derive(Copy, Clone, Debug, PartialEq, strum_macros::EnumCount, serde::Serialize, serde::Deserialize)]
 #[repr(usize)]
 pub enum CrtcRegister {
     HorizontalTotalR0,        // R0
@@ -151,7 +151,7 @@ impl From<usize> for CrtcRegister {
     }
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct CrtcRegisterFile([u8; CrtcRegister::COUNT]);
 
 impl Default for CrtcRegisterFile {
@@ -208,7 +208,7 @@ macro_rules! push_reg_str {
     };
 }
 
-#[derive(Copy, Clone, Default, Debug)]
+#[derive(Copy, Clone, Default, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum CrtcMode {
     #[default]
     NormalRows,
@@ -216,7 +216,7 @@ pub enum CrtcMode {
     InterlacedHalfLine,
 }
 
-#[derive(Copy, Clone, Default, Debug)]
+#[derive(Copy, Clone, Default, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum CrtcInterlacedMode {
     #[default]
     NormalVideo,
@@ -248,7 +248,8 @@ impl CrtcInterlacedMode {
     }
 }
 
-#[derive(Copy, Clone, Default, Debug)]
+#[derive(Copy, Clone, Default, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct CrtcStatus {
     pub den: bool, // Display Enable. True if we are in counting in the display area, false otherwise
     pub hborder: bool,
@@ -257,6 +258,9 @@ pub struct CrtcStatus {
     pub hsync: bool,
     pub vsync: bool,
 }
+
+mod state;
+pub(crate) use state::CrtcState;
 
 pub struct Crtc6845 {
     pub reg:    CrtcRegisterFile, // Externally-accessible CRTC register file
