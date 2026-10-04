@@ -44,7 +44,8 @@ use std::ops::{Deref, DerefMut};
 /// DirtyAging adds a u8 frame age parameter.
 /// Aging8 has a u8 frame age parameter.
 #[allow(dead_code)]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Updatable<T> {
     val:   T,
     dirty: bool,

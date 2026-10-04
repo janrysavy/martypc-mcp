@@ -35,8 +35,8 @@ proposed15-byte rejection. All11 active host facilities are refused. Removing
 a BIU field from its macro makes the native storage inventory fail; that review
 coverage objection is disproved too. Five restore omissions and this sixth
 inventory control fail, then193 core tests pass. All188 collector-feature tests
-pass, including explicit snapshot refusal. Focused follow-up/final
-CI/integration remain pending.
+pass, including explicit snapshot refusal. Focused follow-up found no defect;
+final CI/integration remain pending.
 
 WIP shared bus-memory component: versioned1MiB backing bytes, protection/
 debugger masks, descriptors and decode cursor. Fixed ROM/MMIO layout is
@@ -44,6 +44,19 @@ preflighted. Two tests and all195 rebased core tests pass; four actual
 restore omissions (memory/mask/cursor/descriptors) fail. Independent review
 found no defect within this scope. Device-owned memory, timers/disks and
 restart remain excluded. Final Windows/Linux CI/integration remain pending.
+
+WIP PIT component: all three channels, latches/partial I/O/gates, clock phase,
+timewarp, dirty markers and exact pending speaker sample bits are serialized.
+Four tests and199 core tests pass.1920 destructive JSON restores across all6
+modes on8253/8254 continue native I/O/PPI gates/PIC reads and newly emitted audio.
+Five actual omissions (channels, clock phase, timewarp, sample count/accumulator)
+fail; exact source restoration returns199 green. The first review accidentally
+captured a deliberate mutation and correctly rejected it: NOT a production
+review. Exact-source review found no production defect; it identified live
+read coverage missing for channels1/2 and pending-buffer output ordering.
+NEXT: fix those two test gaps. All38 RPC/config tests and fresh Windows
+UI/headless builds pass. Emitted external audio queues, PIC/DMA/PPI/bus/device/
+disk/machine restart remain separate WIP. Final CI/integration pending.
 
 NEXT: owned bus/RAM, timers/devices/video/audio/input, disks and pending host
 I/O, with atomic dependency preflight, then real process-restart continuation.

@@ -71,7 +71,7 @@ pub const SPEAKER_SAMPLE_RATE: u32 = 47727;
 // of the PIT input clock that would latch the value.
 pub const PIT_WRITE_LATENCY: u32 = 3;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone, serde::Serialize, serde::Deserialize)]
 pub enum ChannelMode {
     InterruptOnTerminalCount,
     HardwareRetriggerableOneShot,
@@ -99,13 +99,13 @@ impl From<u8> for ChannelMode {
     }
 }
 
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum ReloadFlag {
     Normal,
     ReloadNextCycle,
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Specifier)]
+#[derive(Debug, Copy, Clone, PartialEq, Specifier, serde::Serialize, serde::Deserialize)]
 pub enum PitType {
     Model8253,
     Model8254,
@@ -119,7 +119,7 @@ enum RwModeField {
     LsbMsb,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone, serde::Serialize, serde::Deserialize)]
 pub enum RwMode {
     Lsb,
     Msb,
@@ -135,7 +135,7 @@ pub struct ControlByte {
     channel: B2,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone, serde::Serialize, serde::Deserialize)]
 pub enum ChannelState {
     WaitingForReload,
     WaitingForGate,
@@ -145,25 +145,27 @@ pub enum ChannelState {
     Counting(ReloadFlag),
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone, serde::Serialize, serde::Deserialize)]
 enum LoadState {
     WaitingForLsb,
     WaitingForMsb,
     //Loaded
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone, serde::Serialize, serde::Deserialize)]
 enum LoadType {
     InitialLoad,
     SubsequentLoad,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone, serde::Serialize, serde::Deserialize)]
 pub enum ReadState {
     NoRead,
     ReadLsb,
 }
 
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Channel {
     c: usize,
     clocks: u64,
@@ -1421,3 +1423,5 @@ impl ProgrammableIntervalTimer {
         state_vec
     }
 }
+
+mod state;
