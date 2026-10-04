@@ -251,8 +251,13 @@ CRTC/monitor/both PLLs; their unchanged independent native inventories also pass
 in the full252-test suite. Explicit hash/assertion recipes bind exact restored
 source and native identity. Snapshot production remains byte-identical to577f6075.
 Fresh38 RPC/config tests and Windows UI/headless builds passed on577f6075;
-later test-only changes reuse those products explicitly. Focused review and
-final CI/integration pending. Whole-machine/bus/disks/frontend/audio/process restart/Pyro/physical
+later test-only changes reuse those products explicitly. Scoped reviews find
+no concrete CGA restore defect; nested-schema finding is closed. Artifact
+review found complete receipt-byte hashes were not enforced: changed scope
+passed before, fails after explicit fixed hashes; unmodified receipts pass.
+This narrow checksum repair was not re-reviewed. Parent retains recipes,
+review findings, actual controls and precise native implementation-suffix scope.
+Final CI/integration pending. Whole-machine/bus/disks/frontend/audio/process restart/Pyro/physical
 timing remain OPEN.
 
 NEXT: publish/integrate final-tested CGA;
