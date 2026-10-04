@@ -233,7 +233,7 @@ overflow in debug builds before any first port write. Two regressions fail
 before repair; explicit wrapping negation preserves release arithmetic.
 All245 native core tests pass, including258 phase vectors and actual first
 zero-clock CRTC port writes. No broader timing/card/machine proof is claimed.
-Scoped phase review found no defect; final CGA CI/integration remain WIP.
+Scoped phase review found no defect; PR20 integrates this after final CI.
 
 FINISHED local CGA state:109 native non-trace fields,16KiB VRAM,both raster
 buffers and nested CRTC/monitor are retained. Seven tests and252 core tests
@@ -257,7 +257,9 @@ review found complete receipt-byte hashes were not enforced: changed scope
 passed before, fails after explicit fixed hashes; unmodified receipts pass.
 This narrow checksum repair was not re-reviewed. Parent retains recipes,
 review findings, actual controls and precise native implementation-suffix scope.
-Final CI/integration pending. Whole-machine/bus/disks/frontend/audio/process restart/Pyro/physical
+PR20/680341e9 is integrated unchanged after final Windows/Linux CI37243486466.
+Finished source branch deleted after child VHD PR21 retargeted onto main.
+Whole-machine/bus/disks/frontend/audio/process restart/Pyro/physical
 timing remain OPEN.
 
 FINISHED local VHD component: cached metadata and exact backing size/SHA-256/
@@ -268,13 +270,23 @@ tests pass:64 native sector continuations, native failed-write/footer-cache
 divergence, and actual RW File close/reopen into a separate copy. Four DELIBERATE
 MUTANTS fail named tests; exact restored source returns260 green. Two controls
 test storage-only cursor/checksum fields. Native sector algorithms are unchanged.
-Review, fresh frontend builds, publication and final CI/integration are pending.
+Initial fresh38 frontend tests and Windows UI/headless builds pass on321ead32.
+Review identifies restore-provider read/final-seek witness and trusted-metadata
+scope gaps. New direct tests cover both failure paths with unchanged live disk;
+all261 core tests pass. Real File reference now reopens through independent
+native parsing rather than prepare_restore. Metadata authentication belongs to
+the future outer container; disk hash alone covers backing bytes only. No
+production restore algorithm changed. Follow-up review/final CI/integration pending.
 Caller-owned access policy/backend/path, atomic multi-disk dependencies,
 Disk/ATA/XT-IDE transfer state and actual process/machine restart remain OPEN.
 The parent retains source/product-bound raw transcripts and control recipes.
 
-NEXT: integrate final-tested CGA; review/publish the VHD component, then native
-Disk/ATA/XT-IDE pending transfers, remaining devices/bus clocks/audio/host I/O,
+WIP Disk wrapper is committed on local codex/snapshot-disk at03648eca:264
+core tests pass; omission/review/publication gates remain pending. Rebase it
+onto the VHD follow-up after its committed positive tests and review.
+
+NEXT: finish VHD follow-up review and exact-head CI, then Disk omission/review;
+ATA/XT-IDE pending transfers, remaining devices/bus clocks/audio/host I/O,
 atomic whole-machine dependency preflight and real process-restart continuation.
 Hardware trace,VNC,keyboard/serial RPC and physical XT/gameplay parity remain
 OPEN. Controlled BIOS-ring input is not hardware IRQ input.

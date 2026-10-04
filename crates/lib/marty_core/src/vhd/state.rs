@@ -2,6 +2,8 @@
 //! Binary bytes stay outside JSON. The caller owns compression/storage and must
 //! quiesce guest/host I/O. Access policy/path/backend and controller transfers
 //! are separate resources; a matching hash alone does not prove their identity.
+//! This authenticates disk bytes, not JSON metadata. The outer snapshot loader
+//! must authenticate metadata; this component assumes trusted cached state.
 
 use super::*;
 use anyhow::Context;
@@ -262,7 +264,12 @@ mod tests {
         let (saved, payload) = capture(&mut before);
         drop(before);
         fs::write(&replacement, payload).unwrap();
-        let mut reference = VirtualHardDisk::prepare_restore(&saved, Box::new(open(&original))).unwrap();
+        // Reopen the reference through the independent native parser, not the
+        // restore implementation under test. Native sector I/O did not alter
+        // its cached metadata; recover only the observed backend position.
+        let mut reference = VirtualHardDisk::parse(Box::new(open(&original)), false).unwrap();
+        reference.vhd_file.seek(SeekFrom::Start(saved.io.position)).unwrap();
+        assert_eq!(capture(&mut reference).0, saved);
         let mut restored = VirtualHardDisk::prepare_restore(&saved, Box::new(open(&replacement))).unwrap();
         continuation(&mut reference, &mut restored, 19);
         drop(reference);
@@ -464,6 +471,33 @@ mod tests {
                 assert!(error.to_string().contains("injected read failure"));
             }
             assert_eq!(io.inner.into_inner(), bytes);
+        }
+    }
+
+    #[test]
+    fn restore_provider_read_and_final_seek_fail_without_live_mutation() {
+        let mut live = disk(disk_bytes());
+        live.vhd_file.seek(SeekFrom::Start(77)).unwrap();
+        let before = capture(&mut live);
+        for fail_read in [true, false] {
+            let provider = FailingRead {
+                inner: Cursor::new(before.1.clone()),
+                fail_read,
+                fail_restore: !fail_read,
+                position: 77,
+            };
+            let result = VirtualHardDisk::prepare_restore(&before.0, Box::new(provider));
+            let error = match result {
+                Err(error) => error,
+                Ok(_) => panic!("injected restore failure accepted"),
+            };
+            let expected = if fail_read {
+                "injected read failure"
+            } else {
+                "injected restore seek failure"
+            };
+            assert!(error.to_string().contains(expected), "{error}");
+            assert_eq!(capture(&mut live), before, "live disk unchanged after provider failure");
         }
     }
 }
