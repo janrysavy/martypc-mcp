@@ -41,7 +41,7 @@ use crate::cpu_validator::{BusType, ReadType};
 pub const QUEUE_SIZE: usize = 4;
 pub const QUEUE_POLICY_LEN: usize = 3;
 
-#[derive(Copy, Clone, Default, PartialEq, Eq, Debug)]
+#[derive(Copy, Clone, Default, PartialEq, Eq, Debug, serde::Serialize, serde::Deserialize)]
 pub enum BusWidth {
     #[default]
     Byte,

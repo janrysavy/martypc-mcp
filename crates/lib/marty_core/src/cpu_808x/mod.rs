@@ -57,6 +57,7 @@ mod addressing;
 mod alu;
 mod bcd;
 mod biu;
+mod biu_state;
 mod cpu;
 mod cycle;
 mod decode;
@@ -374,7 +375,7 @@ pub enum InterruptType {
     Hardware,
 }
 
-#[derive(Copy, Clone, Default, Debug, PartialEq)]
+#[derive(Copy, Clone, Default, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum BusPendingType {
     #[default]
     None,
@@ -382,7 +383,7 @@ pub enum BusPendingType {
     EuLate,
 }
 
-#[derive(Copy, Clone, Default, Debug, PartialEq)]
+#[derive(Copy, Clone, Default, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum FetchState {
     #[default]
     Normal,
@@ -435,14 +436,15 @@ impl Default for InterruptDescriptor {
 }
 
 #[repr(u8)]
-#[derive(Copy, Clone, Debug, Default, PartialEq)]
+#[derive(Copy, Clone, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum TransferSize {
     #[default]
     Byte = 1,
     Word = 2,
 }
 
-#[derive(Default)]
+#[derive(Default, serde::Serialize, serde::Deserialize, Copy, Clone, Debug, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub struct I8288 {
     // Command bus
     mrdc:  bool,
@@ -705,7 +707,7 @@ pub enum RegisterType {
 /// Td: No address calculation in progress (done)
 /// https://martypc.blogspot.com/2024/02/the-complete-bus-logic-of-intel-8088.html
 #[repr(u8)]
-#[derive(Copy, Clone, Debug, Default, PartialEq, PartialOrd)]
+#[derive(Copy, Clone, Debug, Default, PartialEq, PartialOrd, serde::Serialize, serde::Deserialize)]
 pub enum TaCycle {
     #[default]
     Tr = 0, // T-Request. This is the cycle on which the EU or prefetcher requests a bus cycle.
@@ -739,7 +741,7 @@ impl Display for TaCycle {
 /// Tinit is not a real T-cycle but a state that indicates a new bus cycle has just been initiated
 /// and should be moved to a valid state.
 #[repr(u8)]
-#[derive(Copy, Clone, Debug, Default, PartialEq, PartialOrd)]
+#[derive(Copy, Clone, Debug, Default, PartialEq, PartialOrd, serde::Serialize, serde::Deserialize)]
 pub enum TCycle {
     Tinit,
     #[default]
@@ -767,7 +769,7 @@ impl Display for TCycle {
 
 /// The 8088 has 8 possible bus cycle types. These are advertised as an octal value on CPU status
 /// pins S0-S2 in Maximum mode.
-#[derive(Copy, Clone, Debug, Default, PartialEq)]
+#[derive(Copy, Clone, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum BusStatus {
     InterruptAck = 0, // IRQ Acknowledge
     IoRead = 1,       // IO Read

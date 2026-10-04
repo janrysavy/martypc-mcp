@@ -61,7 +61,7 @@ impl OperandType {
     }
 }
 
-#[derive(Copy, Clone, Debug, Default, PartialEq)]
+#[derive(Copy, Clone, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum OperandSize {
     #[default]
     NoOperand,

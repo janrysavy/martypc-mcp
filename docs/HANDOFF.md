@@ -1,5 +1,14 @@
 # Fork handoff
 
+BIU component is locally tested: explicit version1 queue/address/data/8288 pin,
+T/TA/pipeline/READY/wait/transfer state, without reconstructing or flushing fetches.
+Two native CPU types continue1000 cycles each after JSON restore of a destroyed
+component; actual T1-T4/address pipeline/preload states are asserted. Invalid,
+missing/unknown fields and queue errors refuse before any component mutation.
+All187 native core tests pass. This is not a CPU or machine snapshot: EU/registers,
+interrupt/DMA/clocks, the owned bus/devices/disks and restart proof remain WIP.
+Independent component review and final-head CI are pending.
+
 QUEUE REVIEW fixes: refuse unreachable in-range fetch policies while preserving
 both existing Default and constructor values. Refusal tests now exercise in-range
 ring/policy errors, and the4000 continuation vectors assert actual wraps/preloads.

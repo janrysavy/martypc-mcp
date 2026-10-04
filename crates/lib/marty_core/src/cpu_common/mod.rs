@@ -245,7 +245,7 @@ impl Register16 {
     }
 }
 
-#[derive(Copy, Clone, Default, Debug)]
+#[derive(Copy, Clone, Default, Debug, serde::Serialize, serde::Deserialize, PartialEq)]
 pub enum Segment {
     None,
     ES,
@@ -548,7 +548,7 @@ pub enum ServiceEvent {
     HostFileTransferRequested { filename: Option<String> },
 }
 
-#[derive(Copy, Clone, Debug, Default, PartialEq)]
+#[derive(Copy, Clone, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum QueueOp {
     #[default]
     Idle,
