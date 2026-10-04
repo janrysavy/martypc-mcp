@@ -1,6 +1,7 @@
 //! Native keyboard latches, held-key order, typematic clocks and mappings.
 //! Reconstruct the constructor's fixed key table, and refuse a different hash
-//! iteration profile: clear(true) emits break bytes in that order. Exact clock
+//! iteration profile: clear(true) appends break bytes in that order; the
+//! receiver pops them in reverse. Exact clock
 //! bits and stale clear(false) key lists are retained, not normalized.
 //! Machine macro FIFO, PPI/PIC/bus clocks and complete restart are separate.
 
@@ -190,20 +191,29 @@ scancodes = []
             let scan = reference.recv_scancode();
             assert!(scan.is_some());
             assert_eq!(restored.recv_scancode(), scan, "pending scan kind={kind:?}");
+            let appended: Vec<u8> = reference
+                .kb_hash
+                .values()
+                .filter(|state| state.pressed)
+                .map(|state| state.translation.as_ref().unwrap()[0] | 0x80)
+                .collect();
             reference.clear(true);
             restored.clear(true);
             assert!(reference.reset_buffer.len() >= 10);
+            assert_eq!(reference.reset_buffer, appended);
             assert_eq!(
                 reference.reset_buffer, restored.reset_buffer,
                 "native hash-order break sequence kind={kind:?}"
             );
-            for _ in 0..16 {
+            for n in 0..16 {
                 restored = restore(&reference); // destructive restores between queued reset bytes
+                let byte = reference.recv_scancode();
                 assert_eq!(
-                    reference.recv_scancode(),
-                    restored.recv_scancode(),
-                    "pending reset byte kind={kind:?}"
+                    byte,
+                    appended.iter().rev().nth(n).copied(),
+                    "reverse delivery kind={kind:?}"
                 );
+                assert_eq!(byte, restored.recv_scancode(), "pending reset byte kind={kind:?}");
             }
         }
     }
@@ -236,6 +246,43 @@ scancodes = []
             let decoded: VecDeque<KeybufferEntry> = serde_json::from_slice(&wire).unwrap();
             assert_eq!(decoded, macros_a); // typed queue codec only, not Machine FIFO restore
         }
+    }
+
+    #[test]
+    fn keyboard_restore_continues_native_buffered_overflow_and_reset_priority() {
+        for kind in TYPES {
+            for capacity in [2, 4, 8] {
+                let mut reference = configured(kind);
+                // Current public constructors always use capacity1. Seed the
+                // legacy buffered arm accepted by snapshot preflight, then
+                // exercise native send/receive; no physical keyboard claim.
+                reference.kb_buffer_size = capacity;
+                let burst = vec![0x33; capacity];
+                reference.send_scancodes(&burst);
+                assert!(reference.kb_buffer_overflow);
+                reference.key_down(MartyKey::KeyA, &KeyboardModifiers::default(), None);
+                reference.clear(true); // native reset bytes outrank pending overflow
+                let mut restored = restore(&reference);
+                assert_eq!(reference.recv_scancode(), Some(0xb3));
+                assert_eq!(restored.recv_scancode(), Some(0xb3));
+                restored = restore(&reference);
+                assert_eq!(reference.recv_scancode(), Some(0xff));
+                assert_eq!(restored.recv_scancode(), Some(0xff));
+                assert_eq!(reference.recv_scancode(), None); // flag consumed exactly once
+                assert_eq!(restored.recv_scancode(), None);
+                restored = restore(&reference);
+                reference.send_scancodes(&burst);
+                restored.send_scancodes(&burst);
+                assert_eq!(reference.recv_scancode(), Some(0xff));
+                assert_eq!(restored.recv_scancode(), Some(0xff), "buffer size kind={kind:?}");
+                // Existing buffered producer never appends bytes below capacity.
+                // Keep that native gap, rather than fixing emulation in snapshots.
+                reference.send_scancodes(&[0x34]);
+                restored.send_scancodes(&[0x34]);
+                assert_eq!(reference.recv_scancode(), None);
+                assert_eq!(restored.recv_scancode(), None);
+            }
+        } //27 additional destructive native legacy-branch restores
     }
 
     #[test]

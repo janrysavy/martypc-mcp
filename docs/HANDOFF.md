@@ -129,18 +129,25 @@ full input queues, complete machine state or restart proof.
 
 WIP keyboard component: native scan/reset buffers, held-key order, cached
 translations, mapping/macros and exact finite typematic clocks are captured.
-Native reset break-byte hash-table iteration order is preserved; incompatible
+Native reset appends break bytes in hash order; receiver pops them in reverse.
+The constructor iteration profile is preserved; incompatible
 constructor profiles are refused. Existing TOML mapping extensions still work.
-Native algorithms are unchanged. Six tests cover768 destructive continuations,
+Native algorithms are unchanged. Seven tests cover768 destructive continuations,
 three repeat-deadline restores,51 queued scan/reset restores and three cached/new
-mapping restores on ModelF/Tandy1000/Pcjr;33 default/unique-seeded cases prove
-storage only. Seven actual lost-state controls fail native scan/repeat/mapping
-observations; exact source restoration passes223 core tests. Strict nested
+mapping restores on ModelF/Tandy1000/Pcjr, plus27 seeded legacy buffered restores;
+33 default/unique-seeded cases prove
+storage only. Nine actual lost-state controls fail native scan/repeat/mapping
+observations; exact source restoration passes224 core tests. Strict nested
 schema, missing/extra fields and invalid restore atomicity are tested. ModelM
 and unsupported multi-code key-up states are explicitly refused. Typed macro
 entries roundtrip, but Machine macro FIFO is NOT yet restored: peers retained
 and compared. Bus delivery clocks, PPI/PIC/hardware keyboard, physical timing
-and process restart remain OPEN. Independent review and UI/build/CI pending.
+and process restart remain OPEN. Initial review reset-order wording is corrected
+and exact reverse delivery asserted. Buffered overflow/size omissions fail actual
+FF output, with reset priority and one-shot flag consumption. Public constructors
+use capacity1; seeded capacities2/4/8 test the legacy arm. Its sub-capacity
+producer drops bytes; that unchanged native gap is observed, not repaired here.
+Follow-up review and fresh final UI/build/CI pending.
 
 NEXT: publish keyboard, integrate final-tested game port, Machine macro FIFO,
 video/audio, disks and pending host
