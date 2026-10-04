@@ -17,18 +17,26 @@ PR8 BIU component at65cac7f6: all187 core tests pass, with2000 JSON restores
 executing subsequent native cycles against an untouched reference. Independent
 corruption and five actual omitted-restore controls catch lost T-state, queue
 storage, either policy and discard. Follow-up found no production defect;
-final Windows/Linux CI is pending. Device/wait-state scenarios remain OPEN.
+final Windows/Linux CI passed; PR8 is integrated on main. Device/wait-state
+scenarios remain OPEN.
 
 WIP CPU component: versioned CPU/BIU state includes registers, decoded
 instruction, REP/HLT/interrupt/DMA scheduling, clock bits, native debugger
-state and pending service events. Four tests and all191 core tests pass.
+state and pending service events. Six tests and all193 core tests pass.
 384 JSON restores at EU/RNI boundaries continue native8088/8086 probes with
 identical CPU state and low64KiB RAM. Five actual omissions (AX, cycle count,
-REP, NMI and decoded instruction) fail; exact source restoration passes191.
+REP, NMI and decoded instruction) fail; exact source restoration passes193.
 The test destroys the CPU independently and retains its owned bus, so it does
 NOT prove bus/device/disk restoration or process restart. Active RNG, traces,
 listings/analyzers and validator/cycle-collector builds are explicitly refused.
-CPU review and final-head CI/integration remain pending.
+Review test-gate defect is fixed for cycle collectors. Both native CPUs accept
+a17-byte prefixed NOP and continue identically after restore, disproving the
+proposed15-byte rejection. All11 active host facilities are refused. Removing
+a BIU field from its macro makes the native storage inventory fail; that review
+coverage objection is disproved too. Five restore omissions and this sixth
+inventory control fail, then193 core tests pass. All188 collector-feature tests
+pass, including explicit snapshot refusal. Focused follow-up/final
+CI/integration remain pending.
 
 NEXT: owned bus/RAM, timers/devices/video/audio/input, disks and pending host
 I/O, with atomic dependency preflight, then real process-restart continuation.

@@ -176,7 +176,7 @@ fn valid_address(address: &CpuAddress) -> bool {
     !matches!(address, CpuAddress::Flat(value) if *value > 0xFFFFF)
 }
 
-#[cfg(all(test, not(feature = "cpu_validator")))]
+#[cfg(all(test, not(any(feature = "cpu_validator", feature = "cpu_collect_cycle_states"))))]
 mod tests {
     use super::*;
 
@@ -343,6 +343,76 @@ mod tests {
     }
 
     #[test]
+    fn native_long_prefix_instruction_remains_snapshot_compatible() {
+        // MAX_INSTRUCTION_SIZE is not a bound in the native 808x decoder:
+        // decode() consumes prefixes until a non-prefix byte. Do not reject
+        // valid native state using the later-x86 15-byte instruction limit.
+        for word in [false, true] {
+            let mut reference = cpu(word);
+            let mut restored = cpu(word);
+            let mut code = vec![0x26; 16];
+            code.push(0x90);
+            reference.bus.copy_from(&code, 0x100, 0, false).unwrap();
+            restored.bus.copy_from(&code, 0x100, 0, false).unwrap();
+            assert_eq!(
+                format!("{:?}", reference.step(true)),
+                format!("{:?}", restored.step(true))
+            );
+            assert_eq!(reference.i.size, 17);
+            let saved = reference.snapshot_cpu_state().unwrap();
+            restore_destroyed(&mut restored, &saved);
+            assert_eq!(
+                format!("{:?}", reference.step_finish(None)),
+                format!("{:?}", restored.step_finish(None))
+            );
+            assert!(
+                serde_json::to_vec(&reference.snapshot_cpu_state().unwrap()).unwrap()
+                    == serde_json::to_vec(&restored.snapshot_cpu_state().unwrap()).unwrap()
+            );
+        }
+    }
+
+    #[test]
+    fn every_excluded_host_facility_is_refused_when_active() {
+        for facility in [
+            "rng",
+            "trace_enabled",
+            "trace_mode",
+            "trace_logger",
+            "trace_comment",
+            "trace_str_vec",
+            "trace_token_vec",
+            "analyzer_entries",
+            "analyzer_flush",
+            "listing_filename",
+            "listing",
+        ] {
+            let mut target = cpu(false);
+            let saved = target.snapshot_cpu_state().unwrap();
+            match facility {
+                "rng" => target.rng = Some(rand::SeedableRng::seed_from_u64(0)),
+                "trace_enabled" => target.trace_enabled = true,
+                "trace_mode" => target.trace_mode = TraceMode::Instruction,
+                "trace_logger" => target.trace_logger = TraceLogger::Console,
+                "trace_comment" => target.trace_comment.push("snapshot refusal probe"),
+                "trace_str_vec" => target.trace_str_vec.push(String::new()),
+                "trace_token_vec" => target.trace_token_vec.push(SyntaxTokenStream::new()),
+                "analyzer_entries" => target.analyzer.entries.push_back(Default::default()),
+                "analyzer_flush" => target.analyzer.need_flush = true,
+                "listing_filename" => target.services.listing_filename = Some("not-opened".into()),
+                "listing" => target
+                    .services
+                    .add_instruction(0, 0x100, false, false, Vec::new(), target.i.clone()),
+                _ => unreachable!(),
+            }
+            target.a.set_x(0xBEEF);
+            assert!(target.snapshot_cpu_state().is_err(), "{facility}");
+            assert!(target.restore_cpu_state(&saved).is_err(), "{facility}");
+            assert_eq!(target.a.x(), 0xBEEF, "refusal mutated CPU: {facility}");
+        }
+    }
+
+    #[test]
     fn cpu_component_refuses_invalid_or_unsupported_state_before_mutation() {
         let mut target = cpu(false);
         let before = target.snapshot_cpu_state().unwrap();
@@ -431,4 +501,20 @@ mod tests {
         invalid["t_stamp"] = serde_json::json!(f64::NAN.to_bits());
         assert!(serde_json::from_value::<Intel808xState>(invalid).is_err());
     }
+}
+
+#[cfg(all(test, any(feature = "cpu_validator", feature = "cpu_collect_cycle_states")))]
+#[test]
+fn collector_build_explicitly_refuses_cpu_snapshot_capture() {
+    let target = Intel808x::new(
+        CpuType::Intel8088,
+        CpuSubType::Intel8088,
+        None,
+        TraceMode::None,
+        TraceLogger::None,
+    );
+    assert_eq!(
+        target.snapshot_cpu_state().unwrap_err(),
+        "validator/cycle-collector snapshots are unsupported"
+    );
 }
