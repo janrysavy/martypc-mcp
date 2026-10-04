@@ -20,7 +20,7 @@ storage, either policy and discard. Follow-up found no production defect;
 final Windows/Linux CI passed; PR8 is integrated on main. Device/wait-state
 scenarios remain OPEN.
 
-WIP CPU component: versioned CPU/BIU state includes registers, decoded
+INTEGRATED CPU PR9 at14566051: versioned CPU/BIU state includes registers, decoded
 instruction, REP/HLT/interrupt/DMA scheduling, clock bits, native debugger
 state and pending service events. Six tests and all193 core tests pass.
 384 JSON restores at EU/RNI boundaries continue native8088/8086 probes with
@@ -36,7 +36,7 @@ a BIU field from its macro makes the native storage inventory fail; that review
 coverage objection is disproved too. Five restore omissions and this sixth
 inventory control fail, then193 core tests pass. All188 collector-feature tests
 pass, including explicit snapshot refusal. Focused follow-up found no defect;
-final CI/integration remain pending.
+final Windows/Linux CI passed; integrated linearly, branch deleted.
 
 WIP shared bus-memory component: versioned1MiB backing bytes, protection/
 debugger masks, descriptors and decode cursor. Fixed ROM/MMIO layout is
@@ -53,7 +53,9 @@ PIC observations and newly emitted PCM bits. A seeded legacy FIFO consumer
 probe checks emitted output before state equality; normal producer stays empty.
 Five real restore omissions and reversed FIFO order fail; the latter changes
 emitted PCM. Exact source restoration returns200 green. Review coverage gaps
-are fixed; port-dispatch follow-up review is pending. The first review accidentally
+are fixed; final follow-up found no PIT-owned restore defect. Native writes
+exercise catch-up; reads currently ignore elapsed delta, so read-side catch-up
+and physical hardware timing are NOT proven. That documentation limit is fixed. The first review accidentally
 captured a deliberate mutation and is NOT a production review. All38 RPC/config
 tests and fresh Windows UI/headless builds pass; later changes affect tests only.
 External emitted audio queues, PIC/DMA/PPI/bus/device/disk/machine restart remain
