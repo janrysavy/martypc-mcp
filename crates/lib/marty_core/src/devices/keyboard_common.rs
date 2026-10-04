@@ -122,6 +122,7 @@ pub struct KeycodeMapping {
 }
 
 mod state;
+pub(crate) use state::KeyboardSnapshot;
 
 /// Keyboard definition struct.
 /// We maintain a hashmap of MartyKey to KeyState. This allows us to track

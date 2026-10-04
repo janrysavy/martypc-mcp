@@ -153,7 +153,22 @@ production failures; fresh hash-bound unmodified recheck passes. Corrected audit
 confirms both findings resolved and no remaining scoped defect. All38 RPC/config
 tests and fresh final Windows UI/headless builds pass. Final CI/integration pending.
 
-NEXT: integrate final-tested keyboard, Machine macro FIFO,
+WIP machine/bus keyboard input component: real FIFO entries, keyboard state
+and exact bus polling accumulator are captured together; nested version/type/
+presence/clock validation completes before live mutation. Five new tests and229
+core tests pass.384 destructive JSON restores on IBM5160/Tandy1000/PCjr continue
+native macros, frame-gated events and PPI/PIC observations against untouched
+references. Two FIFO/frame restores and one poll-deadline restore verify actual
+77/F7 press/release and33 repeat bytes. Eight no-device clock seeds prove storage
+only. Six actual lost queue/order/keycode/pressed/modifiers/poll-clock controls
+fail native port output; exact source restoration returns229 green.
+Native emulation algorithms are unchanged. Last matching mapping wins; bus
+key-down ignores translate metadata, retained as existing behavior. Caller-owned
+per-frame flag and CPU/PPI/PIC/A0/video/other clocks/disks are retained peers,
+not restored here. No complete machine restart/Pyro/physical timing proof.
+Independent review, fresh frontend builds, publication and final CI pending.
+
+NEXT: publish input component, integrate final-tested keyboard/input; CGA,
 video/audio, disks and pending host
 I/O, with atomic dependency preflight, then real process-restart continuation.
 Hardware trace,VNC,keyboard/serial RPC and physical XT/gameplay parity remain

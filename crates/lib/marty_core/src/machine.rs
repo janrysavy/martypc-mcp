@@ -94,6 +94,8 @@ use crate::{
     tracelogger::TraceLogger,
 };
 
+mod input_state;
+
 pub use marty_common::types::rom::{MachineCheckpoint, MachinePatch, MachineRomEntry, MachineRomManifest};
 use marty_common::{MartyHashMap, PresentableDeviceEvent};
 

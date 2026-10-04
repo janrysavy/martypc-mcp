@@ -36,6 +36,8 @@ mod dispatch;
 mod io;
 mod memory;
 mod memory_state;
+mod input_state;
+pub(crate) use input_state::KeyboardBusState;
 pub mod queue;
 
 use std::{collections::VecDeque, fmt};
