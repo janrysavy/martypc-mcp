@@ -11,6 +11,17 @@ with fresh native builds. Live injected-input/audio/pixel proof remains open.
 The bounded parent UI peer receipt is committed in parent55986c75, rather than
 only scratch. Focused follow-up review and final-head CI are pending.
 
+FINISHED component, WIP whole machine: version1 instruction-queue state preserves
+ring storage/indices, preload, discard and actual fetch policy. Strict required
+fields/version/configuration/ring validation precedes mutation. Four tests cover
+4000 JSON restores/continuations, wrapping/odd fetch/flush/default-policy state
+and invalid/missing/unknown-field refusals. All184 native core tests pass. Adding
+JSON codec tests exposed ambiguous service enum `.into()` comparisons; explicit
+u8/u16 conversions retain the existing register widths and all service tests pass.
+No CPU/bus/device/disk snapshot export or restart proof exists yet. NEXT: the
+remaining CPU state including prefetch/bus phase, then complete devices/disks,
+atomic dependency preflight and real continuation after process restart.
+
 FINISHED locally: the native `martypc` Rust/wgpu UI and headless frontend share
 `marty_debug_rpc` on the same Machine. RPC owns execution; repaint never starts
 a second runner. Local keyboard/hotkeys, keyboard-to-joystick, mouse/light pen,

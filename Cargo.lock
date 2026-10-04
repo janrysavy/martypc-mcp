@@ -3271,6 +3271,7 @@ dependencies = [
  "ringbuf",
  "serde",
  "serde_derive",
+ "serde_json",
  "serde_with",
  "serialport",
  "strum 0.27.1",

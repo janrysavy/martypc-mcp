@@ -1112,7 +1112,7 @@ pub fn is_martypc_probe<C: Cpu>(interrupt: u8, cpu: &C) -> bool {
 }
 
 pub fn is_service_control<C: Cpu>(cpu: &C) -> bool {
-    cpu.get_register8(Register8::AH) == ServiceFunction::ServiceControl.into()
+    cpu.get_register8(Register8::AH) == u8::from(ServiceFunction::ServiceControl)
         && cpu.get_register16(Register16::BX) == SERVICE_CTRL_BX
         && cpu.get_register16(Register16::CX) == SERVICE_CTRL_CX
 }
@@ -1254,8 +1254,8 @@ mod tests {
             .create_file_transfer_operation("transfer.bin", 4096, FileTransferDirection::GuestToHost)
             .unwrap();
 
-        cpu.set_register8(Register8::AH, ServiceFunction::ServiceControl.into());
-        cpu.set_register8(Register8::AL, ServiceControl::Enable.into());
+        cpu.set_register8(Register8::AH, u8::from(ServiceFunction::ServiceControl));
+        cpu.set_register8(Register8::AL, u8::from(ServiceControl::Enable));
         cpu.set_register16(Register16::BX, SERVICE_CTRL_BX);
         cpu.set_register16(Register16::CX, SERVICE_CTRL_CX);
         manager.handle_interrupt(ServiceFunction::ServiceControl, &mut cpu);
@@ -1345,7 +1345,7 @@ mod tests {
             .handle_interrupt(ServiceFunction::FileTransferEnd, &mut cpu)
             .is_none());
         assert_ne!(cpu.get_flags() & CARRY_FLAG, 0);
-        assert_eq!(cpu.get_register16(Register16::AX), ServiceError::InvalidData.into());
+        assert_eq!(cpu.get_register16(Register16::AX), u16::from(ServiceError::InvalidData));
         assert!(manager.file_transfer_operation(handle).is_some());
 
         transfer_guest_block(&mut manager, &mut cpu, handle, b"d");
@@ -1482,7 +1482,7 @@ mod tests {
         cpu.set_register16(Register16::ES, TEST_STRUCTURE_SEGMENT);
         cpu.set_register16(Register16::DI, TEST_BUFFER_OFFSET);
         manager.handle_interrupt(ServiceFunction::FileTransferBlock, &mut cpu);
-        assert_eq!(cpu.get_register16(Register16::AX), ServiceError::Busy.into());
+        assert_eq!(cpu.get_register16(Register16::AX), u16::from(ServiceError::Busy));
 
         manager
             .complete_host_file_request(&mut cpu, "PICKED.DAT", b"selected".to_vec())
@@ -1538,7 +1538,7 @@ mod tests {
         assert!(begin_transfer(&mut manager, &mut cpu, 0x80, "INVALID.DAT", 1).is_none());
         assert_eq!(
             cpu.get_register16(Register16::AX),
-            ServiceError::InvalidParameter.into()
+            u16::from(ServiceError::InvalidParameter)
         );
     }
 
@@ -1592,45 +1592,45 @@ mod tests {
             Some(ServiceEvent::TriggerPITLogging)
         ));
 
-        cpu.set_register8(Register8::AH, ServiceFunction::ServiceControl.into());
+        cpu.set_register8(Register8::AH, u8::from(ServiceFunction::ServiceControl));
         cpu.set_register16(Register16::BX, SERVICE_CTRL_BX);
         cpu.set_register16(Register16::CX, SERVICE_CTRL_CX);
 
-        cpu.set_register8(Register8::AL, ServiceControl::Query.into());
+        cpu.set_register8(Register8::AL, u8::from(ServiceControl::Query));
         cpu.set_flags(cpu.get_flags() | CARRY_FLAG);
         assert!(matches!(
             manager.handle_interrupt(ServiceFunction::ServiceControl, &mut cpu),
             Some(ServiceEvent::ServiceInterruptEnabled(true))
         ));
-        assert_eq!(cpu.get_register8(Register8::AL), ServiceControl::Enable.into());
+        assert_eq!(cpu.get_register8(Register8::AL), u8::from(ServiceControl::Enable));
         assert_eq!(cpu.get_flags() & CARRY_FLAG, 0);
 
-        cpu.set_register8(Register8::AL, ServiceControl::Disable.into());
+        cpu.set_register8(Register8::AL, u8::from(ServiceControl::Disable));
         assert!(is_service_control(&cpu));
         assert!(matches!(
             manager.handle_interrupt(ServiceFunction::ServiceControl, &mut cpu),
             Some(ServiceEvent::ServiceInterruptEnabled(false))
         ));
         assert!(!manager.enabled());
-        assert_eq!(cpu.get_register8(Register8::AL), ServiceControl::Disable.into());
+        assert_eq!(cpu.get_register8(Register8::AL), u8::from(ServiceControl::Disable));
 
-        cpu.set_register8(Register8::AL, ServiceControl::Query.into());
+        cpu.set_register8(Register8::AL, u8::from(ServiceControl::Query));
         assert!(matches!(
             manager.handle_interrupt(ServiceFunction::ServiceControl, &mut cpu),
             Some(ServiceEvent::ServiceInterruptEnabled(false))
         ));
-        assert_eq!(cpu.get_register8(Register8::AL), ServiceControl::Disable.into());
+        assert_eq!(cpu.get_register8(Register8::AL), u8::from(ServiceControl::Disable));
         assert!(manager
             .handle_interrupt(ServiceFunction::PitLogging, &mut cpu)
             .is_none());
 
-        cpu.set_register8(Register8::AL, ServiceControl::Enable.into());
+        cpu.set_register8(Register8::AL, u8::from(ServiceControl::Enable));
         assert!(matches!(
             manager.handle_interrupt(ServiceFunction::ServiceControl, &mut cpu),
             Some(ServiceEvent::ServiceInterruptEnabled(true))
         ));
         assert!(manager.enabled());
-        assert_eq!(cpu.get_register8(Register8::AL), ServiceControl::Enable.into());
+        assert_eq!(cpu.get_register8(Register8::AL), u8::from(ServiceControl::Enable));
 
         cpu.set_register8(Register8::AL, 7);
         assert!(matches!(
@@ -1683,7 +1683,7 @@ mod tests {
         assert_ne!(cpu.get_flags() & CARRY_FLAG, 0);
         assert_eq!(
             cpu.get_register16(Register16::AX),
-            ServiceError::InvalidParameter.into()
+            u16::from(ServiceError::InvalidParameter)
         );
     }
 
@@ -1783,7 +1783,7 @@ mod tests {
         assert_ne!(cpu.get_flags() & CARRY_FLAG, 0);
         assert_eq!(
             cpu.get_register16(Register16::AX),
-            ServiceError::InvalidParameter.into()
+            u16::from(ServiceError::InvalidParameter)
         );
 
         cpu.set_register8(Register8::AL, MOUSE_CONSUMER_STATUS_REPORT);
@@ -1794,7 +1794,7 @@ mod tests {
         assert_ne!(cpu.get_flags() & CARRY_FLAG, 0);
         assert_eq!(
             cpu.get_register16(Register16::AX),
-            ServiceError::InvalidParameter.into()
+            u16::from(ServiceError::InvalidParameter)
         );
 
         cpu.set_register8(Register8::AL, 0xFF);
@@ -1804,7 +1804,7 @@ mod tests {
         assert_ne!(cpu.get_flags() & CARRY_FLAG, 0);
         assert_eq!(
             cpu.get_register16(Register16::AX),
-            ServiceError::InvalidParameter.into()
+            u16::from(ServiceError::InvalidParameter)
         );
     }
 
@@ -1816,23 +1816,23 @@ mod tests {
         manager.complete_mouse_state(&mut cpu, None);
 
         assert_ne!(cpu.get_flags() & CARRY_FLAG, 0);
-        assert_eq!(cpu.get_register16(Register16::AX), ServiceError::NotSupported.into());
+        assert_eq!(cpu.get_register16(Register16::AX), u16::from(ServiceError::NotSupported));
 
         manager.complete_mouse_irq(&mut cpu, None);
         assert_ne!(cpu.get_flags() & CARRY_FLAG, 0);
-        assert_eq!(cpu.get_register16(Register16::AX), ServiceError::NotSupported.into());
+        assert_eq!(cpu.get_register16(Register16::AX), u16::from(ServiceError::NotSupported));
 
         manager.complete_display_aperture_size(&mut cpu, None);
         assert_ne!(cpu.get_flags() & CARRY_FLAG, 0);
-        assert_eq!(cpu.get_register16(Register16::AX), ServiceError::NotSupported.into());
+        assert_eq!(cpu.get_register16(Register16::AX), u16::from(ServiceError::NotSupported));
 
         manager.complete_mouse_consumer_range(&mut cpu, false);
         assert_ne!(cpu.get_flags() & CARRY_FLAG, 0);
-        assert_eq!(cpu.get_register16(Register16::AX), ServiceError::NotSupported.into());
+        assert_eq!(cpu.get_register16(Register16::AX), u16::from(ServiceError::NotSupported));
 
         manager.complete_mouse_consumer_status(&mut cpu, false);
         assert_ne!(cpu.get_flags() & CARRY_FLAG, 0);
-        assert_eq!(cpu.get_register16(Register16::AX), ServiceError::NotSupported.into());
+        assert_eq!(cpu.get_register16(Register16::AX), u16::from(ServiceError::NotSupported));
     }
 
     #[test]
@@ -1841,8 +1841,8 @@ mod tests {
 
         let mut manager = ServiceInterruptManager::new(None, true);
         let mut cpu = Intel808x::default();
-        cpu.set_register8(Register8::AH, ServiceFunction::ServiceControl.into());
-        cpu.set_register8(Register8::AL, ServiceControl::Enable.into());
+        cpu.set_register8(Register8::AH, u8::from(ServiceFunction::ServiceControl));
+        cpu.set_register8(Register8::AL, u8::from(ServiceControl::Enable));
         cpu.set_register16(Register16::BX, SERVICE_CTRL_BX);
         cpu.set_register16(Register16::CX, SERVICE_CTRL_CX ^ 1);
 
@@ -1878,8 +1878,8 @@ mod tests {
         );
         assert_eq!(cpu.get_register16(Register16::SI), MARTYPC_API_VERSION);
 
-        cpu.set_register8(Register8::AH, ServiceFunction::ServiceControl.into());
-        cpu.set_register8(Register8::AL, ServiceControl::Disable.into());
+        cpu.set_register8(Register8::AH, u8::from(ServiceFunction::ServiceControl));
+        cpu.set_register8(Register8::AL, u8::from(ServiceControl::Disable));
         cpu.set_register16(Register16::BX, SERVICE_CTRL_BX);
         cpu.set_register16(Register16::CX, SERVICE_CTRL_CX);
         manager.handle_interrupt(ServiceFunction::ServiceControl, &mut cpu);

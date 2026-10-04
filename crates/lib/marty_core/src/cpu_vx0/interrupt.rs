@@ -116,7 +116,7 @@ impl NecVx0 {
         if self.service_interrupt_vector == Some(interrupt) {
             let function = self.a.h();
 
-            if function == ServiceFunction::ServiceControl.into() {
+            if function == u8::from(ServiceFunction::ServiceControl) {
                 if is_service_control(self) {
                     self.service_events.push_back(ServiceEvent::ServiceInterrupt(function));
                     return;
