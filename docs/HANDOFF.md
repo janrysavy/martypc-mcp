@@ -98,11 +98,15 @@ state is refused before mutation. Review found active serializer/data mismatch
 was accepted: the new regression fails on the prior code. Preflight now requires
 data in every active phase and none in Idle; all13 invalid cases are atomic.
 Seven controls and fresh210 core tests pass on the exact repaired source.
-Follow-up review, fresh frontend builds and final CI pending.
+Follow-up review confirms both verified repairs are resolved. All38 RPC/config
+tests and fresh Windows UI/headless builds pass. Final CI/integration pending.
 FINISHED parser fix: ibm5150v256k no longer selects the64K board, and
 compaq_portable is accepted. Both new regressions fail on the original parser;
 all212 core tests pass after the two-line repair. Config serde already used enum
 names correctly; the earlier review overstated that configuration-path impact.
+Separate native PCjr gap: set_data bypasses the Idle-arm bit_ct reset, so the
+next byte's parity calculation retains the prior byte's bit count. Snapshots
+preserve this existing behavior; per-byte protocol/hardware correction is OPEN.
 External PIC/PIT/cassette/keyboard queues and complete restart remain OPEN;
 these tests do not establish physical keyboard or8255 timing.
 
