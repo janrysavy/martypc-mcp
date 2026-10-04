@@ -227,6 +227,13 @@ Only test/HANDOFF changes after9d72968c; production restore is byte-identical.
 Focused review confirms the nonzero cursor gap closed; no scoped witness flaw.
 PR19 is published against main; final Windows/Linux CI and integration pending.
 
+FINISHED local CGA phase repair: cold clock zero made native !cycles + 1
+overflow in debug builds before any first port write. Two regressions fail
+before repair; explicit wrapping negation preserves release arithmetic.
+All245 native core tests pass, including258 phase vectors and actual first
+zero-clock CRTC port writes. No broader timing/card/machine proof is claimed.
+Review, final CGA publication/CI and full snapshot owner tests remain WIP.
+
 NEXT: publish/integrate final-tested CRTC; CGA,
 video/audio, disks and pending host
 I/O, with atomic dependency preflight, then real process-restart continuation.

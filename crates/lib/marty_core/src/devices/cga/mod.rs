@@ -875,7 +875,7 @@ impl CGACard {
         if !self.ticks_advanced.is_multiple_of(CGA_LCHAR_CLOCK as u32) {
             // We have advanced the CGA card out of phase with the character clock. Count
             // how many pixel clocks we need to tick by to be back in phase.
-            ((!self.cycles + 1) & 0x0F) as u32
+            ((!self.cycles).wrapping_add(1) & 0x0F) as u32
         }
         else {
             0
@@ -883,8 +883,10 @@ impl CGACard {
     }
 
     #[inline]
+    // Wrapping negation includes cold clock zero: plain !cycles + 1
+    // panics in debug builds, although release already computes this modulo2^64.
     fn calc_phase_offset(&mut self) -> u32 {
-        ((!self.cycles + 1) & 0x0F) as u32
+        ((!self.cycles).wrapping_add(1) & 0x0F) as u32
     }
 
     #[inline]
@@ -1905,5 +1907,34 @@ impl CGACard {
         self.cycles_per_vsync = self.cur_screen_cycles;
         self.cur_screen_cycles = 0;
         self.last_vsync_cycles = self.cycles;
+    }
+}
+
+#[cfg(test)]
+mod snapshot_phase_tests {
+    use super::*;
+    use crate::bus::IoDevice;
+
+    #[test]
+    fn cga_phase_offset_includes_zero_and_wrapped_clock() {
+        let mut card=CGACard::default();
+        for cycles in (0..256).chain([u64::MAX-1,u64::MAX]) {
+            card.cycles=cycles;
+            card.ticks_advanced=1;
+            let expected=((16-(cycles & 15)) & 15) as u32;
+            assert_eq!(card.calc_phase_offset(),expected,"phase at {cycles}");
+            assert_eq!(card.calc_cycles_owed(),expected,"owed at {cycles}");
+            card.ticks_advanced=16;
+            assert_eq!(card.calc_cycles_owed(),0);
+        }
+    }
+
+    #[test]
+    fn cga_first_port_write_at_zero_clock_does_not_overflow() {
+        let mut card=CGACard::default();
+        IoDevice::write_u8(&mut card,0x3d4,12,None,DeviceRunTimeUnit::SystemTicks(0),None);
+        IoDevice::write_u8(&mut card,0x3d5,0x12,None,DeviceRunTimeUnit::SystemTicks(0),None);
+        assert_eq!(card.start_address(),0x1200);
+        assert_eq!(card.cycles,0);
     }
 }
