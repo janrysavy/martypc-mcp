@@ -7,7 +7,9 @@ writes, breakpoint resumes, private predicates, turbo-independent deadlines,
 operation retention and persistent TCP framing. Windows local build passes.
 The parent probe uses the unchanged PyPC client against the real executable.
 Initial review completed; fixed stale breakpoint stop after stepping and
-clarified capability/session metadata. Focused follow-up and final-head CI pending.
+clarified capability/session metadata. Publication requires focused follow-up
+review and passing final-head Windows/Linux checks on
+[PR1](https://github.com/janrysavy/martypc-mcp/pull/1).
 Initial Linux CI exposed missing libudev development files used by existing
 host serial enumeration; the workflow now installs that dependency.
 Live alias probes exposed rejection of default execution kind and a false
