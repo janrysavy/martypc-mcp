@@ -78,6 +78,9 @@ fn file_opened_message(context: &FileOpenContext, path: Option<&Path>, contents_
 
 pub fn handle_thread_event(emu: &mut Emulator, ctx: &egui::Context) {
     while let Ok(event) = emu.receiver.try_recv() {
+        // Includes delayed drag/drop/media and host-file completions. They must
+        // not attach disks or write guest state outside the RPC controller.
+        if emu.config.emulator.rpc_port.is_some() { continue; }
         match event {
             FrontendThreadEvent::FileOpenDialogCancelled(context) => {
                 if let FileOpenContext::ServiceHostFile { .. } = context {

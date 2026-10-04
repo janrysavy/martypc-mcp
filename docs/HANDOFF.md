@@ -1,5 +1,16 @@
 # Fork handoff
 
+REVIEW follow-up: request backlog is bounded to64 and the soft8ms pump budget
+is checked between atomic requests (one request/instruction may overrun it).
+New flood regression rejects the original full-batch drain. Frontend worker
+completions cannot attach media/write guest state under RPC. OSD events now obey
+local-input policy, including explicit manual input; reboot/menu/debug-step
+hotkeys cannot take ownership. Looping audio uses actual RPC run state. These
+fix verified review findings; 28 debugger/disk and ten config tests pass locally,
+with fresh native builds. Live injected-input/audio/pixel proof remains open.
+The bounded parent UI peer receipt is committed in parent55986c75, rather than
+only scratch. Focused follow-up review and final-head CI are pending.
+
 FINISHED locally: the native `martypc` Rust/wgpu UI and headless frontend share
 `marty_debug_rpc` on the same Machine. RPC owns execution; repaint never starts
 a second runner. Local keyboard/hotkeys, keyboard-to-joystick, mouse/light pen,

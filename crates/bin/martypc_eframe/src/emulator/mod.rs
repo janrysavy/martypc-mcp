@@ -140,6 +140,11 @@ impl Emulator {
         }
         self.exec_control.borrow().state.is_running()
     }
+    pub fn guest_paused(&self) -> bool {
+        #[cfg(not(target_arch = "wasm32"))]
+        if let Some(rpc) = &self.rpc { return !rpc.is_running(); }
+        self.exec_control.borrow().state.is_paused()
+    }
     #[allow(dead_code)]
     pub fn validate_config(&self) -> Result<(), Error> {
         Ok(())

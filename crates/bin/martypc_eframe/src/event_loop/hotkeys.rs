@@ -59,6 +59,10 @@ pub fn process_hotkeys(
     };
 
     for hotkey in events {
+        if emu.config.emulator.rpc_port.is_some() && matches!(hotkey,
+            HotkeyEvent::ToggleGui | HotkeyEvent::Reboot | HotkeyEvent::DebugStep | HotkeyEvent::DebugStepOver) {
+            continue;
+        }
         match hotkey {
             HotkeyEvent::ToggleGui => {
                 log::debug!("ToggleGui hotkey triggered. Toggling GUI visibility.");

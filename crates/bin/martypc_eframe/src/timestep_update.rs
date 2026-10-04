@@ -488,8 +488,8 @@ pub fn process_update(emu: &mut Emulator, dm: &mut EFrameDisplayManager, tm: &mu
             update_egui(emuc, dmc, tmc, tmu);
 
             // Run sound
+            let looping_sounds_paused = emuc.guest_paused();
             if let Some(sound) = &mut emuc.si {
-                let looping_sounds_paused = emuc.exec_control.borrow().get_state().is_paused();
                 sound.set_looping_sounds_paused(looping_sounds_paused);
                 sound.run(duration);
             }

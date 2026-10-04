@@ -14,7 +14,7 @@ use std::{
     net::{TcpListener, TcpStream},
     sync::{
         atomic::{AtomicBool, Ordering},
-        mpsc::{self, Receiver, Sender},
+        mpsc::{self, Receiver, Sender, SyncSender},
         Arc,
     },
     thread,
@@ -724,7 +724,7 @@ impl Agent {
 }
 
 type Message = (Vec<u8>, Sender<Option<Value>>);
-fn connection(mut stream: TcpStream, sender: Sender<Message>) -> std::io::Result<()> {
+fn connection(mut stream: TcpStream, sender: SyncSender<Message>) -> std::io::Result<()> {
     // Windows accepted sockets can inherit the listener's nonblocking mode.
     // Transport readers are dedicated threads and must wait for complete lines.
     stream.set_nonblocking(false)?;
@@ -784,7 +784,7 @@ impl DebugRpc {
     fn from_listener(listener: TcpListener) -> std::io::Result<Self> {
         let port = listener.local_addr()?.port();
         listener.set_nonblocking(true)?;
-        let (sender, receive) = mpsc::channel::<Message>();
+        let (sender, receive) = mpsc::sync_channel::<Message>(64);
         let stop = Arc::new(AtomicBool::new(false));
         let thread_stop = stop.clone();
         let listener_thread = thread::spawn(move || {
@@ -815,13 +815,16 @@ impl DebugRpc {
         self.agent.running
     }
 
-    /// Nonblocking UI work, bounded in both native cycles and host time. A paused
-    /// repaint cannot advance the machine; each request is handled at a boundary.
+    /// Nonblocking UI work with a soft host budget checked before every request
+    /// and native boundary. An atomic request/instruction may overrun the budget;
+    /// it cannot be interrupted halfway through mutation. Paused repaint costs no
+    /// guest cycles. The request channel holds at most 64 queued messages.
     pub fn pump(&mut self, machine: &mut Machine, cycle_budget: u32) {
         let start = machine.cpu().get_cycle_ct().0;
         let wall_deadline = Instant::now() + Duration::from_millis(8);
         loop {
             for _ in 0..64 {
+                if Instant::now() >= wall_deadline { return; }
                 match self.receive.try_recv() {
                     Ok((line, reply)) => {
                         let _ = reply.send(self.agent.request(machine, &line));
@@ -994,6 +997,28 @@ mod tests {
         assert!(client.is_finished());
         client.join().unwrap();
         assert_eq!(machine.cpu().get_cycle_ct().0, initial_clock);
+    }
+    #[test]
+    fn gui_request_flood_is_bounded_and_yields_between_atomic_requests() {
+        let mut m = machine();
+        let initial_clock = m.cpu().get_cycle_ct().0;
+        let (sender, receive) = mpsc::sync_channel(64);
+        let mut replies = Vec::new();
+        let line = serde_json::to_vec(&json!({"jsonrpc":"2.0","id":1,
+            "method":"memory.read","params":{"address":0,"length":65536}})).unwrap();
+        for _ in 0..64 {
+            let (reply, r) = mpsc::channel();
+            sender.try_send((line.clone(), reply)).unwrap();
+            replies.push(r);
+        }
+        let (reply, _) = mpsc::channel();
+        assert!(matches!(sender.try_send((line, reply)), Err(mpsc::TrySendError::Full(_))));
+        let mut rpc = DebugRpc { agent: Agent::new(1), receive,
+            stop: Arc::new(AtomicBool::new(false)), listener_thread: None };
+        rpc.pump(&mut m, 10000);
+        let completed = replies.iter().filter(|r| r.try_recv().is_ok()).count();
+        assert!(completed < 64, "the original pump drains all64 large requests before checking time");
+        assert_eq!(initial_clock, m.cpu().get_cycle_ct().0);
     }
     #[test]
     fn joystick_rpc_drives_native_game_port_and_preflights_all_input() {
@@ -1607,7 +1632,7 @@ mod tests {
     fn tcp_persistent_json_lines_and_notifications() {
         let listener = TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0)).unwrap();
         let port = listener.local_addr().unwrap().port();
-        let (sender, receive) = mpsc::channel();
+        let (sender, receive) = mpsc::sync_channel(64);
         let transport = thread::spawn(move || connection(listener.accept().unwrap().0, sender).unwrap());
         let worker = thread::spawn(move || {
             let mut m = machine();

@@ -27,7 +27,9 @@ For an optional visible screen, build `cargo build -p martypc_eframe --locked`
 and run `martypc --rpc-port 2301` in the same writable installation. The existing
 Rust/wgpu UI renders the exact machine controlled by RPC; it does not start a
 second guest. Both frontends use `marty_debug_rpc`. The GUI replaces its normal
-machine runner with a bounded debugger pump and remains responsive while paused.
+machine runner with a debugger pump. Its soft8ms budget is checked before every
+request/native boundary; one atomic request/instruction may overrun it. The
+transport channel holds at most64 queued requests. This is not a hard latency SLA.
 Neither repaint nor inspection advances paused guest time. RPC configurations
 skip wall-frame guest housekeeping in both frontends; software PPI turbo remains
 refused and host serial bridging is not supported in this mode.
@@ -37,9 +39,14 @@ This includes keyboard/hotkeys, keyboard-to-joystick mappings, mouse/light pen,
 gamepads and clearing guest keys on window focus loss. Resizing/closing the
 window still works. Use `--local-input`, or explicit `local_input = true` under
 `[emulator]`, only for manual response/play experiments. Keys reach the guest
-only while RPC execution is running. Set `local_input = false` for ordinary
+only while RPC execution is running, including OSD keyboard events. Set
+`local_input = false` for ordinary
 view-only runs even without RPC. RPC mode hides GUI machine controls to prevent
-a second execution/mutation owner. This does not disable deliberate RPC input
+a second execution/mutation owner; queued frontend media/host-file completions
+are also ignored under RPC. Reboot/debug-step/menu hotkeys cannot take execution
+ownership even with manual input enabled. Looping audio pause follows RPC's
+actual running state. Live sound-output/input injection proof remains open.
+This does not disable deliberate RPC input
 or restore commands; snapshots and hardware keyboard RPC are still OPEN.
 
 The server binds only `127.0.0.1`. Send one JSON-RPC 2.0 object per newline over

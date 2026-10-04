@@ -85,8 +85,14 @@ pub fn handle_egui_event(
     tmu: &mut TimestepUpdate,
     gui_event: &GuiEvent,
 ) {
-    // RPC owns machine mutation. Display/window events are handled elsewhere.
-    if emu.config.emulator.rpc_port.is_some() {
+    let keyboard = matches!(gui_event, GuiEvent::KeyPress(_) | GuiEvent::KeyRelease(_) | GuiEvent::ClearKeyboard);
+    if keyboard && (!emu.config.emulator.local_input_enabled()
+        || (emu.config.emulator.rpc_port.is_some() && !emu.guest_running())) {
+        return;
+    }
+    // Explicit manual input includes the OSD keyboard. All other GUI mutation
+    // stays forbidden under RPC; window/display events are handled elsewhere.
+    if emu.config.emulator.rpc_port.is_some() && !keyboard {
         return;
     }
     #[allow(unreachable_patterns)]
