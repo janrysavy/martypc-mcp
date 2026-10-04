@@ -822,6 +822,97 @@ mod tests {
         assert_eq!(controlled.cpu().get_register16(Register16::AX), 0x1235);
         assert_eq!(peek(&controlled, 0x200, 2).unwrap(), vec![0x35, 0x12]);
     }
+
+    #[test]
+    fn rpc_continue_matches_batched_native_run_with_pit_irqs_and_rep() {
+        // 0000:0100 installs IRQ0 at 0180, PIC vector 8, PIT divisor 0100h.
+        // Repeated MOVSB copies 32 bytes while IRQ0 increments [0282] and EOIs.
+        // NASM and pynasm emit the same 139-byte image including NOP padding.
+        let mut code = vec![
+            0xfa, 0x31, 0xc0, // CLI; XOR AX,AX
+            0x8e, 0xd8, 0x8e, 0xc0, 0x8e, 0xd0, // DS/ES/SS := AX
+            0xbc, 0x00, 0x80, // MOV SP,8000h
+            0xc7, 0x06, 0x20, 0x00, 0x80, 0x01, // IRQ0 offset := 0180h
+            0xc7, 0x06, 0x22, 0x00, 0x00, 0x00, // IRQ0 segment := 0
+            0xb0, 0x13, 0xe6, 0x20, // PIC ICW1, single/ICW4
+            0xb0, 0x08, 0xe6, 0x21, // PIC vector 8
+            0xb0, 0x01, 0xe6, 0x21, // PIC 8086 mode
+            0xb0, 0xfe, 0xe6, 0x21, // Unmask IRQ0 only
+            0xb0, 0x36, 0xe6, 0x43, // PIT channel0, mode3, low/high
+            0xb8, 0x00, 0x01, 0xe6, 0x40, 0x88, 0xe0, 0xe6, 0x40, // Divisor 0100h
+            0xfb, // STI
+            0xbe, 0x00, 0x03, 0xbf, 0x00, 0x05, 0xb9, 0x20, 0x00, // SI/DI/CX
+            0xf3, 0xa4, // REP MOVSB
+            0xff, 0x06, 0x80, 0x02, // INC word [0280h]
+            0xeb, 0xef, // JMP back to MOV SI
+        ];
+        code.resize(0x80, 0x90);
+        code.extend_from_slice(&[
+            0x50, // PUSH AX
+            0xff, 0x06, 0x82, 0x02, // INC word [0282h]
+            0xb0, 0x20, 0xe6, 0x20, // MOV AL,20h; OUT 20h,AL (EOI)
+            0x58, 0xcf, // POP AX; IRET
+        ]);
+        assert_eq!(
+            digest(&code),
+            "49a3c19b6146120dbb758398761f36a3db3bee6e3431025dce1ffb4fd54cc7ba"
+        );
+        let mut native = machine();
+        let mut controlled = machine();
+        for m in [&mut native, &mut controlled] {
+            m.load_program(&code, 0, 0x100, 0, 0x100).unwrap();
+            for i in 0..32 {
+                m.bus_mut().write_u8(0x300 + i, (i + 1) as u8, 0).unwrap();
+            }
+        }
+        let mut a = Agent::new(2301);
+        let mut control = ExecutionControl::new();
+        control.set_op(ExecutionOperation::Run);
+        call(&mut a, &mut controlled, "execution.continue", json!({}));
+        for _ in 0..12 {
+            native.run(25_000, &mut control);
+            let target = native.cpu().get_cycle_ct().0;
+            while controlled.cpu().get_cycle_ct().0 < target {
+                // Inspection between every boundary must not change guest time/prefetch.
+                call(&mut a, &mut controlled, "state.get_registers", json!({}));
+                a.advance(&mut controlled);
+            }
+            assert_eq!(registers(&mut native, 0), registers(&mut controlled, 0));
+            assert_eq!(
+                format!("{:?}", native.cpu().get_string_state()),
+                format!("{:?}", controlled.cpu().get_string_state())
+            );
+            assert_eq!(native.system_ticks(), controlled.system_ticks());
+            assert_eq!(
+                native.bus().pit().as_ref().unwrap().get_cycles(),
+                controlled.bus().pit().as_ref().unwrap().get_cycles()
+            );
+            let n = native.bus().pic().as_ref().unwrap().get_string_state();
+            let c = controlled.bus().pic().as_ref().unwrap().get_string_state();
+            assert_eq!(
+                (n.imr, n.isr, n.irr, n.intr, n.interrupt_stats),
+                (c.imr, c.isr, c.irr, c.intr, c.interrupt_stats)
+            );
+            assert_eq!(peek(&native, 0, 32768).unwrap(), peek(&controlled, 0, 32768).unwrap());
+        }
+        let memory = peek(&controlled, 0x280, 4).unwrap();
+        assert!(
+            u16::from_le_bytes([memory[0], memory[1]]) > 0,
+            "REP loop never completed"
+        );
+        assert!(u16::from_le_bytes([memory[2], memory[3]]) > 0, "IRQ0 never executed");
+        assert_eq!(
+            peek(&controlled, 0x300, 32).unwrap(),
+            peek(&controlled, 0x500, 32).unwrap()
+        );
+        println!(
+            "Batched/RPC equality: cycles={}, crystal_ticks={}, completed_copies={}, IRQ0_entries={}",
+            controlled.cpu().get_cycle_ct().0,
+            controlled.system_ticks(),
+            u16::from_le_bytes([memory[0], memory[1]]),
+            u16::from_le_bytes([memory[2], memory[3]])
+        );
+    }
     #[test]
     fn register_guards_preflight_the_entire_request() {
         let mut m = machine();

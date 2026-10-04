@@ -2,14 +2,13 @@
 
 FINISHED: limited native headless JSON-lines debugger; see
 [JSON_RPC_API.md](JSON_RPC_API.md) for the supported PyPC-compatible methods and
-explicit gaps. Twenty native tests cover direct/RPC CPU+RAM+PIT equality, guarded
+explicit gaps. Twenty-one native tests cover direct/RPC CPU+RAM+PIT equality, guarded
 writes, breakpoint resumes, private predicates, turbo-independent deadlines,
 operation retention and persistent TCP framing. Windows local build passes.
 The parent probe uses the unchanged PyPC client against the real executable.
 Initial review completed; fixed stale breakpoint stop after stepping and
-clarified capability/session metadata. Publication requires focused follow-up
-review and passing final-head Windows/Linux checks on
-[PR1](https://github.com/janrysavy/martypc-mcp/pull/1).
+clarified capability/session metadata. PR1 is integrated after focused review
+and passing final-head Windows/Linux checks.
 Follow-up confirms step-stop/PPI fixes; unsupported metadata is expanded.
 Execution length remains exact-address metadata as in PyPC, tested explicitly;
 the review's range-matching objection does not describe the shared contract.
@@ -27,16 +26,23 @@ preserve drive-slot holes and fail startup on load/parse/controller errors.
 Native slave IDENTIFY confirms attachment; missing/unsupported disks and excess
 slots fail. Headless frontend now enables matching EGA/VGA ROM requirements.
 Paused parent startup reproduced missing XT-IDE attachment and VGA BIOS before
-these fixes. This slice still requires review and final-head Windows/Linux CI.
+these fixes. PR2 is integrated after review and final-head Windows/Linux CI.
 The review found main-config drive numbers were ignored; explicit indexed
 overrides now preserve sparse/out-of-order entries and reject duplicate/excess
 slots. The parent is exercising real startup failures and bounded DOS boot.
 
-WIP: DOS/Pyro boot, hardware/instruction trace, VNC, input/serial, snapshots and
-DOSCTRL are not implemented or validated. Do not infer them from transport
-compatibility. No game timing claim yet. Next: establish a scratch DOS boot with
-the required disks/ROMs, then observe original CRT calibration with native
-device timing; extend only the control/observation gaps that this exposes.
+FINISHED locally: RPC continue versus normal batched native Run, including
+PIT IRQ0, REP copies and inspection at every boundary. Twelve comparisons agree
+on CPU/prefetch, clocks, PIC, PIT and low32KiB RAM; 366 copies/293 IRQ entries
+execute in300144 CPU cycles. All21 tests pass. Review/final-head CI pending.
+This closes a test gap, not every possible scheduling defect.
+
+The parent workspace boots MS-DOS6.22/original Pyro tutorial and menu with its
+pinned patched GLaBIOS and CGA; loaded code matches, CRT calibration103 observed.
+Automatic disk selection still fails. Hardware/instruction trace, VNC,
+input/serial, complete snapshots and DOSCTRL remain unsupported. Controlled
+BIOS-ring input bypasses hardware IRQs. Next: observation/input for comparable
+original-game timing runs. No physical XT or full gameplay parity claim.
 
 CI is Windows/Linux headless tests+build, no artifacts/caches. macOS/WASM are
 manual. Local Pyro workspace uses installed Rust1.98.0 via `cargo +1.98.0`, with

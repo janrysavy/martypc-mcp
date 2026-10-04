@@ -95,8 +95,12 @@ PPI software-turbo configurations are refused before the listener starts:
 their native `frame_update` housekeeping is not scheduled by this frontend.
 Host serial polling likewise requires that housekeeping and remains unsupported.
 Other unsupported methods return errors; this is not a full PyPC replacement. Native CPU/device
-tests and a real executable probe establish the listed subset. Full DOS/Pyro
-boot, original CRT calibration and runtime timing comparisons remain unproved.
+tests and a real executable probe establish the listed subset. A separate
+native regression compares normal batched Run with RPC continue/inspection:
+PIT IRQ0 and REP copies agree on registers, prefetch state, CPU/crystal/PIT
+clocks, PIC state and low32KiB RAM at twelve boundaries. This bounded probe
+does not prove full DOS/game timing or hardware input equivalence. The parent
+workspace's original Pyro startup does not close those gaps.
 
 In the parent Pyro repository, `python scripts/test_martypc_rpc_live.py` makes a
 writable scratch installation, loads a nine-byte MOV/INC/store/loop probe,
