@@ -94,7 +94,12 @@ and210 core tests pass.2304 destructive JSON restores on nine native machine
 models continue keyboard/port/IRQ behavior against untouched peers;256 seeded
 raw-byte/clock cases prove storage only. Seven actual lost-state controls fail;
 exact source restoration returns210 green. Invalid model/clock/serializer
-state is refused before mutation. Review, frontend builds and final CI pending.
+state is refused before mutation. Review found active serializer/data mismatch
+was accepted: the new regression fails on the prior code. Preflight now requires
+data in every active phase and none in Idle; all13 invalid cases are atomic.
+Seven controls and fresh210 core tests pass on the exact repaired source.
+Follow-up review, fresh frontend builds and final CI pending. The separate
+machine-name FromStr typo remains pending; enum-based snapshot tests bypass it.
 External PIC/PIT/cassette/keyboard queues and complete restart remain OPEN;
 these tests do not establish physical keyboard or8255 timing.
 

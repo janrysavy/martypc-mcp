@@ -51,8 +51,7 @@ impl Ppi {
             return Err("nonfinite PPI keyboard clock");
         }
         if matches!(serial.state, KbSerializeState::DataBit(bit) if !bit.is_power_of_two())
-            || (matches!(serial.state, KbSerializeState::DataBit(_) | KbSerializeState::ParityBit)
-                && serial.data.is_none())
+            || (matches!(serial.state, KbSerializeState::Idle) != serial.data.is_none())
         {
             return Err("invalid PPI serializer bit/data");
         }
@@ -64,7 +63,7 @@ impl Ppi {
     pub(crate) fn restore_state(&mut self, saved: &PpiState) -> Result<(), &'static str> {
         self.preflight_state(saved)?;
         // No external handle is owned here. Do not regenerate interrupts or
-        // cassette/PIT side effects: machine preflight/apply covers those peers.
+        // cassette/PIT side effects: machine restore must cover those peers.
         *self = saved.ppi.clone();
         Ok(())
     }
@@ -262,7 +261,7 @@ mod tests {
         let mut ppi = ppi(MachineType::Ibm5160);
         ppi.send_keyboard(0x57);
         let saved = ppi.snapshot_state().unwrap();
-        for kind in 0..9 {
+        for kind in 0..13 {
             let mut invalid = saved.clone();
             match kind {
                 0 => invalid.version += 1,
@@ -273,9 +272,21 @@ mod tests {
                 5 => invalid.ppi.kb_serializer.rate = f64::INFINITY,
                 6 => invalid.ppi.kb_serializer.state = KbSerializeState::DataBit(0),
                 7 => invalid.ppi.kb_serializer.state = KbSerializeState::DataBit(3),
-                _ => {
+                8 => {
                     invalid.ppi.kb_serializer.state = KbSerializeState::ParityBit;
                     invalid.ppi.kb_serializer.data = None;
+                }
+                9 | 10 | 12 => {
+                    invalid.ppi.kb_serializer.state = match kind {
+                        9 => KbSerializeState::StartBit,
+                        10 => KbSerializeState::StopBit,
+                        _ => KbSerializeState::DataBit(1),
+                    };
+                    invalid.ppi.kb_serializer.data = None;
+                }
+                _ => {
+                    invalid.ppi.kb_serializer.state = KbSerializeState::Idle;
+                    invalid.ppi.kb_serializer.data = Some(0x57);
                 }
             }
             assert!(ppi.restore_state(&invalid).is_err());
