@@ -345,6 +345,30 @@ mod tests {
     }
 
     #[test]
+    fn crtc_restore_preserves_nonzero_cursor_raster_output() {
+        for start in [1, 2, 15, 31] {
+            let mut reference = configured(0, 1, start, 0);
+            reference.write_register_direct(HorizontalTotalR0, 7);
+            reference.write_register_direct(HorizontalDisplayedR1, 4);
+            reference.write_register_direct(MaximumScanlineAddressR9, 31);
+            reference.write_register_direct(CursorEndLine, 31);
+            // Native tick advances VMA before evaluating cursor output.
+            reference.write_register_direct(CursorAddressL, 0x31);
+            let mut restored = restore(&reference);
+            let mut visible = 0;
+            for _ in 0..512 {
+                let (status, address) = reference.tick();
+                let expected = (status.clone(), address);
+                visible += u32::from(expected.0.cursor);
+                let (status, address) = restored.tick();
+                assert_eq!((status.clone(), address), expected, "cursor raster start {start}");
+            }
+            assert!(visible > 0, "must observe native cursor at raster start {start}");
+            assert_eq!(json(&reference), json(&restored));
+        } //four actual cursor-output continuations, including the legal maximum31
+    }
+
+    #[test]
     fn crtc_schema_inventory_and_invalid_restores_are_atomic() {
         let mut crtc = configured(3, 0, 0x60, 3);
         for _ in 0..39 {

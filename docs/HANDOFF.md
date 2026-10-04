@@ -197,7 +197,8 @@ out-of-range continuation. Native runtime algorithms remain unchanged.
 Follow-up review confirms all three findings closed and no remaining concrete
 scoped defect. All38 RPC/config tests and fresh Windows UI/headless builds pass.
 The parent retains both source/product-bound receipts, actual mutation driver
-and before-fix regression. Final publication/CI/integration remain pending.
+and before-fix regression. Monitor PR18/a56c32fd is integrated unchanged after
+final Windows/Linux CI; linear history, source branch deleted.
 
 WIP CRTC component:37 native fields are captured, retaining selected register,
 raw registers, pending frame/address latches, cursor dividers, interlaced parity
@@ -216,7 +217,14 @@ validated before mutation. Proposed seven-bit C4 rejection is disproved: lowerin
 R4 behind the current row reaches128 and255 through actual native ticks. Two
 additional cold restores continue identically; masking or rejecting those native
 values fails. All ten controls fail, then242 core tests pass, with4616 native
-continuation restores. Follow-up review/frontend builds and final CI pending.
+continuation restores. All38 RPC/config tests and fresh Windows UI/headless
+builds pass on9d72968c. Follow-up review confirms original findings closed;
+it identifies an untested valid nonzero cursor-start latch. Four new native
+cursor-output continuations at starts1/2/15/31 close that gap; actual cursor-start
+loss fails native tick output before JSON comparison.243 core tests pass;4620
+native continuations and eleven controls are retained across frozen receipts.
+Only test/HANDOFF changes after9d72968c; production restore is byte-identical.
+Focused coverage review and final publication/CI remain pending.
 
 NEXT: publish CRTC component, integrate final-tested monitor/CRTC; CGA,
 video/audio, disks and pending host
