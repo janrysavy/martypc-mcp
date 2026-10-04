@@ -73,17 +73,19 @@ pub const DMA_COMMAND_PRIORITY: u8 = 0x10;
 
 pub const DMA_CHANNEL_COUNT: usize = 4;
 
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum TimingMode {
     NormalTiming,
     CompressedTiming,
 }
 
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum PriorityMode {
     Fixed,
     Rotating,
 }
 
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum ServiceMode {
     #[default]
     Demand,
@@ -91,14 +93,14 @@ pub enum ServiceMode {
     Block,
     Cascade,
 }
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum AddressMode {
     #[default]
     Increment,
     Decrement,
 }
 
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum TransferType {
     #[default]
     Verify,
@@ -107,7 +109,8 @@ pub enum TransferType {
     Illegal,
 }
 
-#[derive(Default)]
+#[derive(Clone, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct DMAChannel {
     current_address_reg: u16,
     current_word_count_reg: u16,
@@ -150,6 +153,10 @@ pub struct DMAControllerStringState {
     pub dreq: String,
     pub dma_channel_state: Vec<DMAChannelStringState>,
 }
+mod state;
+
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct DMAController {
     enabled: bool,
     mem_to_mem_enabled: bool,

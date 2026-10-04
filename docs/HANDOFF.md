@@ -74,7 +74,17 @@ all38 RPC/config tests and fresh Windows UI/headless builds pass.
 Final Windows/Linux CI/integration pending.
 This is PIC-owned state only, not physical 8259 timing or whole-machine restart.
 
-NEXT: DMA/PPI/video/audio/input, disks and pending host
+WIP DMA component: every native controller/channel field, partial register
+I/O, request bits, transfer address/count/page and terminal status are captured.
+Three tests and206 core tests pass.1536 destructive JSON continuation restores
+compare untouched native controllers and256KiB RAM across all four channels,
+read/write/verify and read auto-init;64 additional storage-only restores preserve
+all mode combinations/full page bytes. Six actual lost-state controls fail;
+exact source restoration returns206 green. Unsupported decrement transfers,
+write auto-init and other native service gaps remain unchanged. Review,
+frontend rebuild and final CI/integration pending. Not full bus/device/restart.
+
+NEXT: PPI/video/audio/input, disks and pending host
 I/O, with atomic dependency preflight, then real process-restart continuation.
 Hardware trace,VNC,keyboard/serial RPC and physical XT/gameplay parity remain
 OPEN. Controlled BIOS-ring input is not hardware IRQ input.
