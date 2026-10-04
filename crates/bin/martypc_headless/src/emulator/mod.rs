@@ -31,7 +31,7 @@ use std::ffi::OsString;
 
 use crate::{Counter, KeyboardData};
 use anyhow::{anyhow, Context, Error};
-use marty_config::ConfigFileParams;
+use marty_config::{ConfigFileParams, VhdConfigEntry};
 use marty_core::{
     cpu_common::CpuOption,
     machine::{Machine, MachineEvent, MachineState},
@@ -102,6 +102,27 @@ fn mount_named_vhds(
         log::info!("VHD {name} mounted on drive {drive}");
     }
     Ok(())
+}
+
+fn apply_vhd_overrides(
+    mut names: Vec<Option<String>>,
+    overrides: &[VhdConfigEntry],
+) -> Result<Vec<Option<String>>, Error> {
+    let mut seen = [false; 2];
+    for entry in overrides {
+        if entry.drive >= seen.len() {
+            return Err(anyhow!("Configured VHD slot {} exceeds controller capacity", entry.drive));
+        }
+        if seen[entry.drive] {
+            return Err(anyhow!("Duplicate configured VHD slot {}", entry.drive));
+        }
+        seen[entry.drive] = true;
+        if names.len() <= entry.drive {
+            names.resize(entry.drive + 1, None);
+        }
+        names[entry.drive] = Some(entry.filename.clone());
+    }
+    Ok(names)
 }
 
 impl Emulator {
@@ -224,32 +245,11 @@ impl Emulator {
     /// Mount VHD images into hard drive devices.
     /// VHD images can be specified either in the machine configuration, or in the main configuration.
     /// Images specified in the main configuration will override images specified in a machine configuration.
-    /// Images are mounted in the order they are specified, starting with the first hard disk controller, and first
-    /// hard disk, and continuing until all images are mounted, or there are no more hard disks.
+    /// Main configuration entries target their explicit drive number, independently of list order.
     pub fn mount_vhds(&mut self) -> Result<(), Error> {
         // First, retrieve the list of VHD images specified in the machine configuration.
-        let mut vhd_names: Vec<Option<String>> = self.get_vhds_from_machine();
-        let machine_max = vhd_names.len();
-
-        for (drive_i, vhd) in self
-            .config
-            .emulator
-            .media
-            .vhd
-            .as_ref()
-            .unwrap_or(&Vec::new())
-            .iter()
-            .enumerate()
-        {
-            if drive_i >= machine_max {
-                // Add new drive
-                vhd_names.push(Some(vhd.filename.clone()));
-            }
-            else {
-                // Replace existing drive
-                vhd_names[drive_i] = Some(vhd.filename.clone());
-            }
-        }
+        let vhd_names = apply_vhd_overrides(self.get_vhds_from_machine(),
+            self.config.emulator.media.vhd.as_deref().unwrap_or(&[]))?;
 
         let manager = &mut self.vhd_manager;
         mount_named_vhds(&mut self.machine, vhd_names, |drive, name| {
@@ -384,5 +384,20 @@ mod tests {
                 assert!(!required.iter().any(|r| r == "ibm_vga" || r == "ibm_ega"));
             }
         }
+    }
+
+    #[test]
+    fn main_config_targets_explicit_drive_numbers() {
+        let entry = |drive, name: &str| VhdConfigEntry { drive, filename: name.into() };
+        assert_eq!(apply_vhd_overrides(vec![Some("master.vhd".into())],
+            &[entry(1, "slave.vhd")]).unwrap(),
+            vec![Some("master.vhd".into()), Some("slave.vhd".into())]);
+        assert_eq!(apply_vhd_overrides(vec![],
+            &[entry(1, "slave.vhd"), entry(0, "master.vhd")]).unwrap(),
+            vec![Some("master.vhd".into()), Some("slave.vhd".into())]);
+        assert_eq!(apply_vhd_overrides(vec![], &[entry(1, "slave.vhd")]).unwrap(),
+            vec![None, Some("slave.vhd".into())]);
+        assert!(apply_vhd_overrides(vec![], &[entry(2, "third.vhd")]).is_err());
+        assert!(apply_vhd_overrides(vec![], &[entry(0, "a.vhd"), entry(0, "b.vhd")]).is_err());
     }
 }

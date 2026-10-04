@@ -2,7 +2,7 @@
 
 FINISHED: limited native headless JSON-lines debugger; see
 [JSON_RPC_API.md](JSON_RPC_API.md) for the supported PyPC-compatible methods and
-explicit gaps. Nineteen native tests pass: direct/RPC CPU+RAM+PIT equality, guarded
+explicit gaps. Twenty native tests cover direct/RPC CPU+RAM+PIT equality, guarded
 writes, breakpoint resumes, private predicates, turbo-independent deadlines,
 operation retention and persistent TCP framing. Windows local build passes.
 The parent probe uses the unchanged PyPC client against the real executable.
@@ -28,6 +28,9 @@ Native slave IDENTIFY confirms attachment; missing/unsupported disks and excess
 slots fail. Headless frontend now enables matching EGA/VGA ROM requirements.
 Paused parent startup reproduced missing XT-IDE attachment and VGA BIOS before
 these fixes. This slice still requires review and final-head Windows/Linux CI.
+The review found main-config drive numbers were ignored; explicit indexed
+overrides now preserve sparse/out-of-order entries and reject duplicate/excess
+slots. The parent is exercising real startup failures and bounded DOS boot.
 
 WIP: DOS/Pyro boot, hardware/instruction trace, VNC, input/serial, snapshots and
 DOSCTRL are not implemented or validated. Do not infer them from transport
