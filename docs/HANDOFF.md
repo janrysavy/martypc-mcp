@@ -121,7 +121,9 @@ lost position/time/active fields fail those I/O checks, buttons fail native I/O.
 Initial review's missing-time-control claim is false: the exact prompt contained
 that actual failure. Native runtime tail/constants are byte-identical to base.
 Strict nested keys/array lengths and atomic version/port/layout/axis preflight
-are tested. Focused follow-up/final frontend builds/CI pending. Not physical analog timing,
+are tested. Focused follow-up found no unresolved scoped restore defect or
+meaningful coverage gap. All38 RPC/config tests and fresh Windows UI/headless
+builds pass. Final CI/integration pending. Not physical analog timing,
 full input queues, complete machine state or restart proof.
 
 NEXT: publish game port, integrate final-tested PPI, keyboard/video/audio, disks and pending host
