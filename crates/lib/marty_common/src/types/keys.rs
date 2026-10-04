@@ -43,7 +43,7 @@ use std::fmt;
 use serde::Deserialize;
 use strum_macros::{EnumIter, EnumString};
 
-#[derive(Copy, Clone, Debug, EnumIter, EnumString, Deserialize, PartialEq, Eq, Hash)]
+#[derive(Copy, Clone, Debug, EnumIter, EnumString, Deserialize, serde::Serialize, PartialEq, Eq, Hash)]
 pub enum MartyKey {
     None,
     Backquote,

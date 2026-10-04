@@ -44,7 +44,8 @@ use serde_derive::Deserialize;
 use strum::IntoEnumIterator;
 use toml;
 
-#[derive(Copy, Clone, Debug, PartialEq, Default)]
+#[derive(Copy, Clone, Debug, PartialEq, Default, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct KeyboardModifiers {
     pub control: bool,
     pub alt: bool,
@@ -74,11 +75,15 @@ pub enum TranslationMode {
     Scancode,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct KeyState {
     pressed: bool,
-    pressed_time: f64,            // Time the key has been pressed in microseconds.
+    #[serde(with = "crate::snapshot_codec::f64_bits")]
+    pressed_time: f64,            // Time the key has been pressed in milliseconds (run receives microseconds).
+    #[serde(with = "crate::snapshot_codec::f64_bits")]
     repeat_time: f64,             // Time accumulator until next repeat (at typematic_rate ms)
+    #[serde(deserialize_with = "crate::snapshot_codec::required_option")]
     translation: Option<Vec<u8>>, // The scancode translation applied to this key when it was pressed.
 }
 
@@ -107,7 +112,7 @@ pub struct KeyboardDefinition {
     pcjr: PcJrKeyboard,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Deserialize, serde::Serialize)]
 pub struct KeycodeMapping {
     keycode: String,
     modifiers: Vec<String>,
@@ -115,6 +120,8 @@ pub struct KeycodeMapping {
     macro_translate: bool,
     scancodes: Vec<u8>,
 }
+
+mod state;
 
 /// Keyboard definition struct.
 /// We maintain a hashmap of MartyKey to KeyState. This allows us to track
@@ -125,18 +132,24 @@ pub struct KeycodeMapping {
 /// stored in the keys_pressed vector. This allows us to avoid iterating
 /// through all keys in the kb_map every keyboard update. We must add
 /// keys to keys_pressed on keydown and remove them on keyup.
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Keyboard {
     debug: bool,
     kb_type: KeyboardType,
+    #[serde(with = "state::key_table")]
     kb_hash: MartyHashMap<MartyKey, KeyState>,
     keys_pressed: Vec<MartyKey>,
     typematic: bool,
+    #[serde(with = "crate::snapshot_codec::f64_bits")]
     typematic_delay: f64, // Typematic repeat delay from initial keypress (ms)
+    #[serde(with = "crate::snapshot_codec::f64_bits")]
     typematic_rate: f64,  // Typematic repeat rate (ms)
     kb_buffer_size: usize,
     kb_buffer: Vec<u8>, // Keyboard buffer. Variable length depending on keyboard model.
     kb_buffer_overflow: bool,
     reset_buffer: Vec<u8>, // Keyboard buffer to hold queued reset scancodes on keyboard reset.
+    #[serde(with = "state::mapping_table")]
     keycode_mappings: Vec<KeycodeMapping>,
 }
 

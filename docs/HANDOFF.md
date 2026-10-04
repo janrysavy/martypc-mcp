@@ -89,7 +89,7 @@ and fresh Windows UI/headless builds pass. Final Windows/Linux CI passed;
 integrated linearly, source branch deleted. PPI PR14 now targets main.
 Not full bus/device/restart.
 
-WIP PPI component: raw control byte, modes/latches/dirty flags and four exact
+INTEGRATED PPI PR14 at54f9230e: raw control byte, modes/latches/dirty flags and four exact
 keyboard clock values plus reset/PCjr serial state are preserved. Four tests
 and210 core tests pass.2304 destructive JSON restores on nine native machine
 models continue keyboard/port/IRQ behavior against untouched peers;256 seeded
@@ -100,7 +100,8 @@ was accepted: the new regression fails on the prior code. Preflight now requires
 data in every active phase and none in Idle; all13 invalid cases are atomic.
 Seven controls and fresh210 core tests pass on the exact repaired source.
 Follow-up review confirms both verified repairs are resolved. All38 RPC/config
-tests and fresh Windows UI/headless builds pass. Final CI/integration pending.
+tests and fresh Windows UI/headless builds pass. Final Windows/Linux CI passed;
+integrated linearly and source branch deleted.
 FINISHED parser fix: ibm5150v256k no longer selects the64K board, and
 compaq_portable is accepted. Both new regressions fail on the original parser;
 all212 core tests pass after the two-line repair. Config serde already used enum
@@ -126,7 +127,23 @@ meaningful coverage gap. All38 RPC/config tests and fresh Windows UI/headless
 builds pass. Final CI/integration pending. Not physical analog timing,
 full input queues, complete machine state or restart proof.
 
-NEXT: publish game port, integrate final-tested PPI, keyboard/video/audio, disks and pending host
+WIP keyboard component: native scan/reset buffers, held-key order, cached
+translations, mapping/macros and exact finite typematic clocks are captured.
+Native reset break-byte hash-table iteration order is preserved; incompatible
+constructor profiles are refused. Existing TOML mapping extensions still work.
+Native algorithms are unchanged. Six tests cover768 destructive continuations,
+three repeat-deadline restores,51 queued scan/reset restores and three cached/new
+mapping restores on ModelF/Tandy1000/Pcjr;33 default/unique-seeded cases prove
+storage only. Seven actual lost-state controls fail native scan/repeat/mapping
+observations; exact source restoration passes223 core tests. Strict nested
+schema, missing/extra fields and invalid restore atomicity are tested. ModelM
+and unsupported multi-code key-up states are explicitly refused. Typed macro
+entries roundtrip, but Machine macro FIFO is NOT yet restored: peers retained
+and compared. Bus delivery clocks, PPI/PIC/hardware keyboard, physical timing
+and process restart remain OPEN. Independent review and UI/build/CI pending.
+
+NEXT: publish keyboard, integrate final-tested game port, Machine macro FIFO,
+video/audio, disks and pending host
 I/O, with atomic dependency preflight, then real process-restart continuation.
 Hardware trace,VNC,keyboard/serial RPC and physical XT/gameplay parity remain
 OPEN. Controlled BIOS-ring input is not hardware IRQ input.

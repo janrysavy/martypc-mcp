@@ -115,7 +115,8 @@ pub struct DisassemblyListingEntry {
     pub disassembly: Disassembly,
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct KeybufferEntry {
     pub keycode:   MartyKey,
     pub pressed:   bool,

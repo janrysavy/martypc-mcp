@@ -40,7 +40,7 @@ use crate::{
 use serde_derive::Deserialize;
 
 // Define the various types of keyboard we can emulate.
-#[derive(Copy, Clone, Debug, Deserialize, PartialEq)]
+#[derive(Copy, Clone, Debug, Deserialize, serde::Serialize, PartialEq)]
 pub enum KeyboardType {
     ModelF,
     ModelM,
