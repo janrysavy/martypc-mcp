@@ -65,6 +65,7 @@ egui_commonmark = { workspace = true, optional = true }
 # Native build dependencies
 # ---------------------------------------------------------------------------------------------------------------------
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+marty_debug_rpc = { path = "../../lib/marty_debug_rpc" }
 env_logger = "0.11"
 marty_vhd = { path = "../../lib/marty_vhd", default-features = false, features = ["builder"] }
 egui-winit = { workspace = true, default-features = true, features = ["accesskit"]}

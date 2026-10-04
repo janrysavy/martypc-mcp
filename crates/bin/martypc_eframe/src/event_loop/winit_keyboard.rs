@@ -41,6 +41,9 @@ use winit::{
 };
 
 pub fn handle_modifiers(emu: &mut Emulator, _wid: WindowId, _event: &WindowEvent, modifiers: &Modifiers) {
+    if !emu.config.emulator.local_input_enabled() {
+        return;
+    }
     let state = modifiers.state();
 
     emu.kb_data.ctrl_pressed = state.control_key();
@@ -63,6 +66,11 @@ pub fn handle_winit_key_event(
     key_event: &KeyEvent,
     gui_has_focus: bool,
 ) -> bool {
+    // Includes hotkeys and keyboard-to-joystick emulation: none may mutate a
+    // controlled run. Closing/resizing the observation window still works.
+    if !emu.config.emulator.local_input_enabled() {
+        return true;
+    }
     // Destructure the KeyEvent.
     let KeyEvent {
         physical_key,
@@ -126,7 +134,7 @@ pub fn handle_winit_key_event(
                     // Only send keystrokes to the machine if it is running. This avoids sending keystrokes
                     // to the machine when interacting with the debugger.
                     // TODO: Make this optional?
-                    if emu.exec_control.borrow_mut().get_state().is_running() {
+                    if emu.guest_running() {
                         // ignore host typematic repeat
                         if !repeat {
                             return match state {

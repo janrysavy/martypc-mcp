@@ -71,9 +71,13 @@ pub struct CmdLineArgs {
     #[bpaf(long, switch)]
     pub headless: bool,
 
-    /// Local JSON-RPC debugger port (headless frontend).
+    /// Local JSON-RPC debugger port (native GUI or headless frontend).
     #[bpaf(long("rpc-port"))]
     pub rpc_port: Option<u16>,
+
+    /// Allow local guest keyboard/mouse/gamepad input while RPC is enabled.
+    #[bpaf(long("local-input"), switch)]
+    pub local_input: bool,
 
     #[bpaf(long, switch)]
     pub fuzzer: bool,

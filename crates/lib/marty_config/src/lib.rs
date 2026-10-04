@@ -198,6 +198,8 @@ pub struct Emulator {
     #[serde(default)]
     pub headless: bool,
     pub rpc_port: Option<u16>,
+    /// Local guest input defaults off under RPC control; explicit true enables manual play.
+    pub local_input: Option<bool>,
     #[serde(default = "_default_min_emulation_speed")]
     pub min_emulation_speed: f32,
     #[serde(default = "_default_max_emulation_speed")]
@@ -288,6 +290,12 @@ fn normalize_emulation_speed_config(emulator: &mut Emulator) {
             clamped_initial
         );
         emulator.initial_emulator_speed = clamped_initial;
+    }
+}
+
+impl Emulator {
+    pub fn local_input_enabled(&self) -> bool {
+        self.local_input.unwrap_or(self.rpc_port.is_none())
     }
 }
 
@@ -518,6 +526,9 @@ impl ConfigFileParams {
         if shell_args.rpc_port.is_some() {
             self.emulator.rpc_port = shell_args.rpc_port;
         }
+        if shell_args.local_input {
+            self.emulator.local_input = Some(true);
+        }
         self.emulator.fuzzer |= shell_args.fuzzer;
         self.emulator.auto_poweron |= shell_args.auto_poweron;
         self.emulator.title_hacks |= shell_args.title_hacks;
@@ -706,6 +717,23 @@ pub fn read_config_string(toml_string: impl AsRef<str>) -> Result<ConfigFilePara
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn rpc_observation_defaults_to_no_local_guest_input() {
+        let mut config: ConfigFileParams = toml::from_str(include_str!("../../../../install/martypc.toml")).unwrap();
+        assert!(config.emulator.local_input_enabled());
+        config.emulator.rpc_port = Some(2301);
+        assert!(!config.emulator.local_input_enabled());
+        config.emulator.local_input = Some(true);
+        assert!(config.emulator.local_input_enabled());
+        config.emulator.local_input = Some(false);
+        assert!(!config.emulator.local_input_enabled());
+        config.overlay(CmdLineArgs {
+            local_input: true,
+            ..Default::default()
+        });
+        assert!(config.emulator.local_input_enabled());
+    }
 
     #[derive(Deserialize)]
     struct MachineConfig {

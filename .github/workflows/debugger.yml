@@ -24,6 +24,9 @@ jobs:
         if: runner.os == 'Linux'
         run: sudo apt-get update -qq && sudo apt-get install -y libudev-dev
       - name: Test native CPU, devices and RPC transport
-        run: cargo test -p martypc_headless --no-default-features --lib --locked
+        run: cargo test -p marty_debug_rpc -p marty_config -p martypc_headless --no-default-features --lib --locked
       - name: Build headless debugger
         run: cargo build -p martypc_headless --no-default-features --locked
+      - name: Build native observation UI
+        if: runner.os == 'Windows'
+        run: cargo build -p martypc_eframe --locked

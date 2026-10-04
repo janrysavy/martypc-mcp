@@ -1,5 +1,21 @@
 # Fork handoff
 
+FINISHED locally: the native `martypc` Rust/wgpu UI and headless frontend share
+`marty_debug_rpc` on the same Machine. RPC owns execution; repaint never starts
+a second runner. Local keyboard/hotkeys, keyboard-to-joystick, mouse/light pen,
+gamepads and focus-loss clearing default off under RPC. Explicit `--local-input`
+enables manual experiments; GUI machine controls remain hidden. See
+[JSON_RPC_API.md](JSON_RPC_API.md). Twenty-seven debugger/disk tests and ten config
+tests pass; fresh Windows GUI/headless builds pass. A live native window and
+headless peer agree over paused reads, 64 BIOS boundaries, low64KiB RAM/CGA/ROM,
+and a bounded5ms guest-time run. The new idle-connection test covers a Windows
+accepted-socket nonblocking inheritance failure found in the live run.
+Review and final-head Windows/Linux CI are pending. This is not complete
+snapshot, keyboard-RPC, full gameplay or physical XT timing proof.
+NEXT: complete restartable snapshots before further game timing, including
+8088 prefetch/CPU phase, RAM, devices/events, pending input, video and disk I/O.
+No full snapshot implementation exists; memory/register dumps do not meet it.
+
 FINISHED locally: guarded RPC writes now recognize installed writable RAM
 expansions, using active bus mapping and exact device bounds. Three new tests
 bring the native suite to 25 passing tests: actual CPU/RPC mailbox word exchange,
@@ -10,7 +26,7 @@ uploaded/read/renamed/deleted files, captured stdout/stderr and child exit7,
 and freshly compiled a TP6 unit on a writable VHD. Deleting that TPU before a
 syntax-error compile leaves no stale product. These are bounded parent receipts,
 not full snapshot/gameplay proof. Focused source review found no defects;
-final-head Windows/Linux CI remains pending before integration.
+PR5 is integrated at48cd3cdb after final-head Windows/Linux CI passed.
 
 FINISHED: limited native headless JSON-lines debugger; see
 [JSON_RPC_API.md](JSON_RPC_API.md) for the supported PyPC-compatible methods and
@@ -53,7 +69,8 @@ This closes a test gap, not every possible scheduling defect.
 The parent workspace boots MS-DOS6.22/original Pyro tutorial and menu with its
 pinned patched GLaBIOS and CGA; loaded code matches, CRT calibration103 observed.
 Automatic disk selection still fails. Hardware/instruction trace, VNC,
-keyboard/serial, complete snapshots and DOSCTRL remain unsupported. Controlled
+keyboard/serial RPC and complete snapshots remain unsupported. DOSCTRL is
+now proven through configured mailbox RAM and a writable VHD (PR5). Controlled
 BIOS-ring input bypasses hardware IRQs. Next: observation/input for comparable
 original-game timing runs. No physical XT or full gameplay parity claim.
 

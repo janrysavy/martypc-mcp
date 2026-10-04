@@ -36,7 +36,7 @@ mod emulator;
 
 mod run_benchmark;
 mod run_headless;
-mod debug_rpc;
+use marty_debug_rpc as debug_rpc;
 
 #[cfg(feature = "arduino_validator")]
 mod run_fuzzer;

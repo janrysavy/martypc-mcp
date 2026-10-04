@@ -3283,6 +3283,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "marty_debug_rpc"
+version = "0.5.0"
+dependencies = [
+ "base64 0.22.1",
+ "marty_config",
+ "marty_core",
+ "serde_json",
+ "sha2",
+]
+
+[[package]]
 name = "marty_display_common"
 version = "0.5.0"
 dependencies = [
@@ -3502,6 +3513,7 @@ dependencies = [
  "marty_common",
  "marty_config",
  "marty_core",
+ "marty_debug_rpc",
  "marty_display_common",
  "marty_egui",
  "marty_egui_eframe",
@@ -3530,7 +3542,6 @@ version = "0.5.0"
 dependencies = [
  "anyhow",
  "arduinox86_client 0.3.0 (git+https://github.com/dbalsom/arduino808x)",
- "base64 0.22.1",
  "colored",
  "criterion",
  "crossbeam-channel",
@@ -3542,6 +3553,7 @@ dependencies = [
  "marty_common",
  "marty_config",
  "marty_core",
+ "marty_debug_rpc",
  "marty_display_common",
  "marty_frontend_common",
  "pollster",
@@ -3552,7 +3564,6 @@ dependencies = [
  "serde_derive",
  "serde_json",
  "serialport",
- "sha2",
  "strum 0.27.1",
  "strum_macros 0.27.1",
 ]

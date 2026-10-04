@@ -1,9 +1,9 @@
-# Headless debugger JSON-RPC
+# Native debugger JSON-RPC
 
 Build and test the native frontend without GUI dependencies:
 
 ```text
-cargo test -p martypc_headless --no-default-features --lib --locked
+cargo test -p marty_debug_rpc -p marty_config -p martypc_headless --no-default-features --lib --locked
 cargo build -p martypc_headless --no-default-features --locked
 ```
 
@@ -22,6 +22,25 @@ controller before RPC starts, retaining empty drive slots. A configured disk
 that cannot load, parse or attach aborts startup; an RPC-ready line is never
 printed for that failed startup. EGA/VGA configurations require their video BIOS.
 No-port headless execution still has no event loop.
+
+For an optional visible screen, build `cargo build -p martypc_eframe --locked`
+and run `martypc --rpc-port 2301` in the same writable installation. The existing
+Rust/wgpu UI renders the exact machine controlled by RPC; it does not start a
+second guest. Both frontends use `marty_debug_rpc`. The GUI replaces its normal
+machine runner with a bounded debugger pump and remains responsive while paused.
+Neither repaint nor inspection advances paused guest time. RPC configurations
+skip wall-frame guest housekeeping in both frontends; software PPI turbo remains
+refused and host serial bridging is not supported in this mode.
+
+**Local guest input is disabled by default whenever `rpc_port` is set.**
+This includes keyboard/hotkeys, keyboard-to-joystick mappings, mouse/light pen,
+gamepads and clearing guest keys on window focus loss. Resizing/closing the
+window still works. Use `--local-input`, or explicit `local_input = true` under
+`[emulator]`, only for manual response/play experiments. Keys reach the guest
+only while RPC execution is running. Set `local_input = false` for ordinary
+view-only runs even without RPC. RPC mode hides GUI machine controls to prevent
+a second execution/mutation owner. This does not disable deliberate RPC input
+or restore commands; snapshots and hardware keyboard RPC are still OPEN.
 
 The server binds only `127.0.0.1`. Send one JSON-RPC 2.0 object per newline over
 TCP; connections are persistent. Replies preserve request IDs. Notifications

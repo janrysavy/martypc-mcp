@@ -66,10 +66,11 @@ use marty_frontend_common::{
 use web_time::Instant;
 
 pub fn process_update(emu: &mut Emulator, dm: &mut EFrameDisplayManager, tm: &mut TimestepManager) {
-    let mouse_enabled = emu.gui.get_option(GuiBoolean::MouseEnabled).unwrap_or(true);
-    let light_pen_enabled = emu.gui.get_option(GuiBoolean::LightPenEnabled).unwrap_or(false);
+    let local_input = emu.config.emulator.local_input_enabled();
+    let mouse_enabled = local_input && emu.gui.get_option(GuiBoolean::MouseEnabled).unwrap_or(true);
+    let light_pen_enabled = local_input && emu.gui.get_option(GuiBoolean::LightPenEnabled).unwrap_or(false);
 
-    if let Some(mouse) = emu.machine.mouse_mut() {
+    if let Some(mouse) = emu.machine.mouse_mut().as_mut().filter(|_| local_input) {
         let input_mode = if emu.mouse_data.capture_mode == MouseCaptureMode::Mouse && emu.mouse_data.is_captured {
             VirtualMouseInputMode::Relative
         }
@@ -77,6 +78,10 @@ pub fn process_update(emu: &mut Emulator, dm: &mut EFrameDisplayManager, tm: &mu
             VirtualMouseInputMode::Absolute
         };
         mouse.set_virtual_input_mode(input_mode);
+    }
+
+    if !local_input {
+        emu.mouse_data.reset();
     }
 
     // Hand mouse input to the core before the machine runs to reduce latency
@@ -126,6 +131,11 @@ pub fn process_update(emu: &mut Emulator, dm: &mut EFrameDisplayManager, tm: &mu
         },
         |emuc, cycles| {
             // Per emu update freq
+            #[cfg(not(target_arch = "wasm32"))]
+            if let Some(rpc) = &mut emuc.rpc {
+                rpc.pump(&mut emuc.machine, cycles);
+                return;
+            }
             emuc.machine.run(cycles, &mut emuc.exec_control.borrow_mut());
         },
         |emuc, dmc, tmc, &perf, duration, tmu| {
@@ -154,7 +164,7 @@ pub fn process_update(emu: &mut Emulator, dm: &mut EFrameDisplayManager, tm: &mu
 
             // Do gamepad events
             #[cfg(feature = "use_gilrs")]
-            if let Some(gameport) = emuc.machine.bus_mut().game_port_mut() {
+            if let Some(gameport) = emuc.machine.bus_mut().game_port_mut().as_mut().filter(|_| local_input) {
                 // Check if gamepad is connected
                 let events = emuc.gi.poll();
                 for event in events {
@@ -431,7 +441,11 @@ pub fn process_update(emu: &mut Emulator, dm: &mut EFrameDisplayManager, tm: &mu
             }
 
             // Do per-frame updates (Serial port emulation)
-            let events = emuc.machine.frame_update();
+            let events = if emuc.config.emulator.rpc_port.is_none() {
+                emuc.machine.frame_update()
+            } else {
+                vec![]
+            };
             for event in events {
                 if let DeviceEvent::TurboToggled(state) = event {
                     // Send notification

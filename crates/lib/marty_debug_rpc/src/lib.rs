@@ -12,9 +12,13 @@ use std::{
     collections::{BTreeMap, VecDeque},
     io::{BufRead, BufReader, Read, Write},
     net::{TcpListener, TcpStream},
-    sync::mpsc::{self, Sender},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        mpsc::{self, Receiver, Sender},
+        Arc,
+    },
     thread,
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 const METHODS: &[&str] = &[
@@ -721,6 +725,9 @@ impl Agent {
 
 type Message = (Vec<u8>, Sender<Option<Value>>);
 fn connection(mut stream: TcpStream, sender: Sender<Message>) -> std::io::Result<()> {
+    // Windows accepted sockets can inherit the listener's nonblocking mode.
+    // Transport readers are dedicated threads and must wait for complete lines.
+    stream.set_nonblocking(false)?;
     stream.set_write_timeout(Some(Duration::from_secs(5)))?;
     let mut reader = BufReader::new(stream.try_clone()?);
     loop {
@@ -747,46 +754,114 @@ fn connection(mut stream: TcpStream, sender: Sender<Message>) -> std::io::Result
         }
     }
 }
-pub fn serve(machine: &mut Machine, port: u16) -> std::io::Result<()> {
-    if port == 0 {
-        return Err(std::io::Error::new(
-            std::io::ErrorKind::InvalidInput,
-            "RPC port must be 1..65535",
-        ));
-    }
-    // Native frame_update handles PPI software turbo and host serial polling.
-    // Refuse configurations that would silently lose guest clock changes.
-    if machine.config().ppi_turbo.is_some() {
-        return Err(std::io::Error::new(
-            std::io::ErrorKind::InvalidInput,
-            "PPI software turbo requires unsupported frame housekeeping",
-        ));
-    }
-    let listener = TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, port))?;
-    let (sender, receive) = mpsc::channel::<Message>();
-    thread::spawn(move || {
-        for stream in listener.incoming().flatten() {
-            let sender = sender.clone();
-            thread::spawn(move || {
-                let _ = connection(stream, sender);
-            });
+/// The machine stays on its frontend thread. Network threads only queue requests.
+/// The native GUI calls `pump` instead of its normal machine runner; both frontends
+/// therefore use the same boundary stepping and stop/operation bookkeeping.
+pub struct DebugRpc {
+    agent: Agent,
+    receive: Receiver<Message>,
+    stop: Arc<AtomicBool>,
+    listener_thread: Option<thread::JoinHandle<()>>,
+}
+impl DebugRpc {
+    pub fn bind(machine: &Machine, port: u16) -> std::io::Result<Self> {
+        if port == 0 {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "RPC port must be 1..65535",
+            ));
         }
-    });
-    let mut agent = Agent::new(port);
-    eprintln!("JSON_RPC_READY=127.0.0.1:{port}");
-    loop {
-        if agent.running {
+        // RPC execution deliberately uses no wall-frame guest housekeeping. Keep
+        // refusing software turbo rather than changing clocks according to UI repaint.
+        if machine.config().ppi_turbo.is_some() {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "PPI software turbo requires unsupported frame housekeeping",
+            ));
+        }
+        Self::from_listener(TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, port))?)
+    }
+    fn from_listener(listener: TcpListener) -> std::io::Result<Self> {
+        let port = listener.local_addr()?.port();
+        listener.set_nonblocking(true)?;
+        let (sender, receive) = mpsc::channel::<Message>();
+        let stop = Arc::new(AtomicBool::new(false));
+        let thread_stop = stop.clone();
+        let listener_thread = thread::spawn(move || {
+            while !thread_stop.load(Ordering::Relaxed) {
+                let stream = match listener.accept() {
+                    Ok((stream, _)) => stream,
+                    Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                        thread::sleep(Duration::from_millis(5));
+                        continue;
+                    }
+                    Err(_) => break,
+                };
+                let sender = sender.clone();
+                thread::spawn(move || {
+                    let _ = connection(stream, sender);
+                });
+            }
+        });
+        eprintln!("JSON_RPC_READY=127.0.0.1:{port}");
+        Ok(Self {
+            agent: Agent::new(port),
+            receive,
+            stop,
+            listener_thread: Some(listener_thread),
+        })
+    }
+    pub fn is_running(&self) -> bool {
+        self.agent.running
+    }
+
+    /// Nonblocking UI work, bounded in both native cycles and host time. A paused
+    /// repaint cannot advance the machine; each request is handled at a boundary.
+    pub fn pump(&mut self, machine: &mut Machine, cycle_budget: u32) {
+        let start = machine.cpu().get_cycle_ct().0;
+        let wall_deadline = Instant::now() + Duration::from_millis(8);
+        loop {
             for _ in 0..64 {
-                match receive.try_recv() {
+                match self.receive.try_recv() {
                     Ok((line, reply)) => {
-                        let _ = reply.send(agent.request(machine, &line));
+                        let _ = reply.send(self.agent.request(machine, &line));
                     }
                     Err(_) => break,
                 }
             }
-            agent.advance(machine);
-        } else if let Ok((line, reply)) = receive.recv() {
-            let _ = reply.send(agent.request(machine, &line));
+            if !self.agent.running
+                || machine.cpu().get_cycle_ct().0.saturating_sub(start) >= cycle_budget as u64
+                || Instant::now() >= wall_deadline
+            {
+                break;
+            }
+            self.agent.advance(machine);
+        }
+    }
+}
+impl Drop for DebugRpc {
+    fn drop(&mut self) {
+        self.stop.store(true, Ordering::Relaxed);
+        if let Some(thread) = self.listener_thread.take() {
+            let _ = thread.join();
+        }
+    }
+}
+pub fn serve(machine: &mut Machine, port: u16) -> std::io::Result<()> {
+    let mut rpc = DebugRpc::bind(machine, port)?;
+    loop {
+        if rpc.agent.running {
+            for _ in 0..64 {
+                match rpc.receive.try_recv() {
+                    Ok((line, reply)) => {
+                        let _ = reply.send(rpc.agent.request(machine, &line));
+                    }
+                    Err(_) => break,
+                }
+            }
+            rpc.agent.advance(machine);
+        } else if let Ok((line, reply)) = rpc.receive.recv() {
+            let _ = reply.send(rpc.agent.request(machine, &line));
         } else {
             return Ok(());
         }
@@ -860,6 +935,65 @@ mod tests {
     }
     fn call(a: &mut Agent, m: &mut Machine, method: &str, params: Value) -> Value {
         a.handle(m, method, &params).unwrap()
+    }
+    #[test]
+    fn gui_pump_preserves_paused_state_and_native_boundary_execution() {
+        let mut m = machine();
+        let mut reference = machine();
+        let listener = TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0)).unwrap();
+        let endpoint = listener.local_addr().unwrap();
+        let mut rpc = DebugRpc::from_listener(listener).unwrap();
+        let mut headless = Agent::new(endpoint.port());
+        let before = registers(&mut m, 0);
+        for _ in 0..20 {
+            rpc.pump(&mut m, 10000);
+        }
+        assert_eq!(before, registers(&mut m, 0));
+        call(&mut rpc.agent, &mut m, "execution.continue", json!({}));
+        call(&mut headless, &mut reference, "execution.continue", json!({}));
+        // A tiny GUI budget still completes native boundaries. No second runner
+        // may execute between frames; inspection and repaint consume no cycles.
+        for _ in 0..30 {
+            rpc.pump(&mut m, 1);
+            headless.advance(&mut reference);
+            assert_eq!(registers(&mut m, 0), registers(&mut reference, 0));
+            assert_eq!(m.system_ticks(), reference.system_ticks());
+            assert_eq!(peek(&m, 0, 1024).unwrap(), peek(&reference, 0, 1024).unwrap());
+        }
+        call(&mut rpc.agent, &mut m, "execution.pause", json!({}));
+        let stopped = registers(&mut m, 0);
+        rpc.pump(&mut m, 10000);
+        assert_eq!(stopped, registers(&mut m, 0));
+        drop(rpc);
+        // Closing the window releases the port; the next slice can reopen it.
+        assert!(TcpListener::bind(endpoint).is_ok());
+    }
+    #[test]
+    fn frontend_listener_keeps_idle_connections_open() {
+        let mut machine = machine();
+        let initial_clock = machine.cpu().get_cycle_ct().0;
+        let mut rpc = DebugRpc::from_listener(TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0)).unwrap()).unwrap();
+        let port = rpc.agent.port;
+        let client = thread::spawn(move || {
+            let mut stream = TcpStream::connect((std::net::Ipv4Addr::LOCALHOST, port)).unwrap();
+            stream.set_read_timeout(Some(Duration::from_secs(3))).unwrap();
+            let mut reader = BufReader::new(stream.try_clone().unwrap());
+            for id in 0..3 {
+                thread::sleep(Duration::from_millis(30));
+                writeln!(stream, "{}", json!({"jsonrpc":"2.0","id":id,"method":"state.get"})).unwrap();
+                let mut line = String::new();
+                assert!(reader.read_line(&mut line).unwrap() > 0);
+                assert_eq!(serde_json::from_str::<Value>(&line).unwrap()["id"], id);
+            }
+        });
+        let end = Instant::now() + Duration::from_secs(3);
+        while !client.is_finished() && Instant::now() < end {
+            rpc.pump(&mut machine, 10000);
+            thread::sleep(Duration::from_millis(1));
+        }
+        assert!(client.is_finished());
+        client.join().unwrap();
+        assert_eq!(machine.cpu().get_cycle_ct().0, initial_clock);
     }
     #[test]
     fn joystick_rpc_drives_native_game_port_and_preflights_all_input() {
@@ -1064,10 +1198,15 @@ mod tests {
         let mut a = Agent::new(2301);
         // Real 8088 ES word store/load in the expansion; store loaded value in low RAM.
         m.load_program(
-            &[0xB8, 0x00, 0xD8, 0x8E, 0xC0, 0x26, 0xC7, 0x06, 0, 0, 0x34, 0x12,
-              0x26, 0xA1, 0, 0, 0xA3, 0, 2, 0xF4],
-            0, 0x100, 0, 0x100,
-        ).unwrap();
+            &[
+                0xB8, 0x00, 0xD8, 0x8E, 0xC0, 0x26, 0xC7, 0x06, 0, 0, 0x34, 0x12, 0x26, 0xA1, 0, 0, 0xA3, 0, 2, 0xF4,
+            ],
+            0,
+            0x100,
+            0,
+            0x100,
+        )
+        .unwrap();
         for _ in 0..6 {
             call(&mut a, &mut m, "execution.step", json!({}));
         }
@@ -1075,10 +1214,22 @@ mod tests {
         assert_eq!(peek(&m, 0x200, 2).unwrap(), vec![0x34, 0x12]);
         let clock = m.cpu().get_cycle_ct();
         let before = peek(&m, 0xD8000, 2).unwrap();
-        call(&mut a, &mut m, "memory.write", json!({"address":0xD8000,
-            "data_base64":STANDARD.encode([0x78,0x56]),"expected_sha256":digest(&before)}));
+        call(
+            &mut a,
+            &mut m,
+            "memory.write",
+            json!({"address":0xD8000,
+            "data_base64":STANDARD.encode([0x78,0x56]),"expected_sha256":digest(&before)}),
+        );
         assert_eq!(m.cpu().get_cycle_ct(), clock);
-        m.load_program(&[0xB8, 0, 0xD8, 0x8E, 0xC0, 0x26, 0xA1, 0, 0, 0xA3, 2, 2, 0xF4], 0, 0x100, 0, 0x100).unwrap();
+        m.load_program(
+            &[0xB8, 0, 0xD8, 0x8E, 0xC0, 0x26, 0xA1, 0, 0, 0xA3, 2, 2, 0xF4],
+            0,
+            0x100,
+            0,
+            0x100,
+        )
+        .unwrap();
         for _ in 0..5 {
             call(&mut a, &mut m, "execution.step", json!({}));
         }
@@ -1089,25 +1240,55 @@ mod tests {
     fn expansion_write_refuses_absent_ram_boundaries_rom_and_running_state() {
         let mut absent = machine();
         let mut a = Agent::new(2301);
-        assert!(a.handle(&mut absent, "memory.write", &json!({"address":0xD8000,
-            "data_base64":STANDARD.encode([1])})).is_err());
+        assert!(a
+            .handle(
+                &mut absent,
+                "memory.write",
+                &json!({"address":0xD8000,
+            "data_base64":STANDARD.encode([1])})
+            )
+            .is_err());
         let mut m = machine_with_ram(None, OnHaltBehavior::Warn, false, 8192);
         for address in [0xD7FFF, 0xD9FFF] {
             let before = peek(&m, address, 2).unwrap();
-            assert!(a.handle(&mut m, "memory.write", &json!({"address":address,
-                "data_base64":STANDARD.encode([7,8])})).is_err());
+            assert!(a
+                .handle(
+                    &mut m,
+                    "memory.write",
+                    &json!({"address":address,
+                "data_base64":STANDARD.encode([7,8])})
+                )
+                .is_err());
             assert_eq!(peek(&m, address, 2).unwrap(), before);
         }
         let before = peek(&m, 0xD8000, 2).unwrap();
-        assert!(a.handle(&mut m, "memory.write", &json!({"address":0xD8000,
-            "data_base64":STANDARD.encode([7,8]),"expected_sha256":digest(&[1,2])})).is_err());
+        assert!(a
+            .handle(
+                &mut m,
+                "memory.write",
+                &json!({"address":0xD8000,
+            "data_base64":STANDARD.encode([7,8]),"expected_sha256":digest(&[1,2])})
+            )
+            .is_err());
         a.running = true;
-        assert!(a.handle(&mut m, "memory.write", &json!({"address":0xD8000,
-            "data_base64":STANDARD.encode([7,8])})).is_err());
+        assert!(a
+            .handle(
+                &mut m,
+                "memory.write",
+                &json!({"address":0xD8000,
+            "data_base64":STANDARD.encode([7,8])})
+            )
+            .is_err());
         a.running = false;
         m.bus_mut().set_flags(0xD8001, MEM_ROM_BIT);
-        assert!(a.handle(&mut m, "memory.write", &json!({"address":0xD8000,
-            "data_base64":STANDARD.encode([7,8])})).is_err());
+        assert!(a
+            .handle(
+                &mut m,
+                "memory.write",
+                &json!({"address":0xD8000,
+            "data_base64":STANDARD.encode([7,8])})
+            )
+            .is_err());
         assert_eq!(peek(&m, 0xD8000, 2).unwrap(), before);
         assert_eq!(a.revision, 0);
     }

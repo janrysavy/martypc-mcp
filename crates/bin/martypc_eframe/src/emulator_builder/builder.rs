@@ -962,6 +962,16 @@ impl EmulatorBuilder {
         // TODO: This should probably be converted into a channel
         let machine_events = Vec::new();
 
+        #[cfg(not(target_arch = "wasm32"))]
+        let rpc = config
+            .emulator
+            .rpc_port
+            .map(|port| marty_debug_rpc::DebugRpc::bind(&machine, port))
+            .transpose()?;
+        // The display remains active. Competing GUI machine controls are hidden
+        // while RPC owns execution, including when local input is explicitly on.
+        let render_gui = self.enable_gui && config.emulator.rpc_port.is_none();
+
         Ok(Emulator {
             rm: resource_manager,
             romm: rom_manager,
@@ -971,6 +981,8 @@ impl EmulatorBuilder {
             display_power: Default::default(),
             machine_events,
             exec_control,
+            #[cfg(not(target_arch = "wasm32"))]
+            rpc,
             mouse_data,
             kb_data,
             joy_data,
@@ -984,7 +996,7 @@ impl EmulatorBuilder {
             sound_file_manager,
             perf: Default::default(),
             flags: EmuFlags {
-                render_gui: self.enable_gui,
+                render_gui,
                 debug_keyboard: false,
             },
             hkm: hotkey_manager,

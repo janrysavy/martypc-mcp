@@ -82,6 +82,9 @@ pub fn handle_web_key_event(
     event: WebKeyboardEvent,
     gui_focus: bool,
 ) {
+    if !emu.config.emulator.local_input_enabled() {
+        return;
+    }
     if let Ok(marty_key) = MartyKey::from_str(&event.key) {
         emu.kb_data.ctrl_pressed = event.modifiers.ctrl;
         emu.kb_data.modifiers.control = event.modifiers.ctrl;

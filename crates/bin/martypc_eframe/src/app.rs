@@ -613,9 +613,11 @@ impl MartyApp {
                     // We will not receive the key up events if we lose focus while a key is pressed,
                     // and this will cause any key pressed when focus is lost to be stuck down forever.
                     if let Some(emu) = &mut self.emu {
-                        if let Some(kb) = emu.machine.bus_mut().keyboard_mut() {
-                            log::debug!("MartyApp::update(): Clearing keyboard on focus loss.");
-                            kb.clear(true);
+                        if emu.config.emulator.local_input_enabled() {
+                            if let Some(kb) = emu.machine.bus_mut().keyboard_mut() {
+                                log::debug!("MartyApp::update(): Clearing keyboard on focus loss.");
+                                kb.clear(true);
+                            }
                         }
                     }
                     self.focused = false;
@@ -751,8 +753,9 @@ impl MartyApp {
                 .mouse_mut()
                 .as_ref()
                 .is_some_and(|mouse| matches!(mouse, Mouse::Virtual(_)));
-            let mouse_enabled = emu.gui.get_option(GuiBoolean::MouseEnabled).unwrap_or(true);
-            let light_pen_enabled = emu.gui.get_option(GuiBoolean::LightPenEnabled).unwrap_or(false);
+            let local_input = emu.config.emulator.local_input_enabled();
+            let mouse_enabled = local_input && emu.gui.get_option(GuiBoolean::MouseEnabled).unwrap_or(true);
+            let light_pen_enabled = local_input && emu.gui.get_option(GuiBoolean::LightPenEnabled).unwrap_or(false);
             let absolute_pointer_enabled = light_pen_enabled || (mouse_enabled && virtual_mouse);
 
             let root_widget_displays = dm.displays_for_viewport(ViewportId::ROOT, Some(DisplayTargetType::GuiWidget));

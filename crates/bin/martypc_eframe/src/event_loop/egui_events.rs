@@ -85,6 +85,10 @@ pub fn handle_egui_event(
     tmu: &mut TimestepUpdate,
     gui_event: &GuiEvent,
 ) {
+    // RPC owns machine mutation. Display/window events are handled elsewhere.
+    if emu.config.emulator.rpc_port.is_some() {
+        return;
+    }
     #[allow(unreachable_patterns)]
     match gui_event {
         GuiEvent::Exit => {

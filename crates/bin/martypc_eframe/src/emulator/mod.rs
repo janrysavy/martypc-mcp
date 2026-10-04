@@ -110,6 +110,8 @@ pub struct Emulator {
     pub display_power: DisplayPowerEffect,
     pub machine_events: Vec<MachineEvent>,
     pub exec_control: Rc<RefCell<ExecutionControl>>,
+    #[cfg(not(target_arch = "wasm32"))]
+    pub rpc: Option<marty_debug_rpc::DebugRpc>,
     pub mouse_data: MouseState,
     pub joy_data: JoystickState,
     pub kb_data: KeyboardData,
@@ -131,6 +133,13 @@ pub struct Emulator {
 }
 
 impl Emulator {
+    pub fn guest_running(&self) -> bool {
+        #[cfg(not(target_arch = "wasm32"))]
+        if let Some(rpc) = &self.rpc {
+            return rpc.is_running();
+        }
+        self.exec_control.borrow().state.is_running()
+    }
     #[allow(dead_code)]
     pub fn validate_config(&self) -> Result<(), Error> {
         Ok(())

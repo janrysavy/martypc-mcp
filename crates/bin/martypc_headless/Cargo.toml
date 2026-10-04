@@ -13,6 +13,7 @@ crate-type = ["lib"]
 
 [dependencies]
 marty_core = { path = "../../lib/marty_core" }
+marty_debug_rpc = { path = "../../lib/marty_debug_rpc" }
 marty_common = { path = "../../lib/marty_common" }
 marty_frontend_common =  { path = "../../lib/marty_frontend_common", default-features = false, features = ["ega", "vga"] }
 marty_display_common = { path = "../../lib/marty_display_common", default-features = false }
@@ -29,8 +30,6 @@ rgb = "0.8.33"
 serde = { workspace = true, features = ["derive"] }
 serde_derive = "1.0"
 serde_json = "1.0"
-base64 = "0.22"
-sha2 = "0.10"
 serialport.workspace = true
 anyhow.workspace = true
 indexmap.workspace = true
