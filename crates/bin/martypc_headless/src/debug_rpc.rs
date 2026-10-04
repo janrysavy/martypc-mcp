@@ -420,7 +420,10 @@ impl Agent {
                 "execution_step_unit":"native machine boundary (including device/interrupt work)",
                 "breakpoint_kinds":["execution"],"step_modes":["into"],
                 "time_base":"system crystal ticks (independent of turbo)",
-                "unsupported":["trace","hardware.trace","video","serial","input","machine.snapshot","ppi_software_turbo"]}),
+                "unsupported":["trace","hardware.trace","video","vnc","serial","input","io","machine.snapshot",
+                    "memory_read_breakpoints","memory_write_breakpoints","memory_access_breakpoints",
+                    "interrupt_breakpoints","step_over","dosctrl","frontend_file_transfer",
+                    "frontend_speed_control","frontend_cursor_control","ppi_software_turbo"]}),
                 )
             }
             "session.status" => {
@@ -1085,6 +1088,15 @@ mod tests {
             0
         );
         assert!(Breakpoint::parse("bad".into(), &json!({"address":0x100,"length":0})).is_err());
+        // PyPC accepts length metadata on execution predicates but matches only
+        // the starting instruction address (debugbreakpoints.matches_address).
+        let mut metadata = Breakpoint::parse("metadata".into(), &json!({"address":0x100,"length":4})).unwrap();
+        assert!(metadata.matches(&mut m));
+        let mut control = ExecutionControl::new();
+        control.set_op(ExecutionOperation::Step);
+        m.run(1, &mut control);
+        assert_eq!(m.cpu_mut().get_ip(), 0x103);
+        assert!(!metadata.matches(&mut m));
     }
     #[test]
     fn optional_hash_guard_and_fifo_operation_retention() {

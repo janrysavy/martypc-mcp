@@ -55,6 +55,8 @@ Addresses accept an unsigned integer or numeric string (decimal, `0x`, `0b`,
 Segmented addresses wrap at 20 bits; ranges crossing the end of 1 MiB are
 refused. A segmented execution breakpoint requires the actual CS:IP pair;
 physical/linear breakpoints match its physical address including aliases.
+For execution breakpoints, `length` is validated descriptor metadata and does
+not widen exact-address matching, matching PyPC's `matches_address` behavior.
 String separators such as
 underscores are unsupported. Conditions use `register`, `operator` (`eq`, `ne`,
 `lt`, `le`, `gt`, `ge`) and a Word `value`; comparisons are unsigned. Hit filters

@@ -10,6 +10,9 @@ Initial review completed; fixed stale breakpoint stop after stepping and
 clarified capability/session metadata. Publication requires focused follow-up
 review and passing final-head Windows/Linux checks on
 [PR1](https://github.com/janrysavy/martypc-mcp/pull/1).
+Follow-up confirms step-stop/PPI fixes; unsupported metadata is expanded.
+Execution length remains exact-address metadata as in PyPC, tested explicitly;
+the review's range-matching objection does not describe the shared contract.
 Initial Linux CI exposed missing libudev development files used by existing
 host serial enumeration; the workflow now installs that dependency.
 Live alias probes exposed rejection of default execution kind and a false
