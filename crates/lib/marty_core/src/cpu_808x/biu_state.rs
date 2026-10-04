@@ -104,12 +104,47 @@ mod tests {
         cpu
     }
 
+    // Do not destroy state through the restorer being tested: an omitted
+    // assignment would then leave the old value in place on BOTH calls and
+    // falsely pass. Mutate fields independently, keeping only configuration.
+    fn destroy_component(cpu: &mut Intel808x) {
+        cpu.queue.flush();
+        cpu.address_bus ^= 0xFFFFF;
+        cpu.address_latch ^= 0xFFFFF;
+        cpu.data_bus ^= 0xFFFF;
+        cpu.bhe = !cpu.bhe;
+        cpu.i8288 = I8288::default();
+        cpu.pc = cpu.pc.wrapping_add(123);
+        cpu.ready = !cpu.ready;
+        cpu.ready_next = !cpu.ready_next;
+        cpu.fetch_state = FetchState::Suspended;
+        cpu.bus_pending = BusPendingType::EuEarly;
+        cpu.queue_op = QueueOp::Flush;
+        cpu.last_queue_op = QueueOp::Flush;
+        cpu.queue_byte ^= 0xFF;
+        cpu.last_queue_byte ^= 0xFF;
+        cpu.last_queue_len = 0;
+        cpu.t_cycle = TCycle::Ti;
+        cpu.ta_cycle = TaCycle::Td;
+        cpu.bus_status = BusStatus::Passive;
+        cpu.bus_status_latch = BusStatus::Passive;
+        cpu.pl_status = BusStatus::Passive;
+        cpu.pl_slot = !cpu.pl_slot;
+        cpu.bus_segment = Segment::None;
+        cpu.transfer_size = TransferSize::Byte;
+        cpu.operand_size = OperandSize::NoOperand;
+        cpu.transfer_n = 0;
+        cpu.final_transfer = !cpu.final_transfer;
+        cpu.bus_wait_states = 123;
+        cpu.io_wait_states = 456;
+        cpu.lock = !cpu.lock;
+    }
+
     #[test]
     fn native_prefetch_cycles_survive_json_restore_without_queue_flush() {
         for word in [false, true] {
             let mut original = cpu(word);
             let mut restored = cpu(word);
-            let reset = restored.snapshot_biu_state();
             let mut seen_t = std::collections::HashSet::new();
             let mut seen_ta = std::collections::HashSet::new();
             let mut saw_latched_fetch = false;
@@ -134,9 +169,21 @@ mod tests {
                 let json = serde_json::to_vec(&saved).unwrap();
                 let decoded = serde_json::from_slice(&json).unwrap();
                 assert_eq!(saved, restored.snapshot_biu_state()); // export is inert
-                restored.restore_biu_state(&reset).unwrap(); // destroy the component
+                destroy_component(&mut restored);
+                assert_ne!(saved, restored.snapshot_biu_state());
                 restored.restore_biu_state(&decoded).unwrap();
                 assert_eq!(expected, restored.snapshot_biu_state());
+                // Explicit continuation, not merely equality of assigned DTO
+                // fields. The reference is never restored or perturbed.
+                for _ in 0..2 {
+                    original.cycle();
+                    restored.cycle();
+                    assert_eq!(original.snapshot_biu_state(), restored.snapshot_biu_state());
+                    assert_eq!(
+                        original.bus.get_slice_at(0xFFFF0, 16),
+                        restored.bus.get_slice_at(0xFFFF0, 16)
+                    );
+                }
                 assert_eq!(original.cycle_num, restored.cycle_num);
                 assert_eq!(original.instr_elapsed, restored.instr_elapsed);
                 seen_t.insert(format!("{:?}", saved.t_cycle));
@@ -192,6 +239,14 @@ mod tests {
             let mut missing = valid.clone();
             missing["i8288"].as_object_mut().unwrap().remove(field);
             assert!(serde_json::from_value::<BiuState>(missing).is_err(), "8288 pin {field}");
+        }
+        for field in valid["queue"].as_object().unwrap().keys() {
+            let mut missing = valid.clone();
+            missing["queue"].as_object_mut().unwrap().remove(field);
+            assert!(
+                serde_json::from_value::<BiuState>(missing).is_err(),
+                "queue field {field}"
+            );
         }
         for field in ["t_cycle", "ta_cycle", "bus_status", "fetch_state", "bus_segment"] {
             let mut invalid = valid.clone();

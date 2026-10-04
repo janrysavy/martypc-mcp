@@ -524,7 +524,7 @@ pub struct Intel808x {
     bus_segment: Segment,
     transfer_size: TransferSize, // Width of current bus transfer
     operand_size: OperandSize,   // Width of the operand being transferred
-    transfer_n: u32,             // Current transfer number (Either 1 or 2, for byte or word operand, respectively)
+    transfer_n: u32,             // 0 when idle/reset (cycle_i Passive); active transfers use 1 or 2.
     final_transfer: bool, // Flag that determines if the current bus transfer is the final transfer for this bus request
     bus_wait_states: u32,
     io_wait_states: u32,
