@@ -37,6 +37,15 @@ controllers. DOSCTRL's `D800:0000` mailbox requires explicit installed RAM:
 normal upper-memory holes remain unwritable. A working transport alone does
 **not** establish DOSCTRL command execution or file-transfer support.
 
+The parent Pyro repository separately tested the unchanged DOSCTRL client on
+MS-DOS 6.22 and writable XT-IDE VHDs: upload/readback, rename/delete, stdout and
+stderr capture, exit status, fresh TP6 compilation and stale-product deletion.
+Configure an 8 KiB conventional expansion at `0xD8000`, stage the DOS worker on
+the disk and start it through DOS. This is guest software using the listed
+memory/execution RPC methods, not a new frontend file-transfer endpoint. The
+parent launcher is `scripts/martypc_dos.py --dosctrl --bios pypc`; boot/input
+limitations and full-machine snapshot gaps still apply.
+
 | Method | Parameters and result |
 | --- | --- |
 | `agent.capabilities`, `emulator.info` | Exact aliases; methods, limits, unsupported features, CPU cycle frequency and time-base description. |
@@ -98,7 +107,7 @@ memory. Configure `[machine.game_port]` with `io_base = 0x201` to attach a card.
 Host input is a paused boundary operation; explicitly resume after setting it.
 
 **Unsupported:** instruction/hardware tracing, memory/interrupt watchpoints,
-step-over, video/VNC, keyboard injection, serial channels, DOSCTRL, snapshots,
+step-over, video/VNC, keyboard injection, serial channels, snapshots,
 frontend file-transfer services and frontend speed/cursor controls. Unsupported
 PPI software-turbo configurations are refused before the listener starts:
 their native `frame_update` housekeeping is not scheduled by this frontend.
