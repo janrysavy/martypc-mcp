@@ -2,7 +2,7 @@
 
 FINISHED: limited native headless JSON-lines debugger; see
 [JSON_RPC_API.md](JSON_RPC_API.md) for the supported PyPC-compatible methods and
-explicit gaps. Fifteen native tests pass: direct/RPC CPU+RAM+PIT equality, guarded
+explicit gaps. Nineteen native tests pass: direct/RPC CPU+RAM+PIT equality, guarded
 writes, breakpoint resumes, private predicates, turbo-independent deadlines,
 operation retention and persistent TCP framing. Windows local build passes.
 The parent probe uses the unchanged PyPC client against the real executable.
@@ -21,6 +21,13 @@ Flag text matches PyPC's trap-bit order. PPI software-turbo configurations are
 refused until frame housekeeping is supported, rather than running incorrectly.
 Review's missing-config-key and halt-hang claims are disproved by fresh config
 parsing and 100 CLI/HLT steps under each Continue/Warn/Stop policy. See tests.
+
+FINISHED locally: headless configured disks dispatch to Xebec/XT-IDE/Jr-IDE,
+preserve drive-slot holes and fail startup on load/parse/controller errors.
+Native slave IDENTIFY confirms attachment; missing/unsupported disks and excess
+slots fail. Headless frontend now enables matching EGA/VGA ROM requirements.
+Paused parent startup reproduced missing XT-IDE attachment and VGA BIOS before
+these fixes. This slice still requires review and final-head Windows/Linux CI.
 
 WIP: DOS/Pyro boot, hardware/instruction trace, VNC, input/serial, snapshots and
 DOSCTRL are not implemented or validated. Do not infer them from transport

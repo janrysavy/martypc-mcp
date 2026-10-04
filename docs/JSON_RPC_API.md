@@ -17,6 +17,10 @@ martypc_headless --rpc-port 2301
 Alternatively set `rpc_port = 2301` in `[emulator]`. The command-line option
 overrides configuration. The machine starts paused regardless of CPU autostart.
 Power-on, ROM, CPU, memory, video and disk settings retain their normal meaning.
+Configured VHDs are attached to the selected native Xebec, XT-IDE or Jr-IDE
+controller before RPC starts, retaining empty drive slots. A configured disk
+that cannot load, parse or attach aborts startup; an RPC-ready line is never
+printed for that failed startup. EGA/VGA configurations require their video BIOS.
 No-port headless execution still has no event loop.
 
 The server binds only `127.0.0.1`. Send one JSON-RPC 2.0 object per newline over
