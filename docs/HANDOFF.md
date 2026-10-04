@@ -166,7 +166,12 @@ Native emulation algorithms are unchanged. Last matching mapping wins; bus
 key-down ignores translate metadata, retained as existing behavior. Caller-owned
 per-frame flag and CPU/PPI/PIC/A0/video/other clocks/disks are retained peers,
 not restored here. No complete machine restart/Pyro/physical timing proof.
-Independent review, fresh frontend builds, publication and final CI pending.
+All38 RPC/config tests and fresh Windows UI/headless builds pass.
+The initial review lacked inherited context: mappings/typematic are captured
+mutable owner state; strict nested schemas and both presence refusals already
+exist. Audit with full inherited code disproves all three objections and finds
+no remaining concrete scoped restore defect. Parent retains source/product-bound
+proof and both review answers. Final publication/CI/integration remain pending.
 
 NEXT: publish input component, integrate final-tested keyboard/input; CGA,
 video/audio, disks and pending host
