@@ -35,6 +35,7 @@
 mod dispatch;
 mod io;
 mod memory;
+mod memory_state;
 pub mod queue;
 
 use std::{collections::VecDeque, fmt};
@@ -291,7 +292,8 @@ impl fmt::Display for MemoryDebug {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct MemRangeDescriptor {
     pub address: usize,
     pub size: usize,
@@ -427,7 +429,7 @@ impl MmioData {
     }
 }
 
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum MmioDeviceType {
     None,
     Memory,
@@ -442,7 +444,8 @@ pub enum MmioDeviceType {
     JrIde,
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 struct MmioMapEntry {
     device:   MmioDeviceType,
     priority: u32,

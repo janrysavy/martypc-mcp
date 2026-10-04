@@ -78,7 +78,7 @@ use serde_derive::Serialize;
 
 #[allow(dead_code)]
 #[allow(non_camel_case_types)]
-#[derive(Copy, Clone, Debug, Deserialize, PartialEq, Eq, Hash, Default)]
+#[derive(Copy, Clone, Debug, Deserialize, PartialEq, Eq, Hash, Default, serde::Serialize)]
 pub enum VideoType {
     #[default]
     MDA,
@@ -164,7 +164,8 @@ pub enum VideoCardDispatch {
 
 // This struct provides an identifier for a VideoCard, encapsulating a unique numeric id ('idx')
 // and the card's type. Hashable to store video cards in MartyHashMap.
-#[derive(Default, Copy, Clone, Debug, Hash, Eq, PartialEq)]
+#[derive(Default, Copy, Clone, Debug, Hash, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct VideoCardId {
     pub idx:   usize,
     pub vtype: VideoType,

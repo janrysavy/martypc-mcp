@@ -38,6 +38,13 @@ inventory control fail, then193 core tests pass. All188 collector-feature tests
 pass, including explicit snapshot refusal. Focused follow-up/final
 CI/integration remain pending.
 
+WIP shared bus-memory component: versioned1MiB backing bytes, protection/
+debugger masks, descriptors and decode cursor. Fixed ROM/MMIO layout is
+preflighted. Two tests and all195 rebased core tests pass; four actual
+restore omissions (memory/mask/cursor/descriptors) fail. Independent review
+found no defect within this scope. Device-owned memory, timers/disks and
+restart remain excluded. Final Windows/Linux CI/integration remain pending.
+
 NEXT: owned bus/RAM, timers/devices/video/audio/input, disks and pending host
 I/O, with atomic dependency preflight, then real process-restart continuation.
 Hardware trace,VNC,keyboard/serial RPC and physical XT/gameplay parity remain
