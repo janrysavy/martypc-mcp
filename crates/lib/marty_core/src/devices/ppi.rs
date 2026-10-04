@@ -47,7 +47,7 @@ use crate::{
 };
 use marty_common::syntax_token::SyntaxToken;
 
-#[derive(Debug, Default, Specifier)]
+#[derive(Clone, Debug, Default, PartialEq, Specifier, serde::Serialize, serde::Deserialize)]
 pub enum PpiModeA {
     #[default]
     Mode0Io,
@@ -56,14 +56,14 @@ pub enum PpiModeA {
     Mode2BiDirectional2,
 }
 
-#[derive(Debug, Default, Specifier)]
+#[derive(Clone, Debug, Default, PartialEq, Specifier, serde::Serialize, serde::Deserialize)]
 pub enum PpiModeB {
     #[default]
     Mode0Io,
     Mode1StrobedIo,
 }
 
-#[derive(Debug, Default, Specifier)]
+#[derive(Clone, Debug, Default, PartialEq, Specifier, serde::Serialize, serde::Deserialize)]
 pub enum IoMode {
     #[default]
     Output,
@@ -71,7 +71,7 @@ pub enum IoMode {
 }
 
 #[bitfield]
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub struct PpiControlWord {
     pub group_b_c: IoMode,
     pub group_b_b: IoMode,
@@ -214,12 +214,12 @@ pub const PCJR_KB_BAUD: f64 = 2272.0;
 pub const PCJR_US_PER_BIT: f64 = 1_000_000.0 / PCJR_KB_BAUD;
 pub const PCJR_US_PER_HALFBIT: f64 = PCJR_US_PER_BIT / 2.0;
 
-#[derive(Debug)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum PortAMode {
     SwitchBlock1,
     KeyboardByte,
 }
-#[derive(Debug)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum PortCMode {
     Switch2OneToFour,
     Switch2Five,
@@ -229,7 +229,7 @@ pub enum PortCMode {
     Tandy1000,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum KbSerializeState {
     Idle,
     StartBit,
@@ -238,9 +238,14 @@ pub enum KbSerializeState {
     StopBit,
 }
 
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct KbSerializer {
+    #[serde(with = "crate::snapshot_codec::f64_bits")]
     us_accum: f64,
+    #[serde(with = "crate::snapshot_codec::f64_bits")]
     rate: f64,
+    #[serde(deserialize_with = "crate::snapshot_codec::required_option")]
     data: Option<u8>,
     state: KbSerializeState,
     firsthalf: bool,
@@ -346,8 +351,13 @@ impl KbSerializer {
     }
 }
 
+mod state;
+
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Ppi {
     machine_type: MachineType,
+    #[serde(with = "state::control_word_bits")]
     control_word: PpiControlWord,
     group_a_mode: PpiModeA,
     group_b_mode: PpiModeB,
@@ -359,8 +369,10 @@ pub struct Ppi {
     port_cl_iomode: IoMode, // Port C Lower IO mode
     kb_clock_low: bool,
     kb_counting_low: bool,
+    #[serde(with = "crate::snapshot_codec::f64_bits")]
     kb_low_count: f64,
     kb_do_reset: bool,
+    #[serde(with = "crate::snapshot_codec::f64_bits")]
     kb_count_until_reset_byte: f64,
     kb_resets_counter: Updatable<u32>,
     port_a_byte: u8,

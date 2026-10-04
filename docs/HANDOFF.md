@@ -46,7 +46,7 @@ found no defect within this scope. Device-owned memory, timers/disks and
 restart remain excluded. Final Windows/Linux CI passed; integrated linearly,
 source branch deleted.
 
-WIP PIT component: all three channels, latches/partial I/O/gates, clock phase,
+INTEGRATED PIT PR11 at1a7fb6f1: all three channels, latches/partial I/O/gates, clock phase,
 timewarp, dirty markers and exact pending speaker sample bits are serialized.
 Five tests and200 core tests pass.2048 destructive JSON continuation restores
 cover all6 modes on8253/8254, every channel's latched partial reads through actual PIT ports, native I/O/PPI gates,
@@ -60,9 +60,9 @@ and physical hardware timing are NOT proven. That documentation limit is fixed. 
 captured a deliberate mutation and is NOT a production review. All38 RPC/config
 tests and fresh Windows UI/headless builds pass; later changes affect tests only.
 External emitted audio queues, PIC/DMA/PPI/bus/device/disk/machine restart remain
-separate WIP. Final CI/integration pending.
+separate WIP. Final Windows/Linux CI passed; integrated linearly, source branch deleted.
 
-WIP PIC component: all native fields, partial initialization, IRQ masks/lines,
+INTEGRATED PIC PR12 atd900ffde: all native fields, partial initialization, IRQ masks/lines,
 ISR/IRR/read selection, deferred INTR and diagnostics are captured. Three tests
 and203 core tests pass.2048 destructive JSON restores compare untouched native
 references across edge/level and Auto-EOI modes, every IRQ, port reads/vector
@@ -71,7 +71,7 @@ restored IRR/timer/initialization/read-selection/statistics fail; exact source
 restoration returns203 green. Schema keys and atomic invalid-state refusal
 are tested. Independent review found no defect within this bounded scope;
 all38 RPC/config tests and fresh Windows UI/headless builds pass.
-Final Windows/Linux CI/integration pending.
+Final Windows/Linux CI passed; integrated linearly, source branch deleted.
 This is PIC-owned state only, not physical 8259 timing or whole-machine restart.
 
 WIP DMA component: every native controller/channel field, partial register
@@ -88,7 +88,17 @@ no restore defect; request-status wording is clarified. All38 RPC/config tests
 and fresh Windows UI/headless builds pass. Final CI/integration pending.
 Not full bus/device/restart.
 
-NEXT: PPI/video/audio/input, disks and pending host
+WIP PPI component: raw control byte, modes/latches/dirty flags and four exact
+keyboard clock values plus reset/PCjr serial state are preserved. Four tests
+and210 core tests pass.2304 destructive JSON restores on nine native machine
+models continue keyboard/port/IRQ behavior against untouched peers;256 seeded
+raw-byte/clock cases prove storage only. Seven actual lost-state controls fail;
+exact source restoration returns210 green. Invalid model/clock/serializer
+state is refused before mutation. Review, frontend builds and final CI pending.
+External PIC/PIT/cassette/keyboard queues and complete restart remain OPEN;
+these tests do not establish physical keyboard or8255 timing.
+
+NEXT: review/publish PPI, video/audio/input, disks and pending host
 I/O, with atomic dependency preflight, then real process-restart continuation.
 Hardware trace,VNC,keyboard/serial RPC and physical XT/gameplay parity remain
 OPEN. Controlled BIOS-ring input is not hardware IRQ input.

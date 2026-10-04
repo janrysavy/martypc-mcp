@@ -37,7 +37,7 @@ use serde::{self, Deserializer};
 use serde_derive::Deserialize;
 use strum_macros::EnumIter;
 
-#[derive(Copy, Clone, Debug, Default, Deserialize, EnumIter, Hash, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug, Default, Deserialize, serde::Serialize, EnumIter, Hash, Eq, PartialEq)]
 pub enum MachineType {
     Default,
     Ibm5150v64K,
