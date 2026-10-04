@@ -224,9 +224,10 @@ cursor-output continuations at starts1/2/15/31 close that gap; actual cursor-sta
 loss fails native tick output before JSON comparison.243 core tests pass;4620
 native continuations and eleven controls are retained across frozen receipts.
 Only test/HANDOFF changes after9d72968c; production restore is byte-identical.
-Focused coverage review and final publication/CI remain pending.
+Focused review confirms the nonzero cursor gap closed; no scoped witness flaw.
+Final publication/Windows-Linux CI remain pending.
 
-NEXT: publish CRTC component, integrate final-tested monitor/CRTC; CGA,
+NEXT: publish/integrate final-tested CRTC; CGA,
 video/audio, disks and pending host
 I/O, with atomic dependency preflight, then real process-restart continuation.
 Hardware trace,VNC,keyboard/serial RPC and physical XT/gameplay parity remain
