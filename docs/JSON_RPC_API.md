@@ -35,12 +35,12 @@ RAM: a working transport does **not** establish DOSCTRL support.
 | Method | Parameters and result |
 | --- | --- |
 | `agent.capabilities`, `emulator.info` | Exact aliases; methods, limits, unsupported features, CPU cycle frequency and time-base description. |
-| `session.status` | Session state, revision, CPU clock and retained `last_stop`. |
+| `session.status` | Session state, revision, CPU clock, CPU/video metadata and retained `last_stop`. Optional `session_id` must be `martypc` (discover it; do not hardcode PyPC's backend identity). |
 | `state.get`, `state.get_registers` | Exact aliases; `general`, `segments`, architectural `ip`, `flags`, `flags_text`, CPU `clock`, `emulated_time_ns`, `in_hlt`, `state_revision`. |
 | `state.set_registers` | Paused only. Requires `expected_state_revision`, `expected` values and nonempty `set`. AX/BX/CX/DX/SP/BP/SI/DI/CS/DS/ES/SS/IP/FLAGS, lowercase. All guards and Word ranges checked before any write. Returns `before`/`after`. |
 | `memory.read` | `address`, optional `length` (default 1, maximum 65536). Returns physical address, byte count, hex, base64, SHA-256 and revision. Uses native bus peeks. |
 | `memory.write` | Paused only. `address`, `data_base64`, optional `expected_sha256` (case insensitive). Preflights the entire range; only unmapped conventional RAM is writable. Returns before/after hashes and revision. |
-| `breakpoints.create` | `kind:"execution"`, `address`, optional boolean `once`, `condition`, `hit_filter`. Returns `breakpoint_id` and descriptor. Maximum 256 persistent breakpoints. |
+| `breakpoints.create` | Optional `kind:"execution"` (default), `address`, optional boolean `once`, `condition`, `hit_filter`, bounded `length` (default 1). Returns `breakpoint_id` and descriptor. Maximum 256 persistent breakpoints. |
 | `breakpoints.list` | Returns `breakpoints` array. |
 | `breakpoints.delete` | `breakpoint_id`; unknown IDs are errors. |
 | `execution.continue`, `execution.go` | Paused, powered-on machine required. Exact aliases; registers, `operation_id`, `state:"running"`, `paused:false`. |
@@ -52,7 +52,10 @@ RAM: a working transport does **not** establish DOSCTRL support.
 Addresses accept an unsigned integer or numeric string (decimal, `0x`, `0b`,
 `0o`), or `{space:"physical"|"linear",offset:...}` or
 `{space:"segmented",segment:...,offset:...}`. Segment and offset are Words.
-Ranges beyond 1 MiB are refused rather than wrapped. String separators such as
+Segmented addresses wrap at 20 bits; ranges crossing the end of 1 MiB are
+refused. A segmented execution breakpoint requires the actual CS:IP pair;
+physical/linear breakpoints match its physical address including aliases.
+String separators such as
 underscores are unsupported. Conditions use `register`, `operator` (`eq`, `ne`,
 `lt`, `le`, `gt`, `ge`) and a Word `value`; comparisons are unsigned. Hit filters
 use `skip` and positive `every`, counted after condition matches. A persistent
@@ -74,7 +77,7 @@ reached and overshoot nanoseconds. This is modeled emulated time, not a new clai
 of measured physical XT accuracy. The initial CPU reset cycles and accumulated
 device ticks need not have identical epochs.
 
-Stop kinds are `breakpoint`, `run_until`, `pause`, `cpu_halt`, and
+Stop kinds are `breakpoint`, `run_until`, `pause`, `step`, `cpu_halt`, and
 `emulated_time_limit`. Every completed operation retains its reason and stop
 registers. JSON errors use -32700 (parse), -32600 (envelope), -32601 (unsupported
 method), -32602 (invalid parameters/guards), -32603 (bus failure).
@@ -82,7 +85,10 @@ method), -32602 (invalid parameters/guards), -32603 (bus failure).
 **Unsupported:** instruction/hardware tracing, memory/interrupt watchpoints,
 step-over, video/VNC, keyboard injection, serial channels, DOSCTRL, snapshots,
 frontend file-transfer services and frontend speed/cursor controls. Unsupported
-methods return errors; this is not a full PyPC replacement. Native CPU/device
+PPI software-turbo configurations are refused before the listener starts:
+their native `frame_update` housekeeping is not scheduled by this frontend.
+Host serial polling likewise requires that housekeeping and remains unsupported.
+Other unsupported methods return errors; this is not a full PyPC replacement. Native CPU/device
 tests and a real executable probe establish the listed subset. Full DOS/Pyro
 boot, original CRT calibration and runtime timing comparisons remain unproved.
 

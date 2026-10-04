@@ -64,7 +64,7 @@ fn number(value: &Value) -> Result<u64> {
 }
 fn address(v: &Value) -> Result<usize> {
     let n = if let Some(object) = v.as_object() {
-        match object.get("space").and_then(Value::as_str) {
+        match object.get("space").map(Value::as_str).unwrap_or(Some("physical")) {
             Some("physical" | "linear") => number(&v["offset"])?,
             Some("segmented") => {
                 let s = number(&v["segment"])?;
@@ -72,7 +72,7 @@ fn address(v: &Value) -> Result<usize> {
                 if s > 65535 || o > 65535 {
                     return invalid("16-bit segment/offset required");
                 }
-                s * 16 + o
+                (s * 16 + o) & 0xfffff
             }
             _ => return invalid("unsupported address space"),
         }
@@ -125,8 +125,8 @@ fn registers(machine: &mut Machine, revision: u64) -> Value {
     let flags = machine.cpu().get_flags();
     let flags_text: String = [
         (0x800, 'o'),
-        (0x400, 'd'),
         (0x200, 'I'),
+        (0x100, 'T'),
         (0x80, 's'),
         (0x40, 'z'),
         (0x10, 'a'),
@@ -156,6 +156,9 @@ fn peek(machine: &Machine, start: usize, length: usize) -> Result<Vec<u8>> {
 struct Breakpoint {
     id: String,
     address: usize,
+    address_value: Value,
+    segment_offset: Option<(u16, u16)>,
+    length: u64,
     once: bool,
     condition: Option<(String, String, u16)>,
     hits: u64,
@@ -164,10 +167,10 @@ struct Breakpoint {
 }
 impl Breakpoint {
     fn parse(id: String, p: &Value) -> Result<Self> {
-        if p["kind"] != "execution" {
+        if p.get("kind").is_some_and(|v| v != "execution") {
             return invalid("only execution breakpoints supported");
         }
-        let condition = if p.get("condition").is_some() {
+        let condition = if p.get("condition").is_some_and(|v| !v.is_null()) {
             let c = &p["condition"];
             let name = c["register"].as_str().ok_or(("condition register required", -32602))?;
             if reg(name).is_none() && name != "ip" && name != "flags" {
@@ -203,9 +206,34 @@ impl Breakpoint {
             .map(|v| v.as_bool().ok_or(("once must be boolean", -32602)))
             .transpose()?
             .unwrap_or(false);
+        let physical = address(&p["address"])?;
+        let segment_offset = if p["address"]["space"] == "segmented" {
+            Some((
+                number(&p["address"]["segment"])? as u16,
+                number(&p["address"]["offset"])? as u16,
+            ))
+        } else {
+            None
+        };
+        let space = if p["address"]["space"] == "linear" {
+            "linear"
+        } else {
+            "physical"
+        };
+        let address_value = match segment_offset {
+            Some((segment, offset)) => json!({"space":"segmented","segment":segment,"offset":offset}),
+            None => json!({"space":space,"offset":physical}),
+        };
+        let length = p.get("length").map(number).transpose()?.unwrap_or(1);
+        if !(1..=65536).contains(&length) || physical as u64 + length > 0x100000 {
+            return invalid("breakpoint range outside limits");
+        }
         Ok(Self {
             id,
-            address: address(&p["address"])?,
+            address: physical,
+            address_value,
+            segment_offset,
+            length,
             once,
             condition,
             hits: 0,
@@ -215,12 +243,19 @@ impl Breakpoint {
     }
     fn value(&self) -> Value {
         json!({"breakpoint_id":self.id,"kind":"execution",
-        "address":{"space":"physical","offset":self.address},"once":self.once,"hit_count":self.hits,
+        "address":self.address_value,"length":self.length,"once":self.once,"hit_count":self.hits,
         "condition":self.condition.as_ref().map(|(name,op,value)|json!({"register":name,"operator":op,"value":value})),
         "hit_filter":{"skip":self.skip,"every":self.every}})
     }
     fn matches(&mut self, machine: &mut Machine) -> bool {
-        if machine.cpu().flat_ip_disassembly() as usize != self.address {
+        let flat = machine.cpu().flat_ip_disassembly();
+        if let Some((segment, offset)) = self.segment_offset {
+            let cs = machine.cpu().get_register16(Register16::CS);
+            let ip = flat.wrapping_sub((cs as u32) << 4) as u16;
+            if cs != segment || ip != offset {
+                return false;
+            }
+        } else if (flat & 0xfffff) as usize != self.address {
             return false;
         }
         if let Some((name, op, value)) = &self.condition {
@@ -373,18 +408,33 @@ impl Agent {
     }
     fn handle(&mut self, machine: &mut Machine, method: &str, p: &Value) -> Result<Value> {
         match method {
-            "agent.capabilities" | "emulator.info" => Ok(json!({"emulator":"MartyPC","protocol":"jsonrpc-2.0",
-                "endpoint":{"host":"127.0.0.1","port":self.port},"methods":METHODS,
-                "limits":{"memory_read_max":65536,"memory_write":"unmapped conventional RAM only","completed_operations":64},
+            "agent.capabilities" | "emulator.info" => {
+                let cpu = format!("{:?}", machine.cpu().get_type());
+                Ok(
+                    json!({"emulator":"MartyPC","protocol":"JSON-RPC 2.0 over localhost JSON-lines",
+                "endpoint":format!("127.0.0.1:{}",self.port),"methods":METHODS,
+                "cpu":cpu.trim_start_matches("Intel"),"memory_bytes":0x100000,
+                "address_spaces":["physical","linear","segmented"],
+                "limits":{"max_memory_bytes":65536,"memory_write":"unmapped conventional RAM only","completed_operations":64},
                 "clock":{"unit":"cpu_cycle","frequency_hz":machine.get_cpu_mhz()*1_000_000.0},
                 "execution_step_unit":"native machine boundary (including device/interrupt work)",
+                "breakpoint_kinds":["execution"],"step_modes":["into"],
                 "time_base":"system crystal ticks (independent of turbo)",
-                "unsupported":["trace","hardware.trace","video","serial","input","machine.snapshot"]})),
-            "session.status" => Ok(
-                json!({"session_id":"martypc","state":if self.running {"running"} else {"stopped"},
-                "state_revision":self.revision,"clock":machine.cpu().get_cycle_ct().0,"last_stop":self.last_stop,
-                "target":{"cpu":format!("{:?}",machine.cpu().get_type()),"memory_bytes":0x100000}}),
-            ),
+                "unsupported":["trace","hardware.trace","video","serial","input","machine.snapshot","ppi_software_turbo"]}),
+                )
+            }
+            "session.status" => {
+                if p.get("session_id").is_some_and(|v| v != "martypc") {
+                    return invalid("unknown session id");
+                }
+                let cpu = format!("{:?}", machine.cpu().get_type());
+                let video = machine.primary_videocard().map(|v| format!("{:?}", v.video_type()));
+                Ok(
+                    json!({"session_id":"martypc","state":if self.running {"running"} else {"stopped"},
+                    "state_revision":self.revision,"clock":machine.cpu().get_cycle_ct().0,"last_stop":self.last_stop,
+                    "target":{"cpu":cpu.trim_start_matches("Intel"),"cpu_model":cpu,"video":video,"memory_bytes":0x100000}}),
+                )
+            }
             "state.get" | "state.get_registers" => Ok(registers(machine, self.revision)),
             "state.set_registers" => {
                 self.paused()?;
@@ -569,6 +619,12 @@ impl Agent {
                     return invalid("only step-into supported");
                 }
                 self.step(machine);
+                let kind = if matches!(self.control.state, ExecutionState::Halted) {
+                    "cpu_halt"
+                } else {
+                    "step"
+                };
+                self.stop(machine, json!({"kind":kind}));
                 let mut r = registers(machine, self.revision);
                 r["stepping"] = json!(true);
                 Ok(r)
@@ -643,6 +699,14 @@ pub fn serve(machine: &mut Machine, port: u16) -> std::io::Result<()> {
             "RPC port must be 1..65535",
         ));
     }
+    // Native frame_update handles PPI software turbo and host serial polling.
+    // Refuse configurations that would silently lose guest clock changes.
+    if machine.config().ppi_turbo.is_some() {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "PPI software turbo requires unsupported frame housekeeping",
+        ));
+    }
     let listener = TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, port))?;
     let (sender, receive) = mpsc::channel::<Message>();
     thread::spawn(move || {
@@ -680,15 +744,24 @@ mod tests {
     use marty_core::{
         machine::{MachineBuilder, MachineRomManifest, MachineState},
         machine_config::MachineConfiguration,
-        machine_types::MachineType,
+        machine_types::{MachineType, OnHaltBehavior},
     };
 
     fn machine() -> Machine {
+        machine_with_ppi_turbo(None)
+    }
+    fn machine_with_ppi_turbo(ppi_turbo: Option<bool>) -> Machine {
+        machine_with_options(ppi_turbo, OnHaltBehavior::Warn)
+    }
+    fn machine_with_options(ppi_turbo: Option<bool>, halt: OnHaltBehavior) -> Machine {
         let mut config =
             marty_config::read_config(include_str!("../../../../install/martypc.toml"), Default::default()).unwrap();
+        assert!(config.emulator.rpc_port.is_none()); // Missing Option keys deserialize as None.
         config.machine.no_roms = true;
+        config.machine.cpu.on_halt = Some(halt);
         let description = MachineConfiguration {
             machine_type: MachineType::Ibm5160,
+            ppi_turbo,
             ..Default::default()
         };
         let mut machine = MachineBuilder::new()
@@ -935,6 +1008,83 @@ mod tests {
             call(&mut a, &mut m, "agent.capabilities", json!({})),
             call(&mut a, &mut m, "emulator.info", json!({}))
         );
+    }
+    #[test]
+    fn step_clears_the_persistent_breakpoint_resume_exemption() {
+        let mut m = machine();
+        let mut a = Agent::new(2301);
+        call(&mut a, &mut m, "breakpoints.create", json!({"address":0x107}));
+        call(&mut a, &mut m, "execution.continue", json!({}));
+        for _ in 0..10 {
+            a.advance(&mut m);
+            if !a.running {
+                break;
+            }
+        }
+        assert_eq!(a.last_stop["kind"], "breakpoint");
+        call(&mut a, &mut m, "execution.step", json!({}));
+        assert_eq!(a.last_stop["kind"], "step");
+        let revision = a.revision;
+        call(&mut a, &mut m, "execution.continue", json!({}));
+        a.advance(&mut m);
+        assert!(!a.running);
+        assert_eq!(a.revision, revision);
+        assert_eq!(a.last_stop["hit_count"], 2);
+    }
+    #[test]
+    fn native_halt_policies_return_and_keep_rpc_responsive() {
+        for halt in [OnHaltBehavior::Continue, OnHaltBehavior::Warn, OnHaltBehavior::Stop] {
+            let mut m = machine_with_options(None, halt);
+            let mut a = Agent::new(2301);
+            m.load_program(&[0xfa, 0xf4], 0, 0x100, 0, 0x100).unwrap();
+            for _ in 0..100 {
+                call(&mut a, &mut m, "execution.step", json!({}));
+            }
+            assert!(registers(&mut m, a.revision)["in_hlt"].as_bool().unwrap());
+            call(&mut a, &mut m, "execution.pause", json!({}));
+        }
+    }
+    #[test]
+    fn unsupported_soft_turbo_is_refused_before_starting_a_listener() {
+        let mut m = machine_with_ppi_turbo(Some(true));
+        assert!(serve(&mut m, 2301).unwrap_err().to_string().contains("software turbo"));
+    }
+    #[test]
+    fn flags_text_matches_pypc_legacy_order_including_trap() {
+        let mut m = machine();
+        m.cpu_mut().set_flags(0x0402);
+        assert_eq!(registers(&mut m, 0)["flags_text"], "--------"); // DF is in raw flags only.
+        m.cpu_mut().set_flags(0x0bd7);
+        assert_eq!(registers(&mut m, 0)["flags_text"], "oITszapc");
+    }
+    #[test]
+    fn default_execution_and_segmented_alias_semantics_match_pypc() {
+        let mut m = machine();
+        let mut alias = Breakpoint::parse(
+            "alias".into(),
+            &json!({"address": {
+            "space":"segmented","segment":0x10,"offset":0},"condition":null}),
+        )
+        .unwrap();
+        assert!(!alias.matches(&mut m)); // 0010:0000 aliases 0000:0100, but CS differs.
+        assert_eq!(alias.hits, 0);
+        let mut exact = Breakpoint::parse(
+            "exact".into(),
+            &json!({"address": {
+            "space":"segmented","segment":0,"offset":0x100}}),
+        )
+        .unwrap();
+        assert!(exact.matches(&mut m));
+        assert_eq!(
+            exact.value()["address"],
+            json!({"space":"segmented","segment":0,"offset":0x100})
+        );
+        assert_eq!(address(&json!({"offset":0x100})).unwrap(), 0x100);
+        assert_eq!(
+            address(&json!({"space":"segmented","segment":0xffff,"offset":0x10})).unwrap(),
+            0
+        );
+        assert!(Breakpoint::parse("bad".into(), &json!({"address":0x100,"length":0})).is_err());
     }
     #[test]
     fn optional_hash_guard_and_fifo_operation_retention() {
