@@ -112,7 +112,7 @@ preserve this existing behavior; per-byte protocol/hardware correction is OPEN.
 External PIC/PIT/cassette/keyboard queues and complete restart remain OPEN;
 these tests do not establish physical keyboard or8255 timing.
 
-WIP game-port component: positions/buttons and all four in-flight charge timers
+INTEGRATED game-port PR15 atff279738: positions/buttons and all four in-flight charge timers
 are serialized without retriggering or host sampling. Five tests and217 core
 tests pass.1024 destructive JSON native continuations cover both layouts and
 default/alternate ports;64 seeded IEEE-bit cases prove storage only. Four actual
@@ -124,7 +124,8 @@ that actual failure. Native runtime tail/constants are byte-identical to base.
 Strict nested keys/array lengths and atomic version/port/layout/axis preflight
 are tested. Focused follow-up found no unresolved scoped restore defect or
 meaningful coverage gap. All38 RPC/config tests and fresh Windows UI/headless
-builds pass. Final CI/integration pending. Not physical analog timing,
+builds pass. Final Windows/Linux CI passed; integrated linearly, branch deleted.
+Not physical analog timing,
 full input queues, complete machine state or restart proof.
 
 WIP keyboard component: native scan/reset buffers, held-key order, cached
@@ -147,9 +148,12 @@ and exact reverse delivery asserted. Buffered overflow/size omissions fail actua
 FF output, with reset priority and one-shot flag consumption. Public constructors
 use capacity1; seeded capacities2/4/8 test the legacy arm. Its sub-capacity
 producer drops bytes; that unchanged native gap is observed, not repaired here.
-Follow-up review and fresh final UI/build/CI pending.
+Review follow-up confused deliberate lost-capacity/overflow mutants with
+production failures; fresh hash-bound unmodified recheck passes. Corrected audit
+confirms both findings resolved and no remaining scoped defect. All38 RPC/config
+tests and fresh final Windows UI/headless builds pass. Final CI/integration pending.
 
-NEXT: publish keyboard, integrate final-tested game port, Machine macro FIFO,
+NEXT: integrate final-tested keyboard, Machine macro FIFO,
 video/audio, disks and pending host
 I/O, with atomic dependency preflight, then real process-restart continuation.
 Hardware trace,VNC,keyboard/serial RPC and physical XT/gameplay parity remain
