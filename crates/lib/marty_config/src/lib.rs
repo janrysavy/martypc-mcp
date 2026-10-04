@@ -197,6 +197,7 @@ pub struct Emulator {
     pub cpu_autostart: bool,
     #[serde(default)]
     pub headless: bool,
+    pub rpc_port: Option<u16>,
     #[serde(default = "_default_min_emulation_speed")]
     pub min_emulation_speed: f32,
     #[serde(default = "_default_max_emulation_speed")]
@@ -514,6 +515,9 @@ impl ConfigFileParams {
         self.emulator.demo_mode |= shell_args.demo_mode;
         self.emulator.benchmark_mode |= shell_args.benchmark_mode;
         self.emulator.headless |= shell_args.headless;
+        if shell_args.rpc_port.is_some() {
+            self.emulator.rpc_port = shell_args.rpc_port;
+        }
         self.emulator.fuzzer |= shell_args.fuzzer;
         self.emulator.auto_poweron |= shell_args.auto_poweron;
         self.emulator.title_hacks |= shell_args.title_hacks;

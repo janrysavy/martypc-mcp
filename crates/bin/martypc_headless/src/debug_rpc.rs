@@ -1,0 +1,1029 @@
+//! Local JSON-lines debugger compatible with the PyPC control contract.
+//! All handlers and execution use one machine thread. Read-only inspection
+//! never flushes the 8088 prefetch queue or substitutes instruction timings.
+use base64::{engine::general_purpose::STANDARD, Engine};
+use marty_core::{
+    bus::{MEM_MMIO_BIT, MEM_ROM_BIT},
+    cpu_common::{Cpu, Register16},
+    machine::{ExecutionControl, ExecutionOperation, ExecutionState, Machine, MachineState},
+};
+use serde_json::{json, Value};
+use sha2::{Digest, Sha256};
+use std::{
+    collections::{BTreeMap, VecDeque},
+    io::{BufRead, BufReader, Read, Write},
+    net::{TcpListener, TcpStream},
+    sync::mpsc::{self, Sender},
+    thread,
+    time::Duration,
+};
+
+const METHODS: &[&str] = &[
+    "agent.capabilities",
+    "emulator.info",
+    "session.status",
+    "state.get",
+    "state.get_registers",
+    "state.set_registers",
+    "memory.read",
+    "memory.write",
+    "breakpoints.create",
+    "breakpoints.list",
+    "breakpoints.delete",
+    "execution.pause",
+    "execution.continue",
+    "execution.go",
+    "execution.run_until",
+    "execution.wait",
+    "execution.step",
+];
+const MAX_LINE: usize = 1024 * 1024;
+type Result<T> = std::result::Result<T, (&'static str, i32)>;
+
+fn invalid<T>(message: &'static str) -> Result<T> {
+    Err((message, -32602))
+}
+fn number(value: &Value) -> Result<u64> {
+    if let Some(n) = value.as_u64() {
+        return Ok(n);
+    }
+    if let Some(s) = value.as_str() {
+        let s = s.trim();
+        let (digits, radix) = if let Some(v) = s.strip_prefix("0x").or_else(|| s.strip_prefix("0X")) {
+            (v, 16)
+        } else if let Some(v) = s.strip_prefix("0b").or_else(|| s.strip_prefix("0B")) {
+            (v, 2)
+        } else if let Some(v) = s.strip_prefix("0o").or_else(|| s.strip_prefix("0O")) {
+            (v, 8)
+        } else {
+            (s, 10)
+        };
+        return u64::from_str_radix(digits, radix).map_err(|_| ("unsigned integer required", -32602));
+    }
+    invalid("unsigned integer required")
+}
+fn address(v: &Value) -> Result<usize> {
+    let n = if let Some(object) = v.as_object() {
+        match object.get("space").and_then(Value::as_str) {
+            Some("physical" | "linear") => number(&v["offset"])?,
+            Some("segmented") => {
+                let s = number(&v["segment"])?;
+                let o = number(&v["offset"])?;
+                if s > 65535 || o > 65535 {
+                    return invalid("16-bit segment/offset required");
+                }
+                s * 16 + o
+            }
+            _ => return invalid("unsupported address space"),
+        }
+    } else {
+        number(v)?
+    };
+    if n >= 0x100000 {
+        return invalid("address outside 1MiB");
+    }
+    Ok(n as usize)
+}
+fn digest(data: &[u8]) -> String {
+    format!("{:x}", Sha256::digest(data))
+}
+fn reg(name: &str) -> Option<Register16> {
+    Some(match name {
+        "ax" => Register16::AX,
+        "bx" => Register16::BX,
+        "cx" => Register16::CX,
+        "dx" => Register16::DX,
+        "sp" => Register16::SP,
+        "bp" => Register16::BP,
+        "si" => Register16::SI,
+        "di" => Register16::DI,
+        "cs" => Register16::CS,
+        "ds" => Register16::DS,
+        "es" => Register16::ES,
+        "ss" => Register16::SS,
+        _ => return None,
+    })
+}
+fn register_value(machine: &mut Machine, name: &str) -> Result<u16> {
+    match name {
+        "ip" => Ok(machine.cpu_mut().get_ip()),
+        "flags" => Ok(machine.cpu().get_flags()),
+        _ => reg(name)
+            .map(|r| machine.cpu().get_register16(r))
+            .ok_or(("unknown register", -32602)),
+    }
+}
+fn registers(machine: &mut Machine, revision: u64) -> Value {
+    let mut general = json!({});
+    let mut segments = json!({});
+    for n in ["ax", "bx", "cx", "dx", "sp", "bp", "si", "di"] {
+        general[n] = json!(register_value(machine, n).unwrap());
+    }
+    for n in ["cs", "ds", "es", "ss"] {
+        segments[n] = json!(register_value(machine, n).unwrap());
+    }
+    let flags = machine.cpu().get_flags();
+    let flags_text: String = [
+        (0x800, 'o'),
+        (0x400, 'd'),
+        (0x200, 'I'),
+        (0x80, 's'),
+        (0x40, 'z'),
+        (0x10, 'a'),
+        (4, 'p'),
+        (1, 'c'),
+    ]
+    .iter()
+    .map(|(mask, ch)| if flags & mask != 0 { *ch } else { '-' })
+    .collect();
+    json!({"general":general,"segments":segments,"ip":machine.cpu_mut().get_ip(),"flags":flags,
+        "flags_text":flags_text,"clock":machine.cpu().get_cycle_ct().0,"in_hlt":machine.cpu().get_string_state().halted,
+        "state_revision":revision,"emulated_time_ns":emulated_ns(machine,machine.system_ticks())})
+}
+fn emulated_ns(machine: &Machine, ticks: u64) -> u64 {
+    (ticks as f64 * 1000.0 / machine.system_clock_mhz()).floor() as u64
+}
+fn peek(machine: &Machine, start: usize, length: usize) -> Result<Vec<u8>> {
+    if !(1..=65536).contains(&length) || start.checked_add(length).is_none_or(|end| end > 0x100000) {
+        return invalid("memory range outside limits");
+    }
+    (start..start + length)
+        .map(|a| machine.bus().peek_u8(a).map_err(|_| ("bus memory read failed", -32603)))
+        .collect()
+}
+
+#[derive(Clone)]
+struct Breakpoint {
+    id: String,
+    address: usize,
+    once: bool,
+    condition: Option<(String, String, u16)>,
+    hits: u64,
+    skip: u64,
+    every: u64,
+}
+impl Breakpoint {
+    fn parse(id: String, p: &Value) -> Result<Self> {
+        if p["kind"] != "execution" {
+            return invalid("only execution breakpoints supported");
+        }
+        let condition = if p.get("condition").is_some() {
+            let c = &p["condition"];
+            let name = c["register"].as_str().ok_or(("condition register required", -32602))?;
+            if reg(name).is_none() && name != "ip" && name != "flags" {
+                return invalid("unknown condition register");
+            }
+            let op = c["operator"].as_str().ok_or(("condition operator required", -32602))?;
+            if !["eq", "ne", "lt", "le", "gt", "ge"].contains(&op) {
+                return invalid("unsupported condition operator");
+            }
+            let value = number(&c["value"])?;
+            if value > 65535 {
+                return invalid("condition value outside Word");
+            }
+            Some((name.to_owned(), op.to_owned(), value as u16))
+        } else {
+            None
+        };
+        let filter = p.get("hit_filter");
+        if filter.is_some_and(|v| !v.is_object()) {
+            return invalid("hit_filter must be an object");
+        }
+        let skip = filter.and_then(|v| v.get("skip")).map(number).transpose()?.unwrap_or(0);
+        let every = filter
+            .and_then(|v| v.get("every"))
+            .map(number)
+            .transpose()?
+            .unwrap_or(1);
+        if every == 0 {
+            return invalid("hit-filter every must be positive");
+        }
+        let once = p
+            .get("once")
+            .map(|v| v.as_bool().ok_or(("once must be boolean", -32602)))
+            .transpose()?
+            .unwrap_or(false);
+        Ok(Self {
+            id,
+            address: address(&p["address"])?,
+            once,
+            condition,
+            hits: 0,
+            skip,
+            every,
+        })
+    }
+    fn value(&self) -> Value {
+        json!({"breakpoint_id":self.id,"kind":"execution",
+        "address":{"space":"physical","offset":self.address},"once":self.once,"hit_count":self.hits,
+        "condition":self.condition.as_ref().map(|(name,op,value)|json!({"register":name,"operator":op,"value":value})),
+        "hit_filter":{"skip":self.skip,"every":self.every}})
+    }
+    fn matches(&mut self, machine: &mut Machine) -> bool {
+        if machine.cpu().flat_ip_disassembly() as usize != self.address {
+            return false;
+        }
+        if let Some((name, op, value)) = &self.condition {
+            let actual = register_value(machine, name).unwrap();
+            if !match op.as_str() {
+                "eq" => actual == *value,
+                "ne" => actual != *value,
+                "lt" => actual < *value,
+                "le" => actual <= *value,
+                "gt" => actual > *value,
+                _ => actual >= *value,
+            } {
+                return false;
+            }
+        }
+        self.hits += 1;
+        self.hits > self.skip && (self.hits - self.skip - 1) % self.every == 0
+    }
+}
+
+struct Agent {
+    revision: u64,
+    running: bool,
+    control: ExecutionControl,
+    next: u64,
+    breakpoints: BTreeMap<String, Breakpoint>,
+    predicate: Option<Breakpoint>,
+    skip_once: Option<String>,
+    operation: Option<String>,
+    completed: BTreeMap<String, Value>,
+    completed_order: VecDeque<String>,
+    last_stop: Value,
+    deadline: Option<(u64, u64, u64)>,
+    port: u16,
+}
+impl Agent {
+    fn new(port: u16) -> Self {
+        Self {
+            revision: 0,
+            running: false,
+            control: ExecutionControl::new(),
+            next: 0,
+            breakpoints: BTreeMap::new(),
+            predicate: None,
+            skip_once: None,
+            operation: None,
+            completed: BTreeMap::new(),
+            completed_order: VecDeque::new(),
+            last_stop: Value::Null,
+            deadline: None,
+            port,
+        }
+    }
+    fn id(&mut self, prefix: &str) -> String {
+        self.next += 1;
+        format!("{prefix}-{}", self.next)
+    }
+    fn paused(&self) -> Result<()> {
+        if self.running {
+            invalid("emulator must be paused")
+        } else {
+            Ok(())
+        }
+    }
+    fn stop(&mut self, machine: &mut Machine, mut reason: Value) {
+        reason["registers"] = registers(machine, self.revision);
+        self.running = false;
+        self.control.set_state(ExecutionState::Paused);
+        self.predicate = None;
+        self.deadline = None;
+        self.last_stop = reason.clone();
+        if let Some(id) = self.operation.take() {
+            let mut result = registers(machine, self.revision);
+            result["state"] = json!("stopped");
+            result["stop_reason"] = reason;
+            self.completed_order.push_back(id.clone());
+            self.completed.insert(id, result);
+            while self.completed.len() > 64 {
+                let first = self.completed_order.pop_front().unwrap();
+                self.completed.remove(&first);
+            }
+        }
+    }
+    fn start(&mut self, machine: &mut Machine) -> Value {
+        self.skip_once = self.last_stop["breakpoint_id"].as_str().map(str::to_owned);
+        let id = self.id("op");
+        self.operation = Some(id.clone());
+        self.running = true;
+        self.last_stop = Value::Null;
+        {
+            let mut result = registers(machine, self.revision);
+            result["operation_id"] = json!(id);
+            result["state"] = json!("running");
+            result["paused"] = json!(false);
+            result
+        }
+    }
+    fn step(&mut self, machine: &mut Machine) {
+        self.control.set_state(ExecutionState::Paused);
+        self.control.set_op(ExecutionOperation::Step);
+        machine.run(1, &mut self.control);
+        self.revision += 1;
+    }
+    fn advance(&mut self, machine: &mut Machine) {
+        if !self.running {
+            return;
+        }
+        let skip = self.skip_once.take();
+        let mut hit = None;
+        for (id, bp) in &mut self.breakpoints {
+            if skip.as_ref() != Some(id) && bp.matches(machine) {
+                hit = Some(bp.clone());
+                break;
+            }
+        }
+        if let Some(bp) = hit {
+            if bp.once {
+                self.breakpoints.remove(&bp.id);
+            }
+            self.stop(
+                machine,
+                json!({"kind":"breakpoint","breakpoint_id":bp.id,"address":bp.value()["address"],"hit_count":bp.hits}),
+            );
+            return;
+        }
+        if let Some(bp) = &mut self.predicate {
+            if bp.matches(machine) {
+                let reason = json!({"kind":"run_until","predicate_id":bp.id,
+                "breakpoint_id":bp.id,"address":bp.value()["address"],"hit_count":bp.hits});
+                self.stop(machine, reason);
+                return;
+            }
+        }
+        self.step(machine);
+        if matches!(self.control.state, ExecutionState::Halted) {
+            self.stop(machine, json!({"kind":"cpu_halt"}));
+            return;
+        }
+        if let Some((start, requested, limit)) = self.deadline {
+            let ticks = machine.system_ticks();
+            if ticks >= limit {
+                let actual = emulated_ns(machine, ticks);
+                let deadline = emulated_ns(machine, limit);
+                self.stop(machine,json!({"kind":"emulated_time_limit","emulated_time_ns":actual,
+                    "emulated_time_limit":{"requested_duration_ns":requested,"start_emulated_time_ns":emulated_ns(machine,start),
+                        "deadline_emulated_time_ns":deadline,"actual_stop_emulated_time_ns":actual,"reached":true,
+                        "overshoot_ns":actual.saturating_sub(deadline)}}));
+            }
+        }
+    }
+    fn handle(&mut self, machine: &mut Machine, method: &str, p: &Value) -> Result<Value> {
+        match method {
+            "agent.capabilities" | "emulator.info" => Ok(json!({"emulator":"MartyPC","protocol":"jsonrpc-2.0",
+                "endpoint":{"host":"127.0.0.1","port":self.port},"methods":METHODS,
+                "limits":{"memory_read_max":65536,"memory_write":"unmapped conventional RAM only","completed_operations":64},
+                "clock":{"unit":"cpu_cycle","frequency_hz":machine.get_cpu_mhz()*1_000_000.0},
+                "execution_step_unit":"native machine boundary (including device/interrupt work)",
+                "time_base":"system crystal ticks (independent of turbo)",
+                "unsupported":["trace","hardware.trace","video","serial","input","machine.snapshot"]})),
+            "session.status" => Ok(
+                json!({"session_id":"martypc","state":if self.running {"running"} else {"stopped"},
+                "state_revision":self.revision,"clock":machine.cpu().get_cycle_ct().0,"last_stop":self.last_stop,
+                "target":{"cpu":format!("{:?}",machine.cpu().get_type()),"memory_bytes":0x100000}}),
+            ),
+            "state.get" | "state.get_registers" => Ok(registers(machine, self.revision)),
+            "state.set_registers" => {
+                self.paused()?;
+                if number(&p["expected_state_revision"])? != self.revision {
+                    return invalid("state revision mismatch");
+                }
+                let changes = p["set"].as_object().ok_or(("set object required", -32602))?;
+                if changes.is_empty() {
+                    return invalid("at least one register required");
+                }
+                let mut values = Vec::new();
+                for (name, v) in changes {
+                    let old = register_value(machine, name)?;
+                    let next = number(v)?;
+                    if next > 65535 || number(&p["expected"][name])? != old as u64 {
+                        return invalid("register guard/range mismatch");
+                    }
+                    values.push((name.clone(), next as u16));
+                }
+                let before = registers(machine, self.revision);
+                let old_ip = machine.cpu_mut().get_ip();
+                let reposition = changes.contains_key("ip") || changes.contains_key("cs");
+                if reposition {
+                    machine.cpu_mut().flush_piq();
+                }
+                for (name, value) in values {
+                    match name.as_str() {
+                        "flags" => machine.cpu_mut().set_flags(value),
+                        "ip" => {}
+                        _ => machine.cpu_mut().set_register16(reg(&name).unwrap(), value),
+                    }
+                }
+                if reposition {
+                    machine.cpu_mut().set_register16(
+                        Register16::PC,
+                        changes
+                            .get("ip")
+                            .map(number)
+                            .transpose()?
+                            .map(|v| v as u16)
+                            .unwrap_or(old_ip),
+                    );
+                }
+                self.revision += 1;
+                Ok(json!({"before":before,"after":registers(machine,self.revision)}))
+            }
+            "memory.read" => {
+                let start = address(&p["address"])?;
+                let length = p.get("length").map(number).transpose()?.unwrap_or(1);
+                let data = peek(
+                    machine,
+                    start,
+                    usize::try_from(length).map_err(|_| ("length too large", -32602))?,
+                )?;
+                Ok(
+                    json!({"address":start,"byte_count":data.len(),"data_hex":data.iter().map(|b|format!("{b:02x}")).collect::<String>(),
+                    "data_base64":STANDARD.encode(&data),"sha256":digest(&data),"state_revision":self.revision}),
+                )
+            }
+            "memory.write" => {
+                self.paused()?;
+                let start = address(&p["address"])?;
+                let encoded = p["data_base64"].as_str().ok_or(("base64 data required", -32602))?;
+                if encoded.len() > 87384 {
+                    return invalid("memory write exceeds limit");
+                }
+                let data = STANDARD.decode(encoded).map_err(|_| ("invalid base64", -32602))?;
+                let before = peek(machine, start, data.len())?;
+                if let Some(hash) = p.get("expected_sha256") {
+                    let hash = hash.as_str().ok_or(("SHA-256 string required", -32602))?;
+                    if hash.len() != 64
+                        || !hash.bytes().all(|c| c.is_ascii_hexdigit())
+                        || hash.to_ascii_lowercase() != digest(&before)
+                    {
+                        return invalid("memory hash guard mismatch");
+                    }
+                }
+                if start + data.len() > machine.bus().conventional_size()
+                    || (start..start + data.len())
+                        .any(|a| machine.bus().get_flags(a) & (MEM_ROM_BIT | MEM_MMIO_BIT) != 0)
+                {
+                    return invalid("only unmapped conventional RAM writes supported");
+                }
+                for (i, value) in data.iter().enumerate() {
+                    machine
+                        .bus_mut()
+                        .write_u8(start + i, *value, 0)
+                        .map_err(|_| ("bus write failed", -32603))?;
+                }
+                self.revision += 1;
+                Ok(
+                    json!({"address":start,"byte_count":data.len(),"before_sha256":digest(&before),
+                    "after_sha256":digest(&data),"state_revision":self.revision}),
+                )
+            }
+            "breakpoints.create" => {
+                if self.breakpoints.len() >= 256 {
+                    return invalid("breakpoint limit reached");
+                }
+                let id = self.id("bp");
+                let bp = Breakpoint::parse(id.clone(), p)?;
+                let result = bp.value();
+                self.breakpoints.insert(id, bp);
+                Ok(result)
+            }
+            "breakpoints.list" => {
+                Ok(json!({"breakpoints":self.breakpoints.values().map(Breakpoint::value).collect::<Vec<_>>()}))
+            }
+            "breakpoints.delete" => {
+                let id = p["breakpoint_id"].as_str().ok_or(("breakpoint id required", -32602))?;
+                if self.breakpoints.remove(id).is_none() {
+                    return invalid("unknown breakpoint");
+                }
+                Ok(json!({"breakpoint_id":id,"deleted":true}))
+            }
+            "execution.pause" => {
+                if self.running {
+                    self.stop(machine, json!({"kind":"pause"}));
+                }
+                let mut r = registers(machine, self.revision);
+                r["paused"] = json!(true);
+                Ok(r)
+            }
+            "execution.continue" | "execution.go" => {
+                self.paused()?;
+                if !matches!(machine.get_state(), MachineState::On) {
+                    return invalid("machine must be powered on");
+                }
+                self.predicate = None;
+                self.deadline = None;
+                Ok(self.start(machine))
+            }
+            "execution.run_until" => {
+                self.paused()?;
+                if !matches!(machine.get_state(), MachineState::On) {
+                    return invalid("machine must be powered on");
+                }
+                let id = self.id("predicate");
+                let mut bp = Breakpoint::parse(id.clone(), &p["predicate"])?;
+                bp.once = true;
+                let deadline = if let Some(value) = p.get("max_emulated_ns") {
+                    let ns = number(value)?;
+                    if ns == 0 || ns > 60_000_000_000 {
+                        return invalid("guest-time limit must be 1ns..60s");
+                    }
+                    let start = machine.system_ticks();
+                    let ticks = (ns as f64 * machine.system_clock_mhz() / 1000.0).ceil() as u64;
+                    Some((
+                        start,
+                        ns,
+                        start.checked_add(ticks).ok_or(("deadline overflow", -32602))?,
+                    ))
+                } else {
+                    None
+                };
+                self.predicate = Some(bp);
+                self.deadline = deadline;
+                let mut r = self.start(machine);
+                r["predicate_id"] = json!(id);
+                Ok(r)
+            }
+            "execution.wait" => {
+                let id = p["operation_id"].as_str().ok_or(("operation id required", -32602))?;
+                if p.get("timeout_ms").map(number).transpose()?.unwrap_or(0) > 60000 {
+                    return invalid("timeout outside 0..60000ms");
+                }
+                if self.operation.as_deref() == Some(id) {
+                    Ok(json!({"running":true}))
+                } else {
+                    self.completed
+                        .get(id)
+                        .cloned()
+                        .ok_or(("unknown/expired operation", -32602))
+                }
+            }
+            "execution.step" => {
+                self.paused()?;
+                if !matches!(machine.get_state(), MachineState::On) {
+                    return invalid("machine must be powered on");
+                }
+                if p.get("mode").is_some_and(|v| v != "into") {
+                    return invalid("only step-into supported");
+                }
+                self.step(machine);
+                let mut r = registers(machine, self.revision);
+                r["stepping"] = json!(true);
+                Ok(r)
+            }
+            _ => Err(("method not supported", -32601)),
+        }
+    }
+    fn request(&mut self, machine: &mut Machine, line: &[u8]) -> Option<Value> {
+        let error = |id, code, message| json!({"jsonrpc":"2.0","id":id,"error":{"code":code,"message":message}});
+        let request: Value = match serde_json::from_slice(line) {
+            Ok(v) => v,
+            Err(_) => return Some(error(Value::Null, -32700, "invalid JSON")),
+        };
+        let id = request.get("id").cloned().unwrap_or(Value::Null);
+        if !request.is_object()
+            || request["jsonrpc"] != "2.0"
+            || !request["method"].is_string()
+            || request
+                .get("id")
+                .is_some_and(|v| !v.is_null() && !v.is_string() && !v.is_number())
+            || request.get("params").is_some_and(|v| !v.is_object())
+        {
+            return Some(error(id, -32600, "invalid request"));
+        }
+        let result = self.handle(
+            machine,
+            request["method"].as_str().unwrap(),
+            request.get("params").unwrap_or(&json!({})),
+        );
+        if request.get("id").is_none() {
+            return None;
+        }
+        Some(match result {
+            Ok(value) => json!({"jsonrpc":"2.0","id":id,"result":value}),
+            Err((message, code)) => error(id, code, message),
+        })
+    }
+}
+
+type Message = (Vec<u8>, Sender<Option<Value>>);
+fn connection(mut stream: TcpStream, sender: Sender<Message>) -> std::io::Result<()> {
+    stream.set_write_timeout(Some(Duration::from_secs(5)))?;
+    let mut reader = BufReader::new(stream.try_clone()?);
+    loop {
+        let mut line = Vec::new();
+        // Take bounds allocation even when a client never sends a newline.
+        let count = reader
+            .by_ref()
+            .take((MAX_LINE + 1) as u64)
+            .read_until(b'\n', &mut line)?;
+        if count == 0 {
+            return Ok(());
+        }
+        if count > MAX_LINE || line.last() != Some(&b'\n') {
+            return Ok(());
+        }
+        let (reply, receive) = mpsc::channel();
+        if sender.send((line, reply)).is_err() {
+            return Ok(());
+        }
+        if let Ok(Some(value)) = receive.recv() {
+            serde_json::to_writer(&mut stream, &value)?;
+            stream.write_all(b"\n")?;
+            stream.flush()?;
+        }
+    }
+}
+pub fn serve(machine: &mut Machine, port: u16) -> std::io::Result<()> {
+    if port == 0 {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "RPC port must be 1..65535",
+        ));
+    }
+    let listener = TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, port))?;
+    let (sender, receive) = mpsc::channel::<Message>();
+    thread::spawn(move || {
+        for stream in listener.incoming().flatten() {
+            let sender = sender.clone();
+            thread::spawn(move || {
+                let _ = connection(stream, sender);
+            });
+        }
+    });
+    let mut agent = Agent::new(port);
+    eprintln!("JSON_RPC_READY=127.0.0.1:{port}");
+    loop {
+        if agent.running {
+            for _ in 0..64 {
+                match receive.try_recv() {
+                    Ok((line, reply)) => {
+                        let _ = reply.send(agent.request(machine, &line));
+                    }
+                    Err(_) => break,
+                }
+            }
+            agent.advance(machine);
+        } else if let Ok((line, reply)) = receive.recv() {
+            let _ = reply.send(agent.request(machine, &line));
+        } else {
+            return Ok(());
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use marty_core::{
+        machine::{MachineBuilder, MachineRomManifest, MachineState},
+        machine_config::MachineConfiguration,
+        machine_types::MachineType,
+    };
+
+    fn machine() -> Machine {
+        let mut config =
+            marty_config::read_config(include_str!("../../../../install/martypc.toml"), Default::default()).unwrap();
+        config.machine.no_roms = true;
+        let description = MachineConfiguration {
+            machine_type: MachineType::Ibm5160,
+            ..Default::default()
+        };
+        let mut machine = MachineBuilder::new()
+            .with_core_config(Box::new(&config))
+            .with_machine_config(&description)
+            .with_roms(MachineRomManifest::new())
+            .build()
+            .unwrap();
+        machine.change_state(MachineState::On);
+        machine
+            .load_program(
+                &[0xb8, 0x34, 0x12, 0x40, 0xa3, 0x00, 0x02, 0xeb, 0xfe],
+                0,
+                0x100,
+                0,
+                0x100,
+            )
+            .unwrap();
+        machine
+    }
+    fn call(a: &mut Agent, m: &mut Machine, method: &str, params: Value) -> Value {
+        a.handle(m, method, &params).unwrap()
+    }
+    #[test]
+    fn inspection_and_rpc_steps_preserve_native_cpu_device_cycles() {
+        let mut native = machine();
+        let mut controlled = machine();
+        let mut a = Agent::new(2301);
+        let mut control = ExecutionControl::new();
+        for _ in 0..40 {
+            let before = controlled.cpu().get_cycle_ct();
+            for _ in 0..3 {
+                call(&mut a, &mut controlled, "state.get_registers", json!({}));
+                call(
+                    &mut a,
+                    &mut controlled,
+                    "memory.read",
+                    json!({"address":{"space":"segmented","segment":0,"offset":"0x100"},"length":9}),
+                );
+            }
+            assert_eq!(before, controlled.cpu().get_cycle_ct());
+            call(&mut a, &mut controlled, "execution.step", json!({"mode":"into"}));
+            control.set_op(ExecutionOperation::Step);
+            native.run(1, &mut control);
+            assert_eq!(
+                registers(&mut native, a.revision),
+                registers(&mut controlled, a.revision)
+            );
+            assert_eq!(
+                native.bus().pit().as_ref().unwrap().get_cycles(),
+                controlled.bus().pit().as_ref().unwrap().get_cycles()
+            );
+            assert_eq!(peek(&native, 0x200, 2).unwrap(), peek(&controlled, 0x200, 2).unwrap());
+        }
+        assert_eq!(controlled.cpu().get_register16(Register16::AX), 0x1235);
+        assert_eq!(peek(&controlled, 0x200, 2).unwrap(), vec![0x35, 0x12]);
+    }
+    #[test]
+    fn register_guards_preflight_the_entire_request() {
+        let mut m = machine();
+        let mut a = Agent::new(2301);
+        let before = registers(&mut m, 0);
+        let wrong = json!({"expected_state_revision":0,"expected":{"ax":0,"cx":65535},"set":{"ax":9,"cx":8}});
+        assert!(a.handle(&mut m, "state.set_registers", &wrong).is_err());
+        assert_eq!(registers(&mut m, 0), before);
+        let ax = before["general"]["ax"].clone();
+        let done = call(
+            &mut a,
+            &mut m,
+            "state.set_registers",
+            json!({"expected_state_revision":0,"expected":{"ax":ax},"set":{"ax":9}}),
+        );
+        assert_eq!(done["after"]["general"]["ax"], 9);
+        assert_eq!(a.revision, 1);
+        assert!(a
+            .handle(
+                &mut m,
+                "state.set_registers",
+                &json!({"expected_state_revision":0,"expected":{"ax":9},"set":{"ax":10}})
+            )
+            .is_err());
+        assert_eq!(m.cpu().get_register16(Register16::AX), 9);
+    }
+    #[test]
+    fn guarded_ram_write_and_refused_boundary_write_are_atomic() {
+        let mut m = machine();
+        let mut a = Agent::new(2301);
+        let before = peek(&m, 0x200, 2).unwrap();
+        let p = json!({"address":"0x200","data_base64":STANDARD.encode([1,2]),"expected_sha256":digest(&before)});
+        let mut bad = p.clone();
+        bad["expected_sha256"] = json!(digest(&[7, 7]));
+        assert!(a.handle(&mut m, "memory.write", &bad).is_err());
+        assert_eq!(peek(&m, 0x200, 2).unwrap(), before);
+        assert_eq!(a.revision, 0);
+        call(&mut a, &mut m, "memory.write", p);
+        assert_eq!(peek(&m, 0x200, 2).unwrap(), vec![1, 2]);
+        let address = m.bus().conventional_size() - 1;
+        let old = peek(&m, address, 2).unwrap();
+        let p = json!({"address":address,"data_base64":STANDARD.encode([7,8]),"expected_sha256":digest(&old)});
+        assert!(a.handle(&mut m, "memory.write", &p).is_err());
+        assert_eq!(peek(&m, address, 2).unwrap(), old);
+        assert_eq!(a.revision, 1);
+        assert!(a
+            .handle(&mut m, "memory.read", &json!({"address":"0xFFFFF","length":2}))
+            .is_err());
+        assert!(a
+            .handle(&mut m, "memory.read", &json!({"address":0,"length":65537}))
+            .is_err());
+    }
+    #[test]
+    fn one_shot_breakpoint_operation_and_pause_race() {
+        let mut m = machine();
+        let mut a = Agent::new(2301);
+        let bp = call(
+            &mut a,
+            &mut m,
+            "breakpoints.create",
+            json!({"kind":"execution","address":0x103,"once":true}),
+        );
+        let op = call(&mut a, &mut m, "execution.continue", json!({}));
+        assert!(a.handle(&mut m, "execution.step", &json!({})).is_err());
+        for _ in 0..10 {
+            a.advance(&mut m);
+            if !a.running {
+                break;
+            }
+        }
+        let done = call(
+            &mut a,
+            &mut m,
+            "execution.wait",
+            json!({"operation_id":op["operation_id"],"timeout_ms":5}),
+        );
+        assert_eq!(done["state"], "stopped");
+        assert_eq!(done["stop_reason"]["kind"], "breakpoint");
+        assert_eq!(done["stop_reason"]["breakpoint_id"], bp["breakpoint_id"]);
+        assert_eq!(done["ip"], 0x103);
+        assert!(a.breakpoints.is_empty());
+        let reason = a.last_stop.clone();
+        call(&mut a, &mut m, "execution.pause", json!({}));
+        assert_eq!(a.last_stop, reason);
+        assert!(a
+            .handle(&mut m, "execution.wait", &json!({"operation_id":"absent"}))
+            .is_err());
+    }
+    #[test]
+    fn persistent_breakpoint_skips_only_the_resume_boundary() {
+        let mut m = machine();
+        let mut a = Agent::new(2301);
+        call(
+            &mut a,
+            &mut m,
+            "breakpoints.create",
+            json!({"kind":"execution","address":0x107}),
+        );
+        call(&mut a, &mut m, "execution.continue", json!({}));
+        for _ in 0..10 {
+            a.advance(&mut m);
+            if !a.running {
+                break;
+            }
+        }
+        assert!(!a.running);
+        let first = a.revision;
+        call(&mut a, &mut m, "execution.continue", json!({}));
+        a.advance(&mut m);
+        assert!(a.running);
+        assert_eq!(a.revision, first + 1);
+        a.advance(&mut m);
+        assert!(!a.running);
+        assert_eq!(a.last_stop["hit_count"], 2);
+    }
+    #[test]
+    fn run_until_is_private_and_guest_deadline_is_bounded() {
+        let mut m = machine();
+        let mut a = Agent::new(2301);
+        let op = call(
+            &mut a,
+            &mut m,
+            "execution.run_until",
+            json!({"predicate":{"kind":"execution","address":0x104,"condition":{"register":"ax","operator":"eq","value":"0x1235"}}}),
+        );
+        for _ in 0..10 {
+            a.advance(&mut m);
+            if !a.running {
+                break;
+            }
+        }
+        let done = call(
+            &mut a,
+            &mut m,
+            "execution.wait",
+            json!({"operation_id":op["operation_id"]}),
+        );
+        assert_eq!(done["stop_reason"]["kind"], "run_until");
+        assert_eq!(done["ip"], 0x104);
+        assert!(a.breakpoints.is_empty());
+        assert!(a.predicate.is_none());
+        call(
+            &mut a,
+            &mut m,
+            "execution.run_until",
+            json!({"predicate":{"kind":"execution","address":0},"max_emulated_ns":1000}),
+        );
+        for _ in 0..100 {
+            a.advance(&mut m);
+            if !a.running {
+                break;
+            }
+        }
+        assert!(!a.running);
+        assert_eq!(a.last_stop["kind"], "emulated_time_limit");
+    }
+    #[test]
+    fn jsonrpc_envelopes_aliases_errors_and_notifications() {
+        let mut m = machine();
+        let mut a = Agent::new(2301);
+        assert_eq!(a.request(&mut m, b"{").unwrap()["error"]["code"], -32700);
+        assert_eq!(
+            a.request(&mut m, br#"{"method":"state.get","id":1}"#).unwrap()["error"]["code"],
+            -32600
+        );
+        assert_eq!(
+            a.request(&mut m, br#"{"jsonrpc":"2.0","method":"unknown","id":1}"#)
+                .unwrap()["error"]["code"],
+            -32601
+        );
+        assert_eq!(
+            a.request(
+                &mut m,
+                br#"{"jsonrpc":"2.0","method":"memory.read","params":{"address":true},"id":1}"#
+            )
+            .unwrap()["error"]["code"],
+            -32602
+        );
+        assert!(a
+            .request(&mut m, br#"{"jsonrpc":"2.0","method":"state.get"}"#)
+            .is_none());
+        assert_eq!(
+            call(&mut a, &mut m, "state.get", json!({})),
+            call(&mut a, &mut m, "state.get_registers", json!({}))
+        );
+        assert_eq!(
+            call(&mut a, &mut m, "agent.capabilities", json!({})),
+            call(&mut a, &mut m, "emulator.info", json!({}))
+        );
+    }
+    #[test]
+    fn optional_hash_guard_and_fifo_operation_retention() {
+        let mut m = machine();
+        let mut a = Agent::new(2301);
+        call(
+            &mut a,
+            &mut m,
+            "memory.write",
+            json!({"address":0x200,"data_base64":STANDARD.encode([8,9])}),
+        );
+        assert_eq!(peek(&m, 0x200, 2).unwrap(), vec![8, 9]);
+        let mut ids = Vec::new();
+        for _ in 0..100 {
+            ids.push(
+                call(&mut a, &mut m, "execution.continue", json!({}))["operation_id"]
+                    .as_str()
+                    .unwrap()
+                    .to_owned(),
+            );
+            call(&mut a, &mut m, "execution.pause", json!({}));
+        }
+        assert_eq!(a.completed.len(), 64);
+        for (i, id) in ids.iter().enumerate() {
+            assert_eq!(a.completed.contains_key(id), i >= 36);
+        }
+    }
+    #[test]
+    fn guest_deadline_uses_system_ticks_through_turbo_change() {
+        let mut m = machine();
+        let mut a = Agent::new(2301);
+        let crystal = m.system_clock_mhz();
+        call(
+            &mut a,
+            &mut m,
+            "execution.run_until",
+            json!({"predicate":{"kind":"execution","address":0},"max_emulated_ns":100000}),
+        );
+        m.set_turbo_mode(true);
+        for _ in 0..1000 {
+            a.advance(&mut m);
+            if !a.running {
+                break;
+            }
+        }
+        assert!(!a.running);
+        assert_eq!(m.system_clock_mhz(), crystal);
+        let limit = &a.last_stop["emulated_time_limit"];
+        assert_eq!(limit["requested_duration_ns"], 100000);
+        assert!(
+            limit["actual_stop_emulated_time_ns"].as_u64().unwrap()
+                >= limit["deadline_emulated_time_ns"].as_u64().unwrap()
+        );
+        assert_eq!(
+            a.last_stop["emulated_time_ns"],
+            registers(&mut m, a.revision)["emulated_time_ns"]
+        );
+        m.change_state(MachineState::Off);
+        assert!(a.handle(&mut m, "execution.continue", &json!({})).is_err());
+        assert!(a.handle(&mut m, "execution.step", &json!({})).is_err());
+    }
+    #[test]
+    fn tcp_persistent_json_lines_and_notifications() {
+        let listener = TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0)).unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let (sender, receive) = mpsc::channel();
+        let transport = thread::spawn(move || connection(listener.accept().unwrap().0, sender).unwrap());
+        let worker = thread::spawn(move || {
+            let mut m = machine();
+            let mut a = Agent::new(port);
+            while let Ok((line, reply)) = receive.recv() {
+                reply.send(a.request(&mut m, &line)).unwrap();
+            }
+        });
+        let mut client = TcpStream::connect((std::net::Ipv4Addr::LOCALHOST, port)).unwrap();
+        client.set_read_timeout(Some(Duration::from_secs(3))).unwrap();
+        client.write_all(b"{\"jsonrpc\":\"2.0\",\"method\":\"state.get\"}\n{\"jsonrpc\":\"2.0\",\"method\":\"state.get\",\"id\":7}\n").unwrap();
+        let mut reader = BufReader::new(client);
+        let mut line = String::new();
+        reader.read_line(&mut line).unwrap();
+        let response: Value = serde_json::from_str(&line).unwrap();
+        assert_eq!(response["id"], 7);
+        assert_eq!(response["result"]["ip"], 0x100);
+        reader.get_mut().write_all(b"{bad}\n").unwrap();
+        line.clear();
+        reader.read_line(&mut line).unwrap();
+        assert_eq!(serde_json::from_str::<Value>(&line).unwrap()["error"]["code"], -32700);
+        drop(reader);
+        transport.join().unwrap();
+        worker.join().unwrap();
+    }
+}

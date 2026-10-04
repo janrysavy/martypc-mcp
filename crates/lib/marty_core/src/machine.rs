@@ -1078,6 +1078,11 @@ impl Machine {
         self.cpu.get_instruction_ct()
     }
 
+    /// Main system crystal frequency in MHz, independent of the CPU turbo factor.
+    pub fn system_clock_mhz(&self) -> f64 {
+        self.machine_desc.system_crystal
+    }
+
     pub fn system_ticks(&self) -> u64 {
         self.system_ticks
     }

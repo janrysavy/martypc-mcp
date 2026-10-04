@@ -36,6 +36,7 @@ mod emulator;
 
 mod run_benchmark;
 mod run_headless;
+mod debug_rpc;
 
 #[cfg(feature = "arduino_validator")]
 mod run_fuzzer;
@@ -733,6 +734,14 @@ pub fn run() {
 
     // Start emulator
     emu.start();
+
+    if let Some(port) = emu.config.emulator.rpc_port {
+        if let Err(error) = debug_rpc::serve(&mut emu.machine, port) {
+            eprintln!("JSON-RPC debugger failed: {error}");
+            std::process::exit(1);
+        }
+        return;
+    }
 
     // TODO: We don't have any backend to run an event loop. If we want to actually run the
     //       emulator now we need some way of controlling / stopping it.

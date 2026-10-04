@@ -52,6 +52,8 @@ pub struct CmdLineArgs {
     pub fullscreen: bool,
     // Ignored on wasm
     pub headless: bool,
+    // Ignored on wasm; the debugger listener is native and loopback-only.
+    pub rpc_port: Option<u16>,
     // Ignored on wasm
     pub fuzzer: bool,
     // Ignored on wasm

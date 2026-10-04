@@ -71,6 +71,10 @@ pub struct CmdLineArgs {
     #[bpaf(long, switch)]
     pub headless: bool,
 
+    /// Local JSON-RPC debugger port (headless frontend).
+    #[bpaf(long("rpc-port"))]
+    pub rpc_port: Option<u16>,
+
     #[bpaf(long, switch)]
     pub fuzzer: bool,
 

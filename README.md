@@ -5,6 +5,13 @@ MartyPC is an emulator of early IBM PCs and compatibles. It supports Windows, Li
 # Try [MartyPC in your web browser!](https://martypc.net)
 
 
+## Debugger fork
+
+This fork adds a local native headless JSON-RPC debugger using a subset of the
+PyPC control contract. See [the API and limitations](docs/JSON_RPC_API.md) and
+[the fork handoff](docs/HANDOFF.md). Automatic Windows/Linux CI tests and builds
+the headless frontend without storing artifacts.
+
 ## User Guide
 
 [Click here to access the MartyPC User Guide](https://github.com/dbalsom/martypc/wiki/MartyPC-User-Guide)

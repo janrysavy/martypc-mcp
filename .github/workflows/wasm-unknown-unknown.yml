@@ -1,9 +1,7 @@
 name: wasm-unknown-unknown
 
 on:
-  push:
-    branches:
-      - pages_deploy
+  workflow_dispatch:
 
 jobs:
   build:
