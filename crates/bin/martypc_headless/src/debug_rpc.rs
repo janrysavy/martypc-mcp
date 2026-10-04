@@ -3,7 +3,6 @@
 //! never flushes the 8088 prefetch queue or substitutes instruction timings.
 use base64::{engine::general_purpose::STANDARD, Engine};
 use marty_core::{
-    bus::{MEM_MMIO_BIT, MEM_ROM_BIT},
     cpu_common::{Cpu, Register16},
     machine::{ExecutionControl, ExecutionOperation, ExecutionState, Machine, MachineState},
 };
@@ -435,7 +434,7 @@ impl Agent {
                 "endpoint":format!("127.0.0.1:{}",self.port),"methods":METHODS,
                 "cpu":cpu.trim_start_matches("Intel"),"memory_bytes":0x100000,
                 "address_spaces":["physical","linear","segmented"],
-                "limits":{"max_memory_bytes":65536,"memory_write":"unmapped conventional RAM only","completed_operations":64},
+                "limits":{"max_memory_bytes":65536,"memory_write":"installed writable RAM only","completed_operations":64},
                 "clock":{"unit":"cpu_cycle","frequency_hz":machine.get_cpu_mhz()*1_000_000.0},
                 "execution_step_unit":"native machine boundary (including device/interrupt work)",
                 "breakpoint_kinds":["execution"],"step_modes":["into"],
@@ -571,11 +570,8 @@ impl Agent {
                         return invalid("memory hash guard mismatch");
                     }
                 }
-                if start + data.len() > machine.bus().conventional_size()
-                    || (start..start + data.len())
-                        .any(|a| machine.bus().get_flags(a) & (MEM_ROM_BIT | MEM_MMIO_BIT) != 0)
-                {
-                    return invalid("only unmapped conventional RAM writes supported");
+                if (start..start + data.len()).any(|a| !machine.bus().is_writable_ram(a)) {
+                    return invalid("only installed writable RAM writes supported");
                 }
                 for (i, value) in data.iter().enumerate() {
                     machine
@@ -801,6 +797,7 @@ pub fn serve(machine: &mut Machine, port: u16) -> std::io::Result<()> {
 mod tests {
     use super::*;
     use marty_core::{
+        bus::MEM_ROM_BIT,
         machine::{MachineBuilder, MachineRomManifest, MachineState},
         machine_config::MachineConfiguration,
         machine_types::{MachineType, OnHaltBehavior},
@@ -816,6 +813,9 @@ mod tests {
         machine_with_game_port(ppi_turbo, halt, false)
     }
     fn machine_with_game_port(ppi_turbo: Option<bool>, halt: OnHaltBehavior, game_port: bool) -> Machine {
+        machine_with_ram(ppi_turbo, halt, game_port, 0)
+    }
+    fn machine_with_ram(ppi_turbo: Option<bool>, halt: OnHaltBehavior, game_port: bool, ram_size: u32) -> Machine {
         let mut config =
             marty_config::read_config(include_str!("../../../../install/martypc.toml"), Default::default()).unwrap();
         assert!(config.emulator.rpc_port.is_none()); // Missing Option keys deserialize as None.
@@ -824,6 +824,16 @@ mod tests {
         let description = MachineConfiguration {
             machine_type: MachineType::Ibm5160,
             ppi_turbo,
+            conventional_expansion: if ram_size > 0 {
+                vec![marty_core::machine_config::ConventionalExpansionConfig {
+                    bus_type: marty_core::machine_config::BusType::Isa8,
+                    address: 0xD8000,
+                    size: ram_size,
+                    wait_states: 0,
+                }]
+            } else {
+                vec![]
+            },
             game_port: game_port.then_some(marty_core::machine_config::GamePortConfig {
                 io_base: 0x201,
                 controller_layout: None,
@@ -1035,6 +1045,73 @@ mod tests {
             .is_err());
         assert_eq!(m.cpu().get_register16(Register16::AX), 9);
     }
+    #[test]
+    fn writable_expansion_range_excludes_rom_and_both_boundaries() {
+        use marty_core::devices::conventional_memory::ConventionalMemory;
+        let ram = ConventionalMemory::new(0xD8000, 8192, 0, false);
+        assert!(ram.is_writable(0xD8000));
+        assert!(ram.is_writable(0xD9FFF));
+        for address in [0, 0xD7FFF, 0xDA000, usize::MAX] {
+            assert!(!ram.is_writable(address));
+        }
+        let rom = ConventionalMemory::new_rom(0xD8000, 8192, 0, &[0; 8192]);
+        assert!(!rom.is_writable(0xD8000));
+    }
+
+    #[test]
+    fn configured_mailbox_shares_guest_cpu_and_guarded_rpc_ram() {
+        let mut m = machine_with_ram(None, OnHaltBehavior::Warn, false, 8192);
+        let mut a = Agent::new(2301);
+        // Real 8088 ES word store/load in the expansion; store loaded value in low RAM.
+        m.load_program(
+            &[0xB8, 0x00, 0xD8, 0x8E, 0xC0, 0x26, 0xC7, 0x06, 0, 0, 0x34, 0x12,
+              0x26, 0xA1, 0, 0, 0xA3, 0, 2, 0xF4],
+            0, 0x100, 0, 0x100,
+        ).unwrap();
+        for _ in 0..6 {
+            call(&mut a, &mut m, "execution.step", json!({}));
+        }
+        assert_eq!(peek(&m, 0xD8000, 2).unwrap(), vec![0x34, 0x12]);
+        assert_eq!(peek(&m, 0x200, 2).unwrap(), vec![0x34, 0x12]);
+        let clock = m.cpu().get_cycle_ct();
+        let before = peek(&m, 0xD8000, 2).unwrap();
+        call(&mut a, &mut m, "memory.write", json!({"address":0xD8000,
+            "data_base64":STANDARD.encode([0x78,0x56]),"expected_sha256":digest(&before)}));
+        assert_eq!(m.cpu().get_cycle_ct(), clock);
+        m.load_program(&[0xB8, 0, 0xD8, 0x8E, 0xC0, 0x26, 0xA1, 0, 0, 0xA3, 2, 2, 0xF4], 0, 0x100, 0, 0x100).unwrap();
+        for _ in 0..5 {
+            call(&mut a, &mut m, "execution.step", json!({}));
+        }
+        assert_eq!(peek(&m, 0x202, 2).unwrap(), vec![0x78, 0x56]);
+    }
+
+    #[test]
+    fn expansion_write_refuses_absent_ram_boundaries_rom_and_running_state() {
+        let mut absent = machine();
+        let mut a = Agent::new(2301);
+        assert!(a.handle(&mut absent, "memory.write", &json!({"address":0xD8000,
+            "data_base64":STANDARD.encode([1])})).is_err());
+        let mut m = machine_with_ram(None, OnHaltBehavior::Warn, false, 8192);
+        for address in [0xD7FFF, 0xD9FFF] {
+            let before = peek(&m, address, 2).unwrap();
+            assert!(a.handle(&mut m, "memory.write", &json!({"address":address,
+                "data_base64":STANDARD.encode([7,8])})).is_err());
+            assert_eq!(peek(&m, address, 2).unwrap(), before);
+        }
+        let before = peek(&m, 0xD8000, 2).unwrap();
+        assert!(a.handle(&mut m, "memory.write", &json!({"address":0xD8000,
+            "data_base64":STANDARD.encode([7,8]),"expected_sha256":digest(&[1,2])})).is_err());
+        a.running = true;
+        assert!(a.handle(&mut m, "memory.write", &json!({"address":0xD8000,
+            "data_base64":STANDARD.encode([7,8])})).is_err());
+        a.running = false;
+        m.bus_mut().set_flags(0xD8001, MEM_ROM_BIT);
+        assert!(a.handle(&mut m, "memory.write", &json!({"address":0xD8000,
+            "data_base64":STANDARD.encode([7,8])})).is_err());
+        assert_eq!(peek(&m, 0xD8000, 2).unwrap(), before);
+        assert_eq!(a.revision, 0);
+    }
+
     #[test]
     fn guarded_ram_write_and_refused_boundary_write_are_atomic() {
         let mut m = machine();

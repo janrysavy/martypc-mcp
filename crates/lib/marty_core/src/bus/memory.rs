@@ -44,6 +44,24 @@ use crate::{
 use marty_common::syntax_token::{SyntaxToken, SyntaxTokenStream};
 
 impl BusInterface {
+    /// Debugger writes may reach installed RAM, never device registers or ROM.
+    /// Use the active mapping and the card's exact extent, not a rounded MMIO slot.
+    pub fn is_writable_ram(&self, address: usize) -> bool {
+        if address >= self.memory.len() || self.memory_mask[address] & MEM_ROM_BIT != 0 {
+            return false;
+        }
+        if self.memory_mask[address] & MEM_MMIO_BIT == 0 {
+            return address < self.conventional_size;
+        }
+        match self.mmio_map_fast[address >> MMIO_MAP_SHIFT].device {
+            MmioDeviceType::MemoryExpansion(id) => match self.memory_expansions.get(id) {
+                Some(super::dispatch::MemoryDispatch::Conventional(ram)) => ram.is_writable(address),
+                _ => false,
+            },
+            _ => false,
+        }
+    }
+
     pub fn copy_from(&mut self, src: &[u8], location: usize, cycle_cost: u32, read_only: bool) -> Result<(), bool> {
         let src_size = src.len();
         if location + src_size > self.memory.len() {

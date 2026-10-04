@@ -37,6 +37,11 @@ pub struct ConventionalMemory {
 }
 
 impl ConventionalMemory {
+    /// Whether this byte is backed by writable RAM, including the exact extent.
+    pub fn is_writable(&self, address: usize) -> bool {
+        !self.read_only && address >= self.base_address && address - self.base_address < self.size
+    }
+
     pub fn new(base_address: usize, size: usize, wait_states: u32, read_only: bool) -> Self {
         let data = vec![0; size];
         Self {
