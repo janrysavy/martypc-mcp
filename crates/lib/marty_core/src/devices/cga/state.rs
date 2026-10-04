@@ -445,7 +445,17 @@ mod tests {
         // copying half a megabyte for each required-key mutation.
         shape["mem"] = serde_json::json!([]);
         shape["buf"] = serde_json::json!([[], []]);
-        for pointer in ["", "/extents", "/extents/apertures/0", "/rw_slots/0"] {
+        for pointer in [
+            "",
+            "/extents",
+            "/extents/apertures/0",
+            "/rw_slots/0",
+            "/crtc",
+            "/monitor",
+            "/monitor/monitor",
+            "/monitor/monitor/horizontal_pll",
+            "/monitor/monitor/vertical_pll",
+        ] {
             for key in shape.pointer(pointer).unwrap().as_object().unwrap().keys() {
                 let mut missing = shape.clone();
                 missing

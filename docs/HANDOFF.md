@@ -225,7 +225,8 @@ loss fails native tick output before JSON comparison.243 core tests pass;4620
 native continuations and eleven controls are retained across frozen receipts.
 Only test/HANDOFF changes after9d72968c; production restore is byte-identical.
 Focused review confirms the nonzero cursor gap closed; no scoped witness flaw.
-PR19 is published against main; final Windows/Linux CI and integration pending.
+PR19/b16022d5 is integrated unchanged after final Windows/Linux CI passed;
+linear history, finished source branch deleted. Parent retains final CI receipt.
 
 FINISHED local CGA phase repair: cold clock zero made native !cycles + 1
 overflow in debug builds before any first port write. Two regressions fail
@@ -244,11 +245,17 @@ field fails independent native inventory. Exact source restoration returns252
 green. Strict schemas, geometry/clock/version/trace refusals and unchanged
 live state on invalid input are tested. Native runtime is unchanged after the
 separate tested phase repair. The parent retains source/product-bound evidence.
-Independent review and fresh frontend checks are pending; final CI/integration
-pending. Whole-machine/bus/disks/frontend/audio/process restart/Pyro/physical
+Review finds no concrete production defect, requesting clearer nested-schema
+and source-identity witnesses. CGA boundary now removes/adds keys inside nested
+CRTC/monitor/both PLLs; their unchanged independent native inventories also pass
+in the full252-test suite. Explicit hash/assertion recipes bind exact restored
+source and native identity. Snapshot production remains byte-identical to577f6075.
+Fresh38 RPC/config tests and Windows UI/headless builds passed on577f6075;
+later test-only changes reuse those products explicitly. Focused review and
+final CI/integration pending. Whole-machine/bus/disks/frontend/audio/process restart/Pyro/physical
 timing remain OPEN.
 
-NEXT: publish/integrate final-tested CRTC; CGA,
+NEXT: publish/integrate final-tested CGA;
 video/audio, disks and pending host
 I/O, with atomic dependency preflight, then real process-restart continuation.
 Hardware trace,VNC,keyboard/serial RPC and physical XT/gameplay parity remain
