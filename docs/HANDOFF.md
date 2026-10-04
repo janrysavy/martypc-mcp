@@ -34,13 +34,14 @@ slots. The parent is exercising real startup failures and bounded DOS boot.
 FINISHED locally: RPC continue versus normal batched native Run, including
 PIT IRQ0, REP copies and inspection at every boundary. Twelve comparisons agree
 on CPU/prefetch, clocks, PIC, PIT and low32KiB RAM; 366 copies/293 IRQ entries
-execute in300144 CPU cycles. All21 tests pass. Review/final-head CI pending.
+execute in300144 CPU cycles. All21 tests pass. PR3 is integrated at5026107d
+after focused review and Windows/Linux CI; parent retains the probe receipt.
 This closes a test gap, not every possible scheduling defect.
 
 The parent workspace boots MS-DOS6.22/original Pyro tutorial and menu with its
 pinned patched GLaBIOS and CGA; loaded code matches, CRT calibration103 observed.
 Automatic disk selection still fails. Hardware/instruction trace, VNC,
-input/serial, complete snapshots and DOSCTRL remain unsupported. Controlled
+keyboard/serial, complete snapshots and DOSCTRL remain unsupported. Controlled
 BIOS-ring input bypasses hardware IRQs. Next: observation/input for comparable
 original-game timing runs. No physical XT or full gameplay parity claim.
 
@@ -52,5 +53,11 @@ FINISHED locally: `input.joystick`/`input.joystick.state` expose the configured
 native game port. Complete normalized axes/buttons are atomically validated;
 tests check absent card, invalid late fields, paused-only writes, active-low
 buttons and both charge durations. Clock unchanged by injection. Keyboard is
-still unsupported. Shared PyPC implementation, wire/game probes, review and
-final-head CI remain WIP; do not assume they exist.
+still unsupported. Shared PyPC implementation and actual guest OUT/IN201h TCP
+probes now pass; the parent retains the receipts. PyPC live ZIP restore during
+charge passes too. Focused review's Y-sign objection is false: RPC passes -y
+to the native frontend setter, which negates it into potentiometer position y.
+The actual guest at200us reads EEh for x=-1/y=+1 (X expired, Y charging),
+then E0h after1.5ms. This is not merely an echoed input value.
+Physical timing and Pyro calibration/gameplay remain unproven. Final-head CI
+and linear integration are tracked by PR4; parent records the integrated pins.
