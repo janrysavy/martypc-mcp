@@ -66,7 +66,8 @@ pub struct InstructionQueue {
     front: usize,
     q: [u8; QUEUE_MAX],
     preload: Option<u8>,
-    // Whether to discard the low order byte of the next fetch
+    // Reserved discard flag: currently written/cleared but never consulted.
+    // Snapshot tests prove storage preservation, not behavior for this flag.
     discard: bool,
 }
 
@@ -135,6 +136,19 @@ impl InstructionQueue {
             || state.front != (state.back + state.len) % state.size
             || state.policy_len0 >= state.size || state.policy_len1 >= state.size {
             return Err("invalid instruction queue ring or policy");
+        }
+        // Only policies emitted by new/set_size or Default are reachable.
+        // Both existing six-byte word-fetch initializers must round-trip.
+        let constructor_policy = if state.fetch_size == 1 {
+            (state.policy_len0, state.policy_len1) == (state.size - 1, state.size - 1)
+        } else {
+            state.size.checked_sub(3).is_some_and(|low|
+                (state.policy_len0, state.policy_len1) == (state.size - 2, low))
+        };
+        let default_policy = state.size == QUEUE_MAX && state.fetch_size == 2
+            && (state.policy_len0, state.policy_len1) == (QUEUE_MAX - 1, QUEUE_MAX - 2);
+        if !constructor_policy && !default_policy {
+            return Err("unreachable instruction queue fetch policy");
         }
         self.policy_len0 = state.policy_len0;
         self.policy_len1 = state.policy_len1;
@@ -311,10 +325,15 @@ mod snapshot_tests {
         for (size, fetch) in [(4, 1), (6, 2)] {
             let mut original = InstructionQueue::new(size, fetch);
             let mut seed = 0x12345678_u32;
+            let mut saw_wrap = false;
+            let mut saw_preload = false;
             for n in 0..2000 {
+                let before = original.snapshot_state();
                 seed = seed.wrapping_mul(1664525).wrapping_add(1013904223);
                 exercise(&mut original, seed);
                 let saved = original.snapshot_state();
+                saw_wrap |= saved.front < before.front || saved.back < before.back;
+                saw_preload |= saved.preload.is_some();
                 let json = serde_json::to_vec(&saved).unwrap();
                 let decoded = serde_json::from_slice(&json).unwrap();
                 let mut restored = InstructionQueue::new(size, fetch);
@@ -323,6 +342,9 @@ mod snapshot_tests {
                 assert_eq!(saved, restored.snapshot_state());
                 exercise(&mut original, seed.rotate_left(13));
                 exercise(&mut restored, seed.rotate_left(13));
+                let after = original.snapshot_state();
+                saw_wrap |= after.front < saved.front || after.back < saved.back;
+                saw_preload |= after.preload.is_some();
                 assert_eq!(original.snapshot_state(), restored.snapshot_state());
                 assert_eq!(original.to_string(), restored.to_string());
                 if n % 37 == 0 {
@@ -330,6 +352,8 @@ mod snapshot_tests {
                     assert_eq!(original.snapshot_state(), restored.snapshot_state());
                 }
             }
+            assert!(saw_wrap, "continuation vectors must actually wrap the ring");
+            assert!(saw_preload, "continuation vectors must include preload state");
         }
     }
 
@@ -372,6 +396,21 @@ mod snapshot_tests {
         let incompatible = InstructionQueue::new(6, 2).snapshot_state();
         assert!(target.restore_state(&incompatible).is_err());
         assert_eq!(before, target.snapshot_state());
+        let mut wrong_ring = before.clone();
+        wrong_ring.front = 0; // in range, but inconsistent with back0/len1
+        assert!(target.restore_state(&wrong_ring).is_err());
+        assert_eq!(before, target.snapshot_state());
+        let mut wrong_policy = before.clone();
+        wrong_policy.policy_len1 = 0; // in range, not produced by size4/fetch1
+        assert!(target.restore_state(&wrong_policy).is_err());
+        assert_eq!(before, target.snapshot_state());
+        let mut word_queue = InstructionQueue::new(6, 2);
+        let word_before = word_queue.snapshot_state();
+        let mut wrong_word_policy = word_before.clone();
+        wrong_word_policy.policy_len0 = 0;
+        wrong_word_policy.policy_len1 = 1;
+        assert!(word_queue.restore_state(&wrong_word_policy).is_err());
+        assert_eq!(word_before, word_queue.snapshot_state());
     }
 
     #[test]

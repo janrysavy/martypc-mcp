@@ -1,5 +1,13 @@
 # Fork handoff
 
+QUEUE REVIEW fixes: refuse unreachable in-range fetch policies while preserving
+both existing Default and constructor values. Refusal tests now exercise in-range
+ring/policy errors, and the4000 continuation vectors assert actual wraps/preloads.
+`discard` is currently never read by the queue/BIU; its test proves stored-bit
+preservation only. The original184-test claim was freshly measured outside the
+reviewer's read-only sandbox; Ubuntu PR7 CI also passed. Full snapshots remain WIP.
+UI follow-up review found no defect in its bounded patch; final-head CI is pending.
+
 REVIEW follow-up: request backlog is bounded to64 and the soft8ms pump budget
 is checked between atomic requests (one request/instruction may overrun it).
 New flood regression rejects the original full-batch drain. Frontend worker
