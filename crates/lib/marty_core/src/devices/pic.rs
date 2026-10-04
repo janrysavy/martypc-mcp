@@ -65,25 +65,27 @@ const OCW3_RR_COMMAND: u8 = 0b0000_0011;
 
 const SPURIOUS_INTERRUPT: u8 = 7;
 
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum InitializationState {
     Normal,        // Normal operation, can receive an ICW1 at any point
     ExpectingICW2, // In initialization sequence, expecting ICW2
     ExpectingICW4, // In initialization sequence, expecting ICW4
 }
 
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum TriggerMode {
     Edge,
     Level,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum ReadSelect {
     ISR,
     IRR,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct InterruptStats {
     imr_masked_count: u64,
     isr_masked_count: u64,
@@ -102,6 +104,10 @@ impl InterruptStats {
 
 pub type PicRequestFn = fn(&mut Pic, interrupt: u8);
 
+mod state;
+
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Pic {
     init_state: InitializationState, // Initialization state for expecting various ICWs
     int_offset: u8,                  // Interrupt Vector Offset (Always 8 on IBM PC)

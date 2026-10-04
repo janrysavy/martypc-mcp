@@ -38,12 +38,13 @@ inventory control fail, then193 core tests pass. All188 collector-feature tests
 pass, including explicit snapshot refusal. Focused follow-up found no defect;
 final Windows/Linux CI passed; integrated linearly, branch deleted.
 
-WIP shared bus-memory component: versioned1MiB backing bytes, protection/
+INTEGRATED shared bus-memory PR10 at177c5876: versioned1MiB backing bytes, protection/
 debugger masks, descriptors and decode cursor. Fixed ROM/MMIO layout is
 preflighted. Two tests and all195 rebased core tests pass; four actual
 restore omissions (memory/mask/cursor/descriptors) fail. Independent review
 found no defect within this scope. Device-owned memory, timers/disks and
-restart remain excluded. Final Windows/Linux CI/integration remain pending.
+restart remain excluded. Final Windows/Linux CI passed; integrated linearly,
+source branch deleted.
 
 WIP PIT component: all three channels, latches/partial I/O/gates, clock phase,
 timewarp, dirty markers and exact pending speaker sample bits are serialized.
@@ -61,7 +62,17 @@ tests and fresh Windows UI/headless builds pass; later changes affect tests only
 External emitted audio queues, PIC/DMA/PPI/bus/device/disk/machine restart remain
 separate WIP. Final CI/integration pending.
 
-NEXT: owned bus/RAM, timers/devices/video/audio/input, disks and pending host
+WIP PIC component: all native fields, partial initialization, IRQ masks/lines,
+ISR/IRR/read selection, deferred INTR and diagnostics are captured. Three tests
+and203 core tests pass.2048 destructive JSON restores compare untouched native
+references across edge/level and Auto-EOI modes, every IRQ, port reads/vector
+acknowledgment and the three-tick mask-change delay. Five actual resets of
+restored IRR/timer/initialization/read-selection/statistics fail; exact source
+restoration returns203 green. Schema keys and atomic invalid-state refusal
+are tested. Review, native frontend rebuild and final CI/integration pending.
+This is PIC-owned state only, not physical 8259 timing or whole-machine restart.
+
+NEXT: DMA/PPI/video/audio/input, disks and pending host
 I/O, with atomic dependency preflight, then real process-restart continuation.
 Hardware trace,VNC,keyboard/serial RPC and physical XT/gameplay parity remain
 OPEN. Controlled BIOS-ring input is not hardware IRQ input.
