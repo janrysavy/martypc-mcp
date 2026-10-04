@@ -28,6 +28,7 @@ macro_rules! crtc_state {
                     return Err("incompatible CRTC version/active trace");
                 }
                 if saved.cursor_blink_rate.is_some_and(|v| !matches!(v, BLINK_FAST_RATE | BLINK_SLOW_RATE))
+                    || saved.cursor_start_line > CURSOR_LINE_MASK
                     || saved.vlc_c9 > 0x1f || saved.vlc_c9i > 0x0f
                     || saved.vsc_c3h > 0x0f || saved.hsc_c3l > 0x0f || saved.vtac_c5 > 0x20 {
                     return Err("invalid native CRTC counter/cursor divider");
@@ -36,6 +37,8 @@ macro_rules! crtc_state {
                 // differ across pending port writes and frame transitions.
                 // Native VTA reaches32 before entering an interlaced half-line;
                 // the counter resets only at the subsequent frame start.
+                // Native C4 wraps at256, despite its seven-bit field comment:
+                // lowering R4 behind the current row reaches128 through255.
                 Ok(())
             }
 
@@ -309,6 +312,39 @@ mod tests {
     }
 
     #[test]
+    fn crtc_restore_preserves_native_row_counter_above_seven_bits() {
+        let mut reference = configured(0, 1, 0, 0);
+        reference.write_register_direct(VerticalTotalR4, 127);
+        while reference.vcc() == 0 {
+            reference.tick();
+        }
+        // A port write moves the coincidence target behind the current row.
+        // Native wrapping_add is eight bits despite the seven-bit field comment.
+        reference.write_register_direct(VerticalTotalR4, 0);
+        let mut witnessed = 0;
+        for wanted in [128, 255] {
+            for _ in 0..65536 {
+                if reference.vcc() == wanted {
+                    break;
+                }
+                reference.tick();
+            }
+            assert_eq!(reference.vcc(), wanted, "must reach native row {wanted}");
+            let mut restored = restore(&reference);
+            for _ in 0..32 {
+                let (status, address) = reference.tick();
+                let expected = (status.clone(), address);
+                let (status, address) = restored.tick();
+                assert_eq!((status.clone(), address), expected);
+                assert_eq!(observe(&reference), observe(&restored));
+            }
+            assert_eq!(json(&reference), json(&restored));
+            witnessed += 1;
+        }
+        assert_eq!(witnessed, 2);
+    }
+
+    #[test]
     fn crtc_schema_inventory_and_invalid_restores_are_atomic() {
         let mut crtc = configured(3, 0, 0x60, 3);
         for _ in 0..39 {
@@ -365,6 +401,7 @@ mod tests {
             ("version", 2),
             ("cursor_blink_rate", 0),
             ("cursor_blink_rate", 1),
+            ("cursor_start_line", 32),
             ("vlc_c9", 32),
             ("vlc_c9i", 16),
             ("vsc_c3h", 16),

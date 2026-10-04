@@ -209,7 +209,14 @@ trace refusals are tested. Seven actual lost-state controls fail native output;
 omitting a native slot fails the independent field inventory, then exact source
 restoration returns241 green. Console/file trace handles are refused; card VRAM,
 monitor/bus/frontend state, physical timing and complete restart are not proven.
-Native CRTC runtime is unchanged. Review, frontend builds and final CI pending.
+Native CRTC runtime is unchanged. Initial38 RPC/config tests and fresh Windows
+UI/headless builds pass. Review found an impossible cursor-start value accepted;
+the new regression fails before repair. The masked five-bit cursor latch is now
+validated before mutation. Proposed seven-bit C4 rejection is disproved: lowering
+R4 behind the current row reaches128 and255 through actual native ticks. Two
+additional cold restores continue identically; masking or rejecting those native
+values fails. All ten controls fail, then242 core tests pass, with4616 native
+continuation restores. Follow-up review/frontend builds and final CI pending.
 
 NEXT: publish CRTC component, integrate final-tested monitor/CRTC; CGA,
 video/audio, disks and pending host
