@@ -61,12 +61,13 @@ impl FromStr for MachineType {
         match s.to_lowercase().as_str() {
             "default" => Ok(MachineType::Default),
             "ibm5150v64k" => Ok(MachineType::Ibm5150v64K),
-            "ibm5150v256k" => Ok(MachineType::Ibm5150v64K),
+            "ibm5150v256k" => Ok(MachineType::Ibm5150v256K),
             "ibm5160" => Ok(MachineType::Ibm5160),
             "ibm_pcjr" => Ok(MachineType::IbmPCJr),
             "tandy1000" => Ok(MachineType::Tandy1000),
             "tandy1000sl" => Ok(MachineType::Tandy1000SL),
             "tandy1000hx" => Ok(MachineType::Tandy1000HX),
+            "compaq_portable" => Ok(MachineType::CompaqPortable),
             "compaq_deskpro" => Ok(MachineType::CompaqDeskpro),
             _ => Err("Bad value for model".to_string()),
         }
@@ -87,6 +88,43 @@ impl MachineType {
             MachineType::CompaqDeskpro => false,
             _ => false,
         }
+    }
+}
+
+#[cfg(test)]
+mod machine_name_tests {
+    use super::*;
+
+    #[test]
+    fn machine_name_parser_preserves_5150_board_variant() {
+        assert_eq!("ibm5150v64k".parse::<MachineType>().unwrap(), MachineType::Ibm5150v64K);
+        assert_eq!(
+            "ibm5150v256k".parse::<MachineType>().unwrap(),
+            MachineType::Ibm5150v256K
+        );
+        assert_eq!(
+            "IBM5150V256K".parse::<MachineType>().unwrap(),
+            MachineType::Ibm5150v256K
+        );
+        // Config serde uses enum names directly; it is a different path from
+        // FromStr and was not affected by the feature-name parser typo.
+        assert_eq!(
+            serde_json::from_str::<MachineType>("\"Ibm5150v256K\"").unwrap(),
+            MachineType::Ibm5150v256K
+        );
+    }
+
+    #[test]
+    fn machine_name_parser_accepts_compaq_portable_feature_name() {
+        assert_eq!(
+            "compaq_portable".parse::<MachineType>().unwrap(),
+            MachineType::CompaqPortable
+        );
+        assert_eq!(
+            "COMPAQ_PORTABLE".parse::<MachineType>().unwrap(),
+            MachineType::CompaqPortable
+        );
+        assert!("unknown_board".parse::<MachineType>().is_err());
     }
 }
 
