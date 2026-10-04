@@ -47,16 +47,17 @@ restart remain excluded. Final Windows/Linux CI/integration remain pending.
 
 WIP PIT component: all three channels, latches/partial I/O/gates, clock phase,
 timewarp, dirty markers and exact pending speaker sample bits are serialized.
-Four tests and199 core tests pass.1920 destructive JSON restores across all6
-modes on8253/8254 continue native I/O/PPI gates/PIC reads and newly emitted audio.
-Five actual omissions (channels, clock phase, timewarp, sample count/accumulator)
-fail; exact source restoration returns199 green. The first review accidentally
-captured a deliberate mutation and correctly rejected it: NOT a production
-review. Exact-source review found no production defect; it identified live
-read coverage missing for channels1/2 and pending-buffer output ordering.
-NEXT: fix those two test gaps. All38 RPC/config tests and fresh Windows
-UI/headless builds pass. Emitted external audio queues, PIC/DMA/PPI/bus/device/
-disk/machine restart remain separate WIP. Final CI/integration pending.
+Five tests and200 core tests pass.2048 destructive JSON continuation restores
+cover all6 modes on8253/8254, every channel's partial reads, native I/O/PPI gates,
+PIC observations and newly emitted PCM bits. A seeded legacy FIFO consumer
+probe checks emitted output before state equality; normal producer stays empty.
+Five real restore omissions and reversed FIFO order fail; the latter changes
+emitted PCM. Exact source restoration returns200 green. Review coverage gaps
+are fixed; exact-source follow-up is running. The first review accidentally
+captured a deliberate mutation and is NOT a production review. All38 RPC/config
+tests and fresh Windows UI/headless builds pass; later changes affect tests only.
+External emitted audio queues, PIC/DMA/PPI/bus/device/disk/machine restart remain
+separate WIP. Final CI/integration pending.
 
 NEXT: owned bus/RAM, timers/devices/video/audio/input, disks and pending host
 I/O, with atomic dependency preflight, then real process-restart continuation.

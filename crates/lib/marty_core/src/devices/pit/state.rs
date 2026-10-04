@@ -247,13 +247,16 @@ mod tests {
                         }
                     }
                     if n % 11 == 0 {
-                        reference.channels[0].latch_count();
-                        restored.channels[0].latch_count();
-                        assert_eq!(reference.data_read(0), restored.data_read(0));
-                        // preserve pending read MSB
+                        for c in 0..3 {
+                            reference.channels[c].latch_count();
+                            restored.channels[c].latch_count();
+                            assert_eq!(reference.data_read(c), restored.data_read(c));
+                        } // preserve each channel's pending read MSB
                     }
                     if n % 11 == 1 {
-                        assert_eq!(reference.data_read(0), restored.data_read(0));
+                        for c in 0..3 {
+                            assert_eq!(reference.data_read(c), restored.data_read(c));
+                        }
                     }
                     if n % 23 == 0 {
                         let enabled = if n % 46 == 0 { 0 } else { 3 };
@@ -281,6 +284,45 @@ mod tests {
                     assert!(reference.snapshot_state().unwrap() == restored.snapshot_state().unwrap());
                 }
                 assert!(saw_samples, "native speaker output must be observed");
+            }
+        }
+    }
+
+    #[test]
+    fn pit_pending_buffer_restores_fifo_order_and_emitted_sample_bits() {
+        for model in [PitType::Model8253, PitType::Model8254] {
+            let (mut reference, mut bus_a, audio_a) = setup(model);
+            let (mut restored, mut bus_b, audio_b) = setup(model);
+            for (pit, bus) in [(&mut reference, &mut bus_a), (&mut restored, &mut bus_b)] {
+                pit.control_register_write(0xB6, bus); // channel2, LSB/MSB, square wave
+                pit.data_write(2, 5, bus);
+                pit.data_write(2, 0, bus);
+                pit.channels[2].set_gate(true, bus);
+            }
+            // The current native producer leaves speaker_buf empty. Seed its
+            // storage to test the existing native consumer, without claiming
+            // this queue is filled on the normal Pyro sound path.
+            reference.speaker_buf.extend([0.25, 0.75]);
+            reference.speaker.sample_ct = 23;
+            reference.speaker.sample_accum = 4.0;
+            for n in 0..64 {
+                let saved = reference.snapshot_state().unwrap();
+                let decoded = serde_json::from_slice(&serde_json::to_vec(&saved).unwrap()).unwrap();
+                destroy(&mut restored);
+                restored.restore_state(&decoded).unwrap();
+                // Deliberately compare emitted output BEFORE state equality:
+                // reversing saved queue order must fail native audio itself.
+                reference.run(&mut bus_a, DeviceRunTimeUnit::SystemTicks(12), None);
+                restored.run(&mut bus_b, DeviceRunTimeUnit::SystemTicks(12), None);
+                let a: Vec<_> = audio_a.try_iter().map(f32::to_bits).collect();
+                let b: Vec<_> = audio_b.try_iter().map(f32::to_bits).collect();
+                assert_eq!(a, b, "restored pending queue changes emitted PCM");
+                if n == 0 {
+                    let live = if reference.get_output_state(2) { 1.0 } else { 0.0 };
+                    assert_eq!(a, vec![((4.0f32 + 0.25 + live) / 25.0).to_bits()]);
+                    assert_eq!(reference.speaker_buf.iter().copied().collect::<Vec<_>>(), vec![0.75]);
+                }
+                assert!(reference.snapshot_state().unwrap() == restored.snapshot_state().unwrap());
             }
         }
     }
