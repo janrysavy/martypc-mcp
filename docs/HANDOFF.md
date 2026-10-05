@@ -47,7 +47,8 @@ CPU/bus/service/core restores continue native 8088 instructions, PIT/CGA writes,
 ROM patch handling and matching captured storage. Required/unknown schema, eight
 invalid candidates and changed ROM/config are refused. Initial fixture compilation
 used a nonexistent Register16::IP; fixed with native get_ip. No disk, frontend,
-process or Pyro proof. Controls, scoped review and CI remain pending.
+process or Pyro proof. Fresh310 adds12 pending-turbo PIT continuations and
+seeded native presentation channel consumers. Controls, review/CI remain pending.
 
 NOT DONE: Machine/audio/frontend persistent composition, outer configuration/
 ROM/metadata authentication and host disk access/path/alias policy, pending

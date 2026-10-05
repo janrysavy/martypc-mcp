@@ -224,3 +224,45 @@ fn whole_machine_snapshot_rejects_bad_dependencies_or_nested_state_and_keeps_liv
     assert!(live.snapshot_state_quiesced(DiskCaptureMode::Embed, 0).is_err());
     println!("MACHINE_REFUSAL:required/unknown schema;8 failed candidates; changed original ROM/config refused; separate live core unchanged; logging unsupported");
 }
+
+#[test]
+fn whole_machine_snapshot_continues_pending_turbo_and_presentation_consumers() {
+    let mut reference = fixture();
+    let mut control = ExecutionControl::new();
+    control.set_state(ExecutionState::Running);
+    reference.set_turbo_mode(false);
+    assert!(reference.run(8192, &mut control) > 0);
+    for step in 0..12 {
+        reference.set_turbo_mode(step % 2 == 0);
+        // Seed pending frontend events on the real native channel. This proves
+        // queue continuation, not that these events originated in a guest.
+        reference
+            .presentable_event_sender
+            .send(PresentableDeviceEvent::PowerOff)
+            .unwrap();
+        reference
+            .presentable_event_sender
+            .send(PresentableDeviceEvent::PowerOn)
+            .unwrap();
+        let saved = capture(&mut reference);
+        let mut restored = fixture().prepare_snapshot_restore(&saved, [None, None]).unwrap();
+        let mut peer_control = ExecutionControl::new();
+        peer_control.set_state(ExecutionState::Running);
+        assert_eq!(reference.run(4096, &mut control), restored.run(4096, &mut peer_control));
+        assert_eq!(
+            reference.pit_cycles(),
+            restored.pit_cycles(),
+            "native pending speed PIT cycles {step}"
+        );
+        assert_eq!(
+            native_output(&mut reference),
+            native_output(&mut restored),
+            "native pending presentation outputs {step}"
+        );
+        assert!(
+            serde_json::to_value(capture(&mut reference)).unwrap()
+                == serde_json::to_value(capture(&mut restored)).unwrap()
+        );
+    }
+    println!("MACHINE_PENDING:12 native pending-turbo PIT continuations and seeded native presentation channel consumers; no guest event origin/frontend/process proof");
+}
