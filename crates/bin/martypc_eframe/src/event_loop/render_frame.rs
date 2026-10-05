@@ -47,7 +47,8 @@ pub fn render_frame(emu: &mut Emulator, dm: &mut EFrameDisplayManager) {
         .then_some(emu.mouse_data.absolute_position)
         .flatten();
 
-    let light_pen_enabled = emu.gui.get_option(GuiBoolean::LightPenEnabled).unwrap_or(false);
+    let local_input = emu.config.emulator.local_input_enabled();
+    let light_pen_enabled = local_input && emu.gui.get_option(GuiBoolean::LightPenEnabled).unwrap_or(false);
     let absolute_light_pen_cursor = (light_pen_enabled && !emu.mouse_data.is_captured)
         .then_some(emu.mouse_data.absolute_position)
         .flatten();
@@ -113,25 +114,30 @@ pub fn render_frame(emu: &mut Emulator, dm: &mut EFrameDisplayManager) {
                     videocard.palette(),
                 );
 
-                // Since we have the card and renderer together here, this is a good time to update
-                // the card with things like the light pen position.
-                if renderer.cursor_state() {
-                    let light_pen_pos = renderer.cursor_pos_absolute(&extents);
+                // Viewing an RPC-owned machine must preserve captured light-pen
+                // and debug state. Manual input is an explicit opt-in.
+                if local_input {
+                    // Since we have the card and renderer together here, this is a good time to update
+                    // the card with things like the light pen position.
+                    if renderer.cursor_state() {
+                        let light_pen_pos = renderer.cursor_pos_absolute(&extents);
 
-                    if let Some(light_pen_latch_pos) = renderer.cursor_latch_absolute(&extents, None) {
-                        videocard.light_pen_trigger(light_pen_latch_pos.0, light_pen_latch_pos.1);
+                        if let Some(light_pen_latch_pos) = renderer.cursor_latch_absolute(&extents, None) {
+                            videocard.light_pen_trigger(light_pen_latch_pos.0, light_pen_latch_pos.1);
+                        }
+                        else {
+                            videocard.set_light_pen_pos(light_pen_pos.0, light_pen_pos.1);
+                        }
+                        videocard.set_light_pen_state(emu.mouse_data.l_button_is_pressed);
                     }
                     else {
-                        videocard.set_light_pen_pos(light_pen_pos.0, light_pen_pos.1);
+                        videocard.set_light_pen_state(false);
                     }
-                    videocard.set_light_pen_state(emu.mouse_data.l_button_is_pressed);
-                }
-                else {
-                    videocard.set_light_pen_state(false);
                 }
 
-                // Tell the card whether to draw debug colors.
-                videocard.set_debug_draw_state(renderer.is_debug());
+                if emu.config.emulator.rpc_port.is_none() {
+                    videocard.set_debug_draw_state(renderer.is_debug());
+                }
             }
         });
     }

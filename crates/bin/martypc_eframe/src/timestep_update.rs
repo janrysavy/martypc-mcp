@@ -279,8 +279,10 @@ pub fn process_update(emu: &mut Emulator, dm: &mut EFrameDisplayManager, tm: &mu
 
             let mut machine_was_reset = false;
 
-            // Drain machine events
-            while let Some(event) = emuc.machine.get_event() {
+            // RPC owns native queues. Observation must not consume events or
+            // dispatch host service effects outside its instruction boundary.
+            while emuc.config.emulator.rpc_port.is_none() {
+                let Some(event) = emuc.machine.get_event() else { break };
                 match event {
                     MachineEvent::CheckpointHit(checkpoint, pri) => {
                         log::info!(
@@ -412,23 +414,26 @@ pub fn process_update(emu: &mut Emulator, dm: &mut EFrameDisplayManager, tm: &mu
                 }
             }
 
-            for event in emuc.machine.presentable_event_receiver().try_iter() {
-                log::debug!("Presentable device event: {:?}", event);
-                if let Some(action) = emuc.sound_file_manager.resolve_presentable_event(event) {
-                    log::debug!("Resolved presentable sound action: {:?}", action);
-                    if let Some(sound_interface) = emuc.si.as_mut() {
-                        let result = match action {
-                            PresentableSoundAction::OneShot(effect) => {
-                                sound_interface.play_sound(&effect.samples, effect.sample_rate, effect.stereo)
-                            }
-                            PresentableSoundAction::StartLoop { key, intro, looping } => {
-                                sound_interface.start_loop(key, intro, looping)
-                            }
-                            PresentableSoundAction::StopLoop { key, outro } => sound_interface.stop_loop(key, outro),
-                        };
+            // Preserve native sound events under RPC, including while paused.
+            if emuc.config.emulator.rpc_port.is_none() {
+                for event in emuc.machine.presentable_event_receiver().try_iter() {
+                    log::debug!("Presentable device event: {:?}", event);
+                    if let Some(action) = emuc.sound_file_manager.resolve_presentable_event(event) {
+                        log::debug!("Resolved presentable sound action: {:?}", action);
+                        if let Some(sound_interface) = emuc.si.as_mut() {
+                            let result = match action {
+                                PresentableSoundAction::OneShot(effect) => {
+                                    sound_interface.play_sound(&effect.samples, effect.sample_rate, effect.stereo)
+                                }
+                                PresentableSoundAction::StartLoop { key, intro, looping } => {
+                                    sound_interface.start_loop(key, intro, looping)
+                                }
+                                PresentableSoundAction::StopLoop { key, outro } => sound_interface.stop_loop(key, outro),
+                            };
 
-                        if let Err(err) = result {
-                            log::error!("Failed to execute presentable sound action {:?}: {}", action, err);
+                            if let Err(err) = result {
+                                log::error!("Failed to execute presentable sound action {:?}: {}", action, err);
+                            }
                         }
                     }
                 }
