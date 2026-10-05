@@ -764,6 +764,12 @@ impl MartyApp {
             #[cfg(target_arch = "wasm32")]
             let active_mouse_capture_hint = "";
 
+            // Keep file/media completions and quit events ahead of rendering.
+            // Pointer collection must precede execution, not event handling.
+            if !rpc_owned {
+                handle_thread_event(emu, ctx);
+            }
+
             let virtual_mouse = emu
                 .machine
                 .mouse_mut()
@@ -1080,7 +1086,6 @@ impl MartyApp {
             // rather than consuming the previous UI frame's pointer sample.
             if !rpc_owned {
                 process_update(emu, dm, &mut self.tm);
-                handle_thread_event(emu, ctx);
             }
 
             let absolute_mouse_position = emu
