@@ -392,6 +392,17 @@ continuation checkpoints (30 dual-port RX/TX,16 pending IRQ,2 loopback/overrun,
 2 partial divisor);2 cold-cache and1 seeded metadata checkpoint are storage-only.
 Serial feature adds3 inactive bridge storage checkpoints and2 stub-handle
 refusals. These are not a real OS-port reconnect/peer/physical timing proof.
-CI now explicitly tests both feature variants. WIP: source-bound fresh products,
-actual omission controls, review, final CI/integration; complete Machine/process
-restart, mouse/bus/disk/audio restoration and Pyro replay remain open.
+CI now explicitly tests both feature variants. FINISHED fresh source-bound
+291/293 products,586 before/after inputs; six actual omission/schema/refusal
+controls fail named tests and exact source restoration precedes fresh positives.
+Fresh38 frontend tests and recreated native UI/headless executables pass.
+First review received a truncated packet, missing the actual293 positive; a
+complete smaller follow-up closes that evidence finding with no demonstrated
+bounded production defect. The parent helper now refuses silent context cuts.
+Inactive bridge cases are storage-only; no independent OS-open trace or real
+host reconnect/peer replay is claimed. Scalar/configuration policy, outer
+metadata authentication and atomic Machine/process remain unproven.
+WIP: final Windows/Linux CI/integration, tracked by the parent; this status-only
+update does not change production/tests from3a192446. Next: mouse pending motion,
+RTS reset phase and packet state, remaining devices/bus/disk/audio, whole-machine
+dependency preflight and actual process restart/Pyro checkpoint replay.
