@@ -133,15 +133,16 @@ fn whole_bus_restores_fresh_owners_and_continues_native_io_memory_and_disks() {
     ] {
         reference.io_write_u8(port, byte, 0, None);
     }
-    reference.refresh_enabled = true; // exercise native refresh consumer, not a Pyro startup claim
-                                      // Clock programmed timers before the first checkpoint, so losing PIT state
-                                      // changes a native port read before the broader storage comparison runs.
+    // Exercise native refresh, not a Pyro startup claim. Clock programmed timers
+    // before the first checkpoint, so losing PIT state changes a native port
+    // read before the broader storage comparison runs.
+    reference.refresh_enabled = true;
     reference.run_devices(512.0 / 14.31818, 512, None, &mut VecDeque::new(), None);
     let mut disk_activity = false;
     for step in 0..16 {
         let (saved, payloads) = capture(&mut reference);
-        let mut restored = fixture(); // no retained source RAM, timers, CGA, disk, UART or mouse
-        restored.restore_bus_state(&saved, providers(payloads)).unwrap();
+        // No retained source RAM, timers, CGA, disk, UART or mouse.
+        let mut restored = fixture().prepare_bus_restore(&saved, providers(payloads)).unwrap();
         let expected = advance(&mut reference, step);
         let actual = advance(&mut restored, step);
         assert_eq!(expected, actual, "native composed bus outputs at step {step}");
@@ -170,7 +171,7 @@ fn whole_bus_rejects_nested_invalid_state_before_mutation() {
     let mut unknown = wire.clone();
     unknown.as_object_mut().unwrap().insert("unknown".into(), true.into());
     assert!(serde_json::from_value::<BusState>(unknown).is_err());
-    for case in 0..10 {
+    for case in 0..11 {
         let mut invalid = wire.clone();
         match case {
             0 => invalid["version"] = 2.into(),
@@ -183,11 +184,14 @@ fn whole_bus_rejects_nested_invalid_state_before_mutation() {
             7 => invalid["terminal_port"] = 123.into(),
             8 => invalid["serial"]["port"][0]["irq"] = 7.into(),
             9 => invalid["mouse"]["body"]["state"]["port"] = 1.into(),
+            10 => invalid["xtide"]["supported_formats"] = serde_json::json!([]),
             _ => unreachable!(),
         }
         let invalid: BusState = serde_json::from_value(invalid).unwrap();
         assert!(
-            target.restore_bus_state(&invalid, providers(payloads.clone())).is_err(),
+            fixture()
+                .prepare_bus_restore(&invalid, providers(payloads.clone()))
+                .is_err(),
             "invalid case {case}"
         );
         assert_eq!(
@@ -198,9 +202,61 @@ fn whole_bus_rejects_nested_invalid_state_before_mutation() {
     }
     let mut wrong_bytes = payloads.clone();
     wrong_bytes[0].as_mut().unwrap()[0] ^= 1;
-    assert!(target.restore_bus_state(&saved, providers(wrong_bytes)).is_err());
+    assert!(fixture().prepare_bus_restore(&saved, providers(wrong_bytes)).is_err());
     assert_eq!(capture(&mut target), (saved, payloads));
     target.speaker_src = Some(0);
     assert!(target.snapshot_bus_state(DiskCaptureMode::Embed, 0).is_err());
-    println!("BUS_OWNER_REFUSAL: required/unknown schema, ten nested atomic refusals, disk checksum and external audio owner");
+    println!("BUS_OWNER_REFUSAL: required/unknown schema, eleven failed candidates; live reference unchanged; disk checksum and external audio owner");
+}
+
+#[test]
+fn bus_owner_preserves_native_mutable_metadata_and_refuses_orphan_routes_and_audio() {
+    let mut reference = fixture();
+    // These are real public native setters, not fabricated malformed records.
+    reference.copy_from(&[0xB8, 0x34, 0x12], 0x900, 0, false).unwrap();
+    reference.set_descriptor(0x920, 8, 3, false);
+    let id = reference.videocard_ids[0];
+    let Some(VideoCardDispatch::Cga(card)) = reference.videocards.get_mut(&id) else {
+        unreachable!()
+    };
+    card.set_clocking_mode(ClockingMode::Dynamic);
+    let (saved, data) = capture(&mut reference);
+    let mut restored = fixture().prepare_bus_restore(&saved, providers(data)).unwrap();
+    assert_eq!(advance(&mut reference, 0), advance(&mut restored, 0));
+    assert!(capture(&mut reference) == capture(&mut restored));
+    for route in [
+        IoDeviceType::FloppyController,
+        IoDeviceType::Parallel,
+        IoDeviceType::Video(VideoCardId {
+            idx: 99,
+            vtype: VideoType::CGA,
+        }),
+    ] {
+        let mut invalid = BusInterface::default();
+        invalid.io_map.insert(0x777, route);
+        assert!(invalid.snapshot_bus_state(DiskCaptureMode::Embed, 0).is_err());
+    }
+    for route in [
+        MmioDeviceType::Cga,
+        MmioDeviceType::Ems,
+        MmioDeviceType::Video(VideoCardId {
+            idx: 99,
+            vtype: VideoType::CGA,
+        }),
+    ] {
+        let mut invalid = BusInterface::default();
+        invalid.register_map(route, MemRangeDescriptor::new(0xB8000, MMIO_MAP_SIZE, false));
+        assert!(invalid.snapshot_bus_state(DiskCaptureMode::Embed, 0).is_err());
+    }
+    let mut orphan = fixture();
+    let (sender, _receiver) = crossbeam_channel::unbounded();
+    orphan.pit = Some(Pit::new(
+        crate::devices::pit::PitType::Model8253,
+        14.31818,
+        12,
+        Some(sender),
+    ));
+    assert!(orphan.speaker_src.is_none());
+    assert!(orphan.snapshot_bus_state(DiskCaptureMode::Embed, 0).is_err());
+    println!("BUS_OWNER_REVIEW: native mutable descriptors/CGA clock continue; six orphan routes and actual orphan PIT sender refused");
 }

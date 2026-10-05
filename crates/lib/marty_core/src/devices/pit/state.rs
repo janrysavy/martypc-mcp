@@ -36,6 +36,10 @@ pub(crate) struct PitState {
 }
 
 impl ProgrammableIntervalTimer {
+    pub(crate) fn snapshot_audio_sender_connected(&self) -> bool {
+        self.speaker.sender.is_some()
+    }
+
     pub(crate) fn snapshot_state(&self) -> Result<PitState, &'static str> {
         let saved = PitState {
             version: 1,

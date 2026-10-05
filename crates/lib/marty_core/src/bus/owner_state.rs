@@ -94,8 +94,40 @@ impl BusInterface {
         if self.adlib.is_some() {
             bail!("OPL bus snapshots are unsupported");
         }
-        if self.speaker_src.is_some() {
+        if self.speaker_src.is_some() || self.pit.as_ref().is_some_and(Pit::snapshot_audio_sender_connected) {
             bail!("attached machine speaker output queue is not composed yet");
+        }
+        for route in self.io_map.values() {
+            let present = match route {
+                IoDeviceType::A0Register => self.a0.is_some(),
+                IoDeviceType::Ppi => self.ppi.is_some(),
+                IoDeviceType::Pit => self.pit.is_some(),
+                IoDeviceType::DmaPrimary => self.dma1.is_some(),
+                IoDeviceType::DmaSecondary => self.dma2.is_some(),
+                IoDeviceType::PicPrimary => self.pic1.is_some(),
+                IoDeviceType::PicSecondary => self.pic2.is_some(),
+                IoDeviceType::Serial => self.serial.is_some(),
+                IoDeviceType::HardDiskController => self.xtide.is_some(),
+                IoDeviceType::Mouse => self.mouse.is_some(),
+                IoDeviceType::GamePort => self.game_port.is_some(),
+                IoDeviceType::Video(id) => matches!(self.videocards.get(id), Some(VideoCardDispatch::Cga(_))),
+                _ => false,
+            };
+            if !present {
+                bail!("I/O route has no supported installed snapshot owner");
+            }
+        }
+        for route in self
+            .mmio_map
+            .iter()
+            .map(|(_, device)| *device)
+            .chain(self.mmio_map_fast.iter().map(|entry| entry.device))
+        {
+            match route {
+                MmioDeviceType::None | MmioDeviceType::Memory | MmioDeviceType::Rom => {}
+                MmioDeviceType::Video(id) if matches!(self.videocards.get(&id), Some(VideoCardDispatch::Cga(_))) => {}
+                _ => bail!("MMIO route has no supported installed snapshot owner"),
+            }
         }
         // Preserve native card traversal order, while refusing duplicate or
         // orphaned entries rather than silently dropping an installed adapter.
@@ -159,11 +191,15 @@ impl BusInterface {
         Ok((saved, payloads))
     }
 
-    /// Restore only into a freshly configured candidate. Validate every owner
-    /// and prepare disk/UART/mouse replacements before modifying even that
-    /// candidate. The caller must not swap a live Machine until its other
+    /// Consume a freshly configured candidate, returning it only on success.
+    /// Failed candidates are discarded; no partly restored bus is returned.
+    /// The caller must not swap a live Machine until its other
     /// owners and all external dependencies have also been validated.
-    pub(crate) fn restore_bus_state(&mut self, saved: &BusState, providers: [Option<Box<dyn VhdIO>>; 2]) -> Result<()> {
+    pub(crate) fn prepare_bus_restore(
+        mut self,
+        saved: &BusState,
+        providers: [Option<Box<dyn VhdIO>>; 2],
+    ) -> Result<Self> {
         self.snapshot_bus_supported()?;
         if saved.version != 1
             || saved.terminal_port != self.terminal_port
@@ -174,6 +210,8 @@ impl BusInterface {
             bail!("incompatible bus version/routing/terminal/video configuration");
         }
         self.preflight_memory_state(&saved.memory).map_err(anyhow::Error::msg)?;
+        // desc_vec is mutable bookkeeping: native copy_from/set_descriptor
+        // append it. Actual MMIO routing is separately validated above.
         self.preflight_clock_state(&saved.clock).map_err(anyhow::Error::msg)?;
         self.preflight_keyboard_bus_state(&saved.keyboard)
             .map_err(anyhow::Error::msg)?;
@@ -186,6 +224,8 @@ impl BusInterface {
         preflight!(self, saved, pic2);
         preflight!(self, saved, game_port);
         for (id, state) in &saved.video {
+            // Native set_clocking_mode changes this at runtime; restore the
+            // saved mode rather than imposing the candidate's initial mode.
             let Some(VideoCardDispatch::Cga(card)) = self.videocards.get(id) else {
                 unreachable!()
             };
@@ -217,6 +257,9 @@ impl BusInterface {
                 if replacement.port_list() != owner.port_list() {
                     bail!("XT-IDE port routing mismatch");
                 }
+                if replacement.get_supported_formats() != owner.get_supported_formats() {
+                    bail!("XT-IDE configured formats mismatch");
+                }
                 Some(Box::new(replacement))
             }
             (None, None) if providers.iter().all(Option::is_none) => None,
@@ -246,7 +289,7 @@ impl BusInterface {
         self.mouse = mouse;
         self.xtide = xtide;
         self.io_stats = saved.io_stats.iter().map(|(p, d)| (*p, d.clone())).collect();
-        Ok(())
+        Ok(self)
     }
 }
 
