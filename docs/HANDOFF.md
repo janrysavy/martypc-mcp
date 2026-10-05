@@ -1,13 +1,20 @@
 # Fork handoff
 
-NEXT: native GUI loaded factory/RW providers, derived consumer rebind and
-visible process-restart proof. Keep snapshot methods disabled until composed.
-FINISHED local observation guards: default-feature native GUI compiler check
-passes with600 source inputs bound before/after. RPC repaint no longer drains
-Machine/presentable queues or writes debug flags; light-pen writes require
-explicit local input. This is a source/compile result, not a fresh GUI executable
-or live complete-Machine equality proof. Existing local input/worker guards
-remain in force. No new gameplay/physical timing/audio parity claim.
+NEXT: fresh normal native GUI product, live complete-Machine idle/restore and
+visible process restart; review loaded ownership and address findings before CI
+integration. PR34 stays draft. No new GUI runtime completion claim.
+FINISHED local GUI wiring:62 fresh checks (10 config,31 RPC,5 headless,16 native
+GUI library tests),601 source inputs stable before/after. Loaded ROM/config/
+keyboard dependencies build a cold candidate; imported state yields before
+queued execution. Independent next100 native cycles match the restored factory
+Machine. This test has no GPU/render/process coverage.
+No-playback GUI explicitly disables host output queues, retaining native guest
+PIT/PPI/speaker clocks. Snapshot methods require RPC, no host sound player and
+local input off. RW disk wrappers cover absolute/relative/resource-name mounts.
+After import, clear frontend input/counters/old VHD selections and refresh native
+power/machine info; renderers reacquire device buffers by stable IDs. Never call
+apply_config on restored guest state. RPC repaint preserves native event queues,
+light-pen and debug state (manual local input remains explicit opt-in).
 Headless PR33 is integrated at exact2c6082c9 after Windows/Linux CI37309652341.
 FINISHED local transport slice:45 fresh RPC/config/headless tests pass;600 inputs
 bound. Snapshot-aware nonblocking pump yields immediately after import, before

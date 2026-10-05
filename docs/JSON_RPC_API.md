@@ -209,3 +209,20 @@ queues and video debug flags. Light-pen mutations require explicit local input;
 ordinary RPC observation leaves captured light-pen state untouched. Rendering
 still reads native video buffers. These guards compile in the default native UI;
 complete GUI snapshot import/rebind/restart remains WIP and disabled.
+
+Native GUI snapshots are now wired locally on the draft branch. They are offered
+only with RPC, local input off and no host sound player (`--nosound`). The core's
+host output configuration is explicitly disabled; guest PIT/PPI/speaker clocks
+continue. Loaded configuration/preferences/ROMs/keyboard construct a cold
+candidate. All native VHD mount routes use constrained RW File providers.
+The cached build identity is read from the actual running EXE once, not from the
+archive or a caller label. Capabilities identify this host as `native-gui`.
+
+Successful import pauses RPC, yields before queued execution, resets derived
+frontend input/counters/power metadata and removes old media selections. The
+new Machine owns its separate restored disk copies (paths in the import receipt).
+Renderers reacquire native buffers/extents/mode/palette by stable card IDs. No
+machine options, PIT phase or pending native event queues are rewritten by this
+refresh. Host performance timing/pixels are derived, not captured guest state.
+Loaded factory native continuation passes; actual GPU observation and fresh GUI
+process-restart proof remain OPEN. PR34 remains draft pending those checks/review.

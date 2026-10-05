@@ -740,6 +740,17 @@ impl EmulatorBuilder {
             )?;
         }
 
+        // Retain loaded immutable dependencies, never a borrow of the live Machine.
+        // Snapshot methods are absent when host audio/local input is active.
+        #[cfg(not(target_arch = "wasm32"))]
+        let snapshot_factory = if config.emulator.rpc_port.is_some()
+            && sound_player.is_none() && !config.emulator.local_input_enabled()
+        {
+            Some(crate::emulator::snapshots::GuiSnapshotFactory::new(
+                machine_config.clone(), machine_preferences, rom_manifest.clone(), kb_layout.clone(),
+            )?)
+        } else { None };
+
         // Construct the core Machine instance
         log::debug!("Creating MachineBuilder...");
         let mut machine_builder = MachineBuilder::new()
@@ -750,12 +761,17 @@ impl EmulatorBuilder {
             .with_trace_mode(config.machine.cpu.trace_mode.unwrap_or_default())
             .with_trace_log(trace_file_path)
             .with_keyboard_layout(kb_layout)
+            .with_sound_config(marty_core::sound::SoundOutputConfig { enabled: false, ..Default::default() })
             .with_listing_file(disassembly_file_path);
 
         #[cfg(feature = "sound")]
         {
             log::debug!("Sound is enabled. Adding sound configuration to MachineBuilder...");
-            machine_builder = machine_builder.with_sound_config(sound_config);
+            // No host playback must also mean no uncaptured output queues.
+            // Guest PIT/PPI/speaker simulation remains in the core.
+            if sound_player.is_some() {
+                machine_builder = machine_builder.with_sound_config(sound_config);
+            }
         }
 
         // Build the Machine instance
@@ -983,6 +999,8 @@ impl EmulatorBuilder {
             exec_control,
             #[cfg(not(target_arch = "wasm32"))]
             rpc,
+            #[cfg(not(target_arch = "wasm32"))]
+            snapshot_factory,
             mouse_data,
             kb_data,
             joy_data,

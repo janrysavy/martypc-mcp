@@ -30,6 +30,8 @@
 pub mod joystick_state;
 pub mod keyboard_state;
 pub mod mouse_state;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod snapshots;
 
 use std::{
     cell::RefCell,
@@ -112,6 +114,8 @@ pub struct Emulator {
     pub exec_control: Rc<RefCell<ExecutionControl>>,
     #[cfg(not(target_arch = "wasm32"))]
     pub rpc: Option<marty_debug_rpc::DebugRpc>,
+    #[cfg(not(target_arch = "wasm32"))]
+    pub snapshot_factory: Option<snapshots::GuiSnapshotFactory>,
     pub mouse_data: MouseState,
     pub joy_data: JoystickState,
     pub kb_data: KeyboardData,
@@ -532,7 +536,8 @@ impl Emulator {
             // Absolute path: try loading by path
             match self.vhd_manager.load_vhd_file_by_path(drive_idx, path) {
                 Ok(vhd_file) => {
-                    self.load_vhd(Box::new(vhd_file), drive_idx, &vhd_os_name, None)?;
+                    let provider = self.snapshot_vhd_provider(vhd_file, drive_idx)?;
+                    self.load_vhd(provider, drive_idx, &vhd_os_name, None)?;
                     mount_info_vec.push(MountInfo {
                         index: drive_idx,
                         name:  vhd_os_name.to_string_lossy().to_string(),
@@ -551,7 +556,8 @@ impl Emulator {
                 // Relative path (has directory components)
                 match self.vhd_manager.load_vhd_file_by_path(drive_idx, path) {
                     Ok(vhd_file) => {
-                        self.load_vhd(Box::new(vhd_file), drive_idx, &vhd_os_name, None)?;
+                        let provider = self.snapshot_vhd_provider(vhd_file, drive_idx)?;
+                        self.load_vhd(provider, drive_idx, &vhd_os_name, None)?;
                         mount_info_vec.push(MountInfo {
                             index: drive_idx,
                             name:  vhd_os_name.to_string_lossy().to_string(),
@@ -568,7 +574,8 @@ impl Emulator {
                 // Just filename, try loading by name (from media/hdds)
                 match self.vhd_manager.load_vhd_file_by_name(drive_idx, &vhd_os_name) {
                     Ok((vhd_file, vhd_idx)) => {
-                        self.load_vhd(Box::new(vhd_file), drive_idx, &vhd_os_name, Some(vhd_idx))?;
+                        let provider = self.snapshot_vhd_provider(vhd_file, drive_idx)?;
+                        self.load_vhd(provider, drive_idx, &vhd_os_name, Some(vhd_idx))?;
                         mount_info_vec.push(MountInfo {
                             index: drive_idx,
                             name:  vhd_os_name.to_string_lossy().to_string(),

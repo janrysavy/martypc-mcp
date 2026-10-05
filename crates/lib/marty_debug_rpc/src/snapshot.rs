@@ -14,34 +14,50 @@ use std::{
 
 type Factory<'a> = dyn FnMut() -> std::result::Result<Machine, String> + 'a;
 
+/// Actual running product identity, cached once by a frame-driven frontend.
+/// The digest is private: callers cannot substitute a snapshot's build label.
+pub struct SnapshotExecutable([u8; 32]);
+
+impl SnapshotExecutable {
+    pub fn current() -> std::io::Result<Self> {
+        let mut executable = File::open(std::env::current_exe()?)?;
+        let mut hash = Sha256::new();
+        let mut buffer = [0; 65536];
+        loop {
+            let n = executable.read(&mut buffer)?;
+            if n == 0 { break; }
+            hash.update(&buffer[..n]);
+        }
+        Ok(Self(hash.finalize().into()))
+    }
+}
+
+#[derive(Copy, Clone)]
+pub enum SnapshotFrontend { Headless, NativeGui }
+
 /// Enable only for a frontend whose mounted VHD providers are known RW Files.
 /// Cached VHD read_only metadata is not an OS access policy. Other providers
 /// must remain unsupported until their access/backend contract is implemented.
 pub struct SnapshotHost<'a> {
     factory: &'a mut Factory<'a>,
     build: [u8; 32],
+    frontend: SnapshotFrontend,
     limits: SnapshotArchiveLimits,
 }
 
 impl<'a> SnapshotHost<'a> {
     pub fn for_rw_files(factory: &'a mut Factory<'a>) -> std::io::Result<Self> {
-        // Bind to the actual running product, never a user-supplied build label
-        // or a checksum read from the snapshot being authenticated.
-        let mut executable = File::open(std::env::current_exe()?)?;
-        let mut hash = Sha256::new();
-        let mut buffer = [0; 65536];
-        loop {
-            let n = executable.read(&mut buffer)?;
-            if n == 0 {
-                break;
-            }
-            hash.update(&buffer[..n]);
-        }
-        Ok(Self {
-            factory,
-            build: hash.finalize().into(),
-            limits: SnapshotArchiveLimits::default(),
-        })
+        let executable = SnapshotExecutable::current()?;
+        Ok(Self::for_rw_files_with_executable(factory, &executable, SnapshotFrontend::Headless))
+    }
+
+    /// Reuse an identity made from the actual EXE; avoid hashing it each repaint.
+    pub fn for_rw_files_with_executable(
+        factory: &'a mut Factory<'a>,
+        executable: &SnapshotExecutable,
+        frontend: SnapshotFrontend,
+    ) -> Self {
+        Self { factory, build: executable.0, frontend, limits: SnapshotArchiveLimits::default() }
     }
 
     fn export(&mut self, machine: &mut Machine, p: &Value) -> Result<Value> {
@@ -223,7 +239,8 @@ impl Agent {
                 }
                 let (candidate, mut result) = host.prepare(p)?;
                 // All fallible dependency checks and provider preparation are
-                // finished. Headless has no external Machine consumers to rebind.
+                // finished. A GUI caller must handle the pump restore signal before
+                // processing another request/instruction or using derived consumers.
                 *machine = candidate;
                 self.revision += 1;
                 self.restore_generation += 1;
@@ -254,7 +271,7 @@ impl Agent {
                 result["snapshot"] = json!({"format":"martypc-machine","version":1,
                     "build_sha256":hex(&host.build),"disk_access":"rw-file",
                     "expected_sha256":"required independently retained digest",
-                    "frontend":"headless","profile":"supported core owners only; active logging/audio queues refused"});
+                    "frontend":match host.frontend { SnapshotFrontend::Headless => "headless", SnapshotFrontend::NativeGui => "native-gui" },"profile":"supported core owners only; active logging/audio queues refused"});
                 Ok(result)
             }
             _ => self.handle(machine, method, p),
