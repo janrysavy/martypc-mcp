@@ -362,7 +362,13 @@ Review-requested rejection of a count1 mounted slave is incompatible with the
 existing native set_vhd API: a fresh285 run mounts slot1 at count1 and checks
 512 independent native sector bytes across JSON restore. Native mounting
 policy is preserved; nested ATA/Disk/VHD proof and outer policy stay separate.
-WIP: source-bound285/native policy control, follow-up scoped review and final CI.
+Fresh source-bound285 and native-policy refusal control pass on28721662.
+The executed outer launcher restores exact source before its same-UUID fresh
+positive run; chronology/source/product witness is retained in the parent.
+Scoped follow-ups close mounting/unload/order findings. Nested ATA/Disk/VHD
+proofs remain delegated; outer policy and complete Machine/process remain open.
+WIP: final Windows/Linux CI/integration, tracked in parent docs/HANDOFF.md.
+This final update changes HANDOFF only after tested28721662.
 ATA final scoped wire review passed; final CI/integration tracked by parent.
 
 NEXT: finish XT-IDE evidence/review/final gates; ATA final CI tracked by parent;
