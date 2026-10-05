@@ -406,3 +406,21 @@ WIP: final Windows/Linux CI/integration, tracked by the parent; this status-only
 update does not change production/tests from3a192446. Next: mouse pending motion,
 RTS reset phase and packet state, remaining devices/bus/disk/audio, whole-machine
 dependency preflight and actual process restart/Pyro checkpoint replay.
+
+FINISHED local mouse component: explicit serial/virtual state preserves29 native
+fields, exact floating-point bits, pending motion/button transitions, RTS reset
+phase, virtual IRQ acknowledgment and consumer metadata. Restore prepares a
+fresh owner without consuming packets or acknowledging events. Native mouse
+algorithms are unchanged apart from module registration. Windows full core
+tests pass297 without serial and299 with serial:52 native JSON checkpoints
+(32 joint mouse/UART motion/click,8 RTS threshold,12 virtual IRQ/report).
+25 deliberately seeded metadata/constructor checkpoints are storage-only.
+The first packet oracle incorrectly rounded the final speed2 X count69;
+native IEEE754 emits68 and retains fractional carry, now checked bit-for-bit.
+This was a test expectation correction, not a native mouse repair.
+WIP: actual omission controls, source-bound fresh products, scoped review,
+frontend gates and final Windows/Linux CI/integration. Serial PR25 final CI
+is tracked by the parent. UART/PIC/host input/bus clocks are separate owners;
+these tests do not prove atomic Machine or process/Pyro restart or hardware
+mouse timing. Next: finish mouse gates, remaining devices/media/bus clocks/audio,
+then complete dependency preflight and actual process restart/Pyro replay.

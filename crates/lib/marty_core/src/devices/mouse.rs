@@ -29,6 +29,9 @@
    Implements a Microsoft Serial Mouse
 
 */
+mod state;
+pub(crate) use state::MouseState;
+
 use crate::devices::{pic::Pic, serial::SerialPortController};
 
 /// User-facing sensitivity is a multiplier around a calibrated nominal conversion.
