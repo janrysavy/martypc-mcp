@@ -30,9 +30,14 @@ second guest. Both frontends use `marty_debug_rpc`. The GUI replaces its normal
 machine runner with a debugger pump. Its soft8ms budget is checked before every
 request/native boundary; one atomic request/instruction may overrun it. The
 transport channel holds at most64 queued requests. This is not a hard latency SLA.
-Neither repaint nor inspection advances paused guest time. RPC configurations
-skip wall-frame guest housekeeping in both frontends; software PPI turbo remains
-refused and host serial bridging is not supported in this mode.
+Neither repaint nor inspection advances paused guest time. RPC requests and
+execution are serviced by the GUI logic callback even while its window is
+minimized or hidden. The visible UI timestep never runs an RPC-owned
+guest a second time. Logic requests another poll after4ms; operating-system
+scheduling and the soft pump budget still preclude a hard response-time promise.
+RPC configurations skip wall-frame guest housekeeping in both frontends;
+software PPI turbo remains refused and host serial bridging is not supported
+in this mode.
 
 **Local guest input is disabled by default whenever `rpc_port` is set.**
 This includes keyboard/hotkeys, keyboard-to-joystick mappings, mouse/light pen,
