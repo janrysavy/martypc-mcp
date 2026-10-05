@@ -266,3 +266,53 @@ fn whole_machine_snapshot_continues_pending_turbo_and_presentation_consumers() {
     }
     println!("MACHINE_PENDING:12 native pending-turbo PIT continuations and seeded native presentation channel consumers; no guest event origin/frontend/process proof");
 }
+
+#[test]
+fn whole_machine_review_rejects_unsupported_listing_and_inconsistent_clock() {
+    let mut reference = fixture();
+    let mut control = ExecutionControl::new();
+    control.set_state(ExecutionState::Running);
+    reference.run(8192, &mut control);
+    // Installed flags describe an action, not immutable RAM: native guest/host
+    // RAM writes after installation are allowed. Do not require patch bytes.
+    reference
+        .cpu
+        .bus_mut()
+        .copy_from(&[0x11, 0x22], 0x1500, 0, false)
+        .unwrap();
+    assert!(reference.rom_manifest.patches[0].installed);
+    let saved = capture(&mut reference);
+    assert!(fixture().prepare_snapshot_restore(&saved, [None, None]).is_ok());
+    // Native reinstall_roms replaces the manifest without rebuilding maps.
+    // Preserve these native historical maps instead of forcing constructor maps.
+    let mut changed = reference.rom_manifest.clone();
+    changed.checkpoints[0].addr = 0x2000;
+    changed.patches[0].trigger = 0x2000;
+    reference.reinstall_roms(changed.clone()).unwrap();
+    let saved = capture(&mut reference);
+    assert!(reference.checkpoint_map.contains_key(&0x1000));
+    let mut fresh = fixture();
+    fresh.reinstall_roms(changed).unwrap();
+    assert!(fresh.prepare_snapshot_restore(&saved, [None, None]).is_ok());
+    let wire = serde_json::to_value(saved).unwrap();
+    let mut accepted = Vec::new();
+    for case in 0..3 {
+        let mut invalid = wire.clone();
+        match case {
+            0 => invalid["options"]["record_listing"] = true.into(),
+            1 => invalid["cpu_clock_period"] = 0_u64.into(),
+            _ => invalid["cpu_clock_period"] = (wire["cpu_clock_period"].as_u64().unwrap() + 1).into(),
+        }
+        let mut candidate = fixture();
+        candidate.reinstall_roms(reference.rom_manifest.clone()).unwrap();
+        let result = candidate.prepare_snapshot_restore(&serde_json::from_value(invalid).unwrap(), [None, None]);
+        if result.is_ok() {
+            accepted.push(case);
+        }
+    }
+    println!("MACHINE_REVIEW_BAD_ACCEPTED:{accepted:?}");
+    assert!(
+        accepted.is_empty(),
+        "unsupported listing/zero/inconsistent native clock accepted"
+    );
+}

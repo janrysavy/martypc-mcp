@@ -164,6 +164,11 @@ impl Machine {
         {
             bail!("incompatible Machine version/configuration/ROM dependencies");
         }
+        // Listing has an uncaptured host sink/map: inspect the incoming state,
+        // not merely the cold candidate's disabled listing option.
+        if saved.options.record_listing {
+            bail!("saved Machine listing snapshots unsupported");
+        }
         if !saved.cpu_clock_period.is_finite()
             || saved.cpu_clock_period < 0.0
             || matches!(saved.cpu_factor, ClockFactor::Divisor(0) | ClockFactor::Multiplier(0))
@@ -177,6 +182,17 @@ impl Machine {
             || saved.patch_map.values().any(|i| *i >= self.rom_manifest.patches.len())
         {
             bail!("invalid Machine clock or ROM map index");
+        }
+        // Machine::new finishes with set_cpu_factor; its temporary zero period
+        // never escapes the constructor. Pending turbo leaves the current factor
+        // and period unchanged until run() applies the next factor. Match the
+        // exact native two-operation computation, including rounding.
+        let mhz = match saved.cpu_factor {
+            ClockFactor::Divisor(n) => self.machine_desc.system_crystal / f64::from(n),
+            ClockFactor::Multiplier(n) => self.machine_desc.system_crystal * f64::from(n),
+        };
+        if saved.cpu_clock_period.to_bits() != (1.0 / mhz).to_bits() {
+            bail!("inconsistent native Machine CPU period");
         }
         Ok(())
     }

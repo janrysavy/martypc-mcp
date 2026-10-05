@@ -1,15 +1,15 @@
 # Fork handoff
 
-NEXT: finish bus/service final CI and integration; validate/review the new
+NEXT: finish review/final CI for the new
 whole-Machine candidate owner, then implement authenticated persistent save/load,
 frontend/RPC rebind and a final live Machine swap. Prove fresh-process Pyro replay.
 The selected profile is no-floppy IBM XT/CGA with DOS/Pyro VHDs. Generic FDC,
 weak-media entropy and floppy ownership are deferred. Never silently omit a
 configured unsupported owner. Local UI input stays off during deterministic RPC.
 
-INTEGRATED main23c6641e after final Windows/Linux CI: native UI/input policy,
+INTEGRATED mainec95459b after final Windows/Linux CI: native UI/input policy,
 queue/BIU/CPU, bus RAM, motherboard devices, keyboard/FIFO, game port, CGA,
-VHD/Disk/ATA/XT-IDE, UART/mouse, bus clocks and A0 (PR6..28). Component evidence
+VHD/Disk/ATA/XT-IDE, UART/mouse, bus clocks, A0, bus and service owners (PR6..30). Component evidence
 and exact CI/product/source receipts live in the parent repository:
 https://github.com/janrysavy/pyro221_next/tree/master/docs/evidence/martypc_rpc_20261004
 
@@ -25,7 +25,8 @@ caught in native outputs. Fresh305 tests pass after requiring actual owner
 port lists and CGA identity in I/O, MMIO and traversal. Regression refuses
 stale routes even with installed owners, plus Mouse I/O (no native dispatch).
 Refreshed controls pass and scoped review reports no concrete bus restore
-defect. Final CI/integration is pending. Converse wiring/general profiles
+defect. Final9039724f Windows/Linux CI passed; integrated unchanged.
+Converse wiring/general profiles
 and outer authentication stay open. No new disk-write/flush proof.
 
 FINISHED local service owner: fresh307 core/309 serial+sound tests, nine
@@ -40,7 +41,8 @@ returns307 green. Scoped review finds field-complete codec/tested refusal
 atomicity, no concrete defect. New comparisons cover visited transfer paths,
 AX/BX/CX/DX/SI/flags, RAM100..3ff and CRC continuity. Other services, independent
 CRC correctness and exhaustive field/error-path coverage remain unproven.
-Final CI/integration pending; no whole-Machine/process/Pyro proof.
+Finalec95459b Windows/Linux CI passed; integrated unchanged. No complete
+Machine/process/Pyro proof.
 
 FINISHED first local Machine owner: fresh309 core tests;24 fresh configured
 CPU/bus/service/core restores continue native 8088 instructions, PIT/CGA writes,
@@ -51,7 +53,12 @@ process or Pyro proof. Fresh310 adds12 pending-turbo PIT continuations and
 seeded native presentation channel consumers. Actual omitted pending speed and
 presentation queue stores fail those consumers; exact restoration passes310.
 Public DiskCaptureMode now permits frontend callers; fresh312 serial+sound
-tests pass after the visibility fix. Scoped review and final CI remain pending.
+tests pass after the visibility fix. Review reproduced enabled-listing and
+zero/inconsistent period acceptance; fixed preflight now refuses all three.
+Fresh313 serial+sound tests pass. Native reinstall_roms retains historical maps;
+later RAM writes can alter installed patch bytes. Both legitimate states remain
+restorable. Follow-up review/final CI pending; no exhaustive metadata reachability
+or device-origin channel/frontend/VHD-bearing Machine/process/Pyro proof.
 
 NOT DONE: Machine/audio/frontend persistent composition, outer configuration/
 ROM/metadata authentication and host disk access/path/alias policy, pending
