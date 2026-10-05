@@ -46,6 +46,50 @@ fn roundtrip(reference: &mut AtaDevice) -> AtaDevice {
     .unwrap()
 }
 
+fn native_storage(reference: &AtaDevice, restored: &AtaDevice) {
+    // Independent of snapshot_state: read all native storage directly. This is
+    // exact storage evidence, not a claim that inactive fields affect hardware.
+    macro_rules! same {
+        ($($field:ident),+ $(,)?) => {$(
+            assert_eq!(reference.$field, restored.$field, concat!("native storage ", stringify!($field)));
+        )+};
+    }
+    same!(disk_idx, irq, lba, dma, dma_channel, last_error_drive, error_flag,
+        receiving_dcb, command_lba, command_byte_n, command_queue,
+        command_result_pending, sector_buffer_idx, sector_count_register,
+        sector_number_register, cylinder_low_register, cylinder_high_register,
+        drive_head_register, status_reads, data_reads, data_writes, dma_enabled,
+        irq_enabled, send_interrupt, clear_interrupt, interrupt_active,
+        send_dreq, clear_dreq, dreq_active);
+    assert_eq!(std::mem::discriminant(&reference.state), std::mem::discriminant(&restored.state));
+    assert_eq!(std::mem::discriminant(&reference.last_error), std::mem::discriminant(&restored.last_error));
+    assert_eq!(std::mem::discriminant(&reference.command), std::mem::discriminant(&restored.command));
+    assert_eq!(std::mem::discriminant(&reference.last_command), std::mem::discriminant(&restored.last_command));
+    assert_eq!(reference.command_chs.get(), restored.command_chs.get());
+    match (reference.command_fn, restored.command_fn) {
+        (Some(a), Some(b)) => assert!(std::ptr::fn_addr_eq(a, b), "native callback identity"),
+        (None, None) => {},
+        _ => panic!("native callback presence"),
+    }
+    assert_eq!(reference.sector_buffer.get_ref(), restored.sector_buffer.get_ref());
+    assert_eq!(reference.sector_buffer.position(), restored.sector_buffer.position());
+    assert_eq!(reference.status_register.into_bytes(), restored.status_register.into_bytes());
+    assert_eq!(reference.error_register.into_bytes(), restored.error_register.into_bytes());
+    assert_eq!(reference.data_register.bytes, restored.data_register.bytes);
+    let operation = |v: &OperationStatus| (v.sectors_complete, v.sectors_left,
+        v.block_ct, v.block_n, v.dma_bytes_left, v.dma_byte_count);
+    assert_eq!(operation(&reference.operation_status), operation(&restored.operation_status));
+    assert_eq!(reference.state_accumulator.to_bits(), restored.state_accumulator.to_bits());
+    match (&reference.disk, &restored.disk) {
+        (Some(a), Some(b)) => {
+            assert_eq!(a.position(), b.position());
+            assert_eq!(a.geometry(), b.geometry());
+        },
+        (None, None) => {},
+        _ => panic!("native disk presence"),
+    }
+}
+
 fn native_observations(reference: &mut AtaDevice, restored: &mut AtaDevice) {
     // Observe native register/buffer/disk outputs before comparing the codec.
     assert_eq!(
@@ -85,6 +129,7 @@ fn native_observations(reference: &mut AtaDevice, restored: &mut AtaDevice) {
         restored.disk().map(Disk::position),
         "native ATA disk CHS"
     );
+    native_storage(reference, restored);
     assert_eq!(capture(reference), capture(restored));
 }
 
@@ -330,71 +375,106 @@ fn strict_schema_and_preflight_refuse_without_live_mutation() {
     );
 }
 
+fn native_fields(source: &str, name: &str) -> std::collections::BTreeSet<String> {
+    source
+        .split(&format!("pub struct {name} {{"))
+        .nth(1)
+        .unwrap()
+        .lines()
+        .skip(1)
+        .take_while(|line| line.trim() != "}")
+        .filter_map(|line| {
+            line.trim().split_once(':').map(|(name, _)|
+                name.trim().strip_prefix("pub ").unwrap_or(name.trim()).to_owned())
+        })
+        .collect()
+}
+
+#[test]
+fn native_field_inventory_accepts_lf_and_crlf() {
+    // Windows CI exposed a parser that crossed the closing brace on CRLF.
+    // Fixed expected sets below independently check the nested field lists.
+    for (source, name, count) in [
+        (include_str!("../../ata_device.rs"), "AtaDevice", 42),
+        (include_str!("../../ata_device.rs"), "OperationStatus", 6),
+        (include_str!("../../ata_register16.rs"), "AtaRegister16", 1),
+    ] {
+        let lf = source.replace("\r\n", "\n");
+        let crlf = lf.replace('\n', "\r\n");
+        let expected = native_fields(&lf, name);
+        assert_eq!(expected.len(), count, "native {name} field count");
+        assert_eq!(native_fields(&crlf, name), expected, "native {name} CRLF inventory");
+    }
+}
+
 #[test]
 fn schema_inventory_and_seeded_storage_cover_native_fields() {
-    let fields = |source: &str, name: &str| -> std::collections::BTreeSet<String> {
-        source
-            .split(&format!("pub struct {name} {{"))
-            .nth(1)
-            .unwrap()
-            .split('\n')
-            .skip(1)
-            .take_while(|line| *line != "}")
-            .filter_map(|line| {
-                line.trim()
-                    .split_once(':')
-                    .map(|(name, _)| name.trim().strip_prefix("pub ").unwrap_or(name.trim()).to_owned())
-            })
-            .collect()
-    };
+    // These deliberately seeded combinations are storage-only. They are not
+    // claimed to be produced by native commands or to prove DMA/IRQ hardware.
+    // One-hot booleans prevent a remapped field from passing as equal values.
+    for selected in 0..13 {
+        let mut reference = device();
+        reference.disk_idx = 17;
+        reference.irq = Some(5);
+        reference.dma_channel = Some(3);
+        reference.state = AtaState::HaveSenseBytes;
+        reference.last_error = AtaOperationError::IllegalAccess;
+        reference.last_error_drive = 29;
+        reference.command = AtaCommand::Seek;
+        reference.command_chs = DiskChs::new(1, 1, 3);
+        reference.command_lba = 0x54321;
+        reference.command_fn = Some(AtaDevice::command_identify_drive);
+        reference.last_command = AtaCommand::WriteMultiple;
+        reference.command_byte_n = 7;
+        reference.command_queue = VecDeque::from([9, 4, 3]);
+        reference.sector_buffer_idx = 317;
+        reference.sector_buffer.set_position(513);
+        for (i, byte) in reference.sector_buffer.get_mut().iter_mut().enumerate() {
+            *byte = (i * 19 + 37) as u8;
+        }
+        reference.status_register = AtaStatusRegister::from_bytes([0xA7]);
+        reference.error_register = AtaErrorRegister::from_bytes([0x53]);
+        reference.sector_count_register = 11;
+        reference.sector_number_register = 13;
+        reference.cylinder_low_register = 23;
+        reference.cylinder_high_register = 31;
+        reference.drive_head_register = 0xB1;
+        reference.status_reads = 93;
+        reference.data_reads = 101;
+        reference.data_writes = 109;
+        reference.data_register.set_hi(0xD3);
+        reference.operation_status = OperationStatus {
+            sectors_complete: 3, sectors_left: 4, block_ct: 5, block_n: 6,
+            dma_bytes_left: 71, dma_byte_count: 83,
+        };
+        reference.state_accumulator = -0.0;
+        reference.lba = selected == 0;
+        reference.dma = selected == 1;
+        reference.error_flag = selected == 2;
+        reference.receiving_dcb = selected == 3;
+        reference.command_result_pending = selected == 4;
+        reference.dma_enabled = selected == 5;
+        reference.irq_enabled = selected == 6;
+        reference.send_interrupt = selected == 7;
+        reference.clear_interrupt = selected == 8;
+        reference.interrupt_active = selected == 9;
+        reference.send_dreq = selected == 10;
+        reference.clear_dreq = selected == 11;
+        reference.dreq_active = selected == 12;
+        let mut restored = roundtrip(&mut reference);
+        native_storage(&reference, &restored);
+        assert_eq!(capture(&mut restored), capture(&mut reference));
+    }
+    println!("ATA:13 one-hot seeded storage-only JSON checkpoints; direct native field observations");
     let mut reference = device();
-    reference.set_error(AtaOperationError::IllegalAccess);
-    reference.operation_status = OperationStatus {
-        sectors_complete: 3,
-        sectors_left: 4,
-        block_ct: 5,
-        block_n: 6,
-        dma_bytes_left: 71,
-        dma_byte_count: 83,
-    };
-    reference.state_accumulator = -0.0;
-    reference.status_register = AtaStatusRegister::from_bytes([0xA7]);
-    reference.error_register = AtaErrorRegister::from_bytes([0x53]);
-    reference.status_reads = 93;
-    reference.data_reads = 101;
-    reference.data_writes = 109;
-    reference.command_result_pending = true;
-    reference.data_register.set_hi(0xD3);
-    let mut restored = roundtrip(&mut reference);
-    assert_eq!(capture(&mut restored), capture(&mut reference)); // explicitly seeded storage-only
     let saved = serde_json::to_value(capture(&mut reference).0).unwrap();
-    let mut native = fields(include_str!("../../ata_device.rs"), "AtaDevice");
+    let mut native = native_fields(include_str!("../../ata_device.rs"), "AtaDevice");
     native.insert("version".to_owned());
-    assert_eq!(
-        saved
-            .as_object()
-            .unwrap()
-            .keys()
-            .cloned()
-            .collect::<std::collections::BTreeSet<_>>(),
-        native
-    );
-    assert_eq!(
-        fields(include_str!("../../ata_device.rs"), "OperationStatus"),
-        [
-            "sectors_complete",
-            "sectors_left",
-            "block_ct",
-            "block_n",
-            "dma_bytes_left",
-            "dma_byte_count"
-        ]
-        .map(String::from)
-        .into_iter()
-        .collect()
-    );
-    assert_eq!(
-        fields(include_str!("../../ata_register16.rs"), "AtaRegister16"),
-        ["bytes".to_owned()].into_iter().collect()
-    );
+    assert_eq!(saved.as_object().unwrap().keys().cloned()
+        .collect::<std::collections::BTreeSet<_>>(), native);
+    assert_eq!(native_fields(include_str!("../../ata_device.rs"), "OperationStatus"),
+        ["sectors_complete", "sectors_left", "block_ct", "block_n", "dma_bytes_left", "dma_byte_count"]
+        .map(String::from).into_iter().collect());
+    assert_eq!(native_fields(include_str!("../../ata_register16.rs"), "AtaRegister16"),
+        ["bytes".to_owned()].into_iter().collect());
 }

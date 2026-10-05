@@ -320,14 +320,20 @@ FINISHED local ATA component:42 native fields have explicit versioned state;
 partial low/high bytes, buffer contents/cursor (native len+1), operation counters,
 command FIFO and known callback independent of opcode, pending bus flags and
 exact clock bits are preserved. Unknown callbacks are refused before disk I/O.
-Fresh278 core tests pass, including70 native API JSON checkpoints:32 read/identify,
+Fresh279 core tests pass, including70 native API JSON checkpoints:32 read/identify,
 28 writes with independently parsed backing bytes,8 pending callbacks and2
 buffer/reset phases. Two IRQ/DREQ consumer checkpoints are explicitly seeded:
-native PIO handlers do not currently produce those requests. One extra seeded
-storage case and independent native field inventories cover inactive storage.
+native PIO handlers do not currently produce those requests. Thirteen one-hot seeded
+storage-only JSON cases compare all42 native fields directly, independently of
+the serializer. LF/CRLF inventory regression covers Windows CI parser failure.
 Strict missing/extra keys and dependency/version/wiring/buffer refusals pass;
 no live ATA owner is mutated on restore refusal. Native ATA algorithms unchanged.
-WIP: actual omission controls, source-bound rerun, review/frontend/final CI.
+Six actual omissions and source-bound278 evidence remain frozen on8f1311c6;
+restore production is byte-identical. Fresh38 frontend tests/UI builds passed
+on8f1311c6. Review found witness/scope gaps, no definite production omission;
+direct storage checks now address the shared serializer limitation.
+WIP: fresh source-bound279 witness, paired repair controls, follow-up review
+and final Windows/Linux CI. Initial Windows CI failed only CRLF inventory.
 Controller selection/bus wiring, host access/path, complete Machine/process
 restart and Pyro continuation remain unproven.
 
