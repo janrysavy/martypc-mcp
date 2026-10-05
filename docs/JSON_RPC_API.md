@@ -186,7 +186,9 @@ ready even when the UI has not enabled trace playback. The parent preparer's
 `--snapshots --no-floppy --video CGA` selects a no-sink test profile while keeping
 guest PIT/PPI/speaker simulation. Optional host audio output is disabled there.
 
-Local transport proof:44 fresh RPC/config/headless tests pass. The previously
+Local transport proof:45 fresh RPC/config/headless tests pass, including real
+persistent TCP snapshot export/import, post-restore inspection and wrong-digest
+refusal with the full paused Machine unchanged. The previously
 tested headless product also replays three original Pyro startup/first-level
 windows across real process restart, including pending BIOS Enter, all captured
 Machine fields and both disk hashes. Prior317 serial+sound core tests cover

@@ -10,6 +10,70 @@ use marty_core::{
 use std::sync::atomic::AtomicU64;
 
 #[test]
+fn ui_snapshot_pump_handles_persistent_tcp_export_import_and_refusal() {
+    let scratch = Scratch::new();
+    let mut factory = || Ok(cold(false));
+    let mut host = SnapshotHost::for_rw_files(&mut factory).unwrap();
+    let mut m = cold(false);
+    let initial = saved(&mut m);
+    let listener = TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0)).unwrap();
+    let endpoint = listener.local_addr().unwrap();
+    let mut rpc = DebugRpc::from_listener(listener).unwrap();
+    let root = scratch.0.clone();
+    let client = thread::spawn(move || {
+        let mut stream = TcpStream::connect(endpoint).unwrap();
+        stream.set_read_timeout(Some(Duration::from_secs(10))).unwrap();
+        let mut reader = BufReader::new(stream.try_clone().unwrap());
+        let mut exchange = |id, method, params| {
+            writeln!(stream, "{}", json!({"jsonrpc":"2.0","id":id,
+                "method":method,"params":params})).unwrap();
+            let mut line = String::new();
+            assert!(reader.read_line(&mut line).unwrap() > 0);
+            let value: Value = serde_json::from_str(&line).unwrap();
+            assert_eq!(value["id"], id);
+            value
+        };
+        let caps = exchange(1, "agent.capabilities", json!({}));
+        assert!(caps["result"]["methods"].as_array().unwrap()
+            .contains(&json!("machine.snapshot.import")));
+        let path = root.join("tcp-snapshot.zip");
+        let exported = exchange(2,"machine.snapshot.export",
+            json!({"path":path,"expected_state_revision":0}));
+        let outside_sha = hex(&Sha256::digest(fs::read(&path).unwrap()).into());
+        assert_eq!(exported["result"]["sha256"], outside_sha);
+        let imported = exchange(3,"machine.snapshot.import",json!({"path":path,
+            "expected_sha256":outside_sha,"disk_root":root.join("restored"),
+            "expected_state_revision":0}));
+        assert_eq!(imported["result"]["paused"], true);
+        assert_eq!(imported["result"]["state_revision"], 1);
+        let inspected = exchange(4,"session.status",json!({}));
+        assert_eq!(inspected["result"]["state"], "stopped");
+        assert_eq!(inspected["result"]["state_revision"], 1);
+        let refused = exchange(5,"machine.snapshot.import",json!({"path":path,
+            "expected_sha256":"00".repeat(32),"disk_root":root.join("wrong-digest"),
+            "expected_state_revision":1}));
+        assert_eq!(refused["error"]["code"], -32000);
+        let inspected = exchange(6,"state.get",json!({}));
+        assert_eq!(inspected["result"]["state_revision"], 1);
+        assert!(!root.join("wrong-digest").exists());
+    });
+    let deadline = Instant::now() + Duration::from_secs(30);
+    let mut restores = 0;
+    while !client.is_finished() && Instant::now() < deadline {
+        if rpc.pump_with_snapshots(&mut m, 10000, &mut host) {
+            restores += 1;
+            assert!(saved(&mut m) == initial,"complete imported TCP Machine differs");
+        }
+        thread::sleep(Duration::from_millis(1));
+    }
+    assert!(client.is_finished(),"poll the original live TCP client instead of restarting");
+    client.join().unwrap();
+    assert_eq!(restores, 1);
+    assert!(saved(&mut m) == initial,"TCP export/import/refusal or inspection changed Machine");
+    println!("UI_SNAPSHOT_TCP: one persistent connection exports, imports, inspects, refuses wrong digest and inspects again; one rebind signal, complete paused Machine unchanged");
+}
+
+#[test]
 fn ui_snapshot_pump_yields_after_import_before_queued_continue() {
     let scratch = Scratch::new();
     let mut factory = || Ok(cold(false));
