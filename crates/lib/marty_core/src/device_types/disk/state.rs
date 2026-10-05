@@ -96,6 +96,11 @@ mod tests {
     }
 
     fn observations(reference: &mut Disk, restored: &mut Disk) {
+        assert_eq!(
+            reference.vhd().is_some(),
+            restored.vhd().is_some(),
+            "native mounted VHD presence"
+        );
         assert_eq!(reference.position(), restored.position(), "native CHS");
         assert_eq!(
             reference.position_vhd(),

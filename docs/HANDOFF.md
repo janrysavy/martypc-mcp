@@ -283,15 +283,15 @@ Caller-owned access policy/backend/path, atomic multi-disk dependencies,
 Disk/ATA/XT-IDE transfer state and actual process/machine restart remain OPEN.
 The parent retains source/product-bound raw transcripts and control recipes.
 
-FINISHED local Disk wrapper initial gate:264 core tests passed before rebase;
-24 native JSON continuations
+FINISHED local Disk wrapper:265 rebased core tests pass;24 native JSON continuations
 preserve seek/next-sector behavior, reads/writes and geometry differing from
 VHD. A native unload/rebind keeps stale CHS. Strict required/unknown keys,
 provider-presence/hash/version refusals and independent Disk/CHS/geometry field
-inventories pass. Fresh rebased gate, omissions, review/publication/final CI
-are still pending. VHD follow-up fixes are included; no native algorithm changes.
+inventories pass. Four DELIBERATE MUTANTS (CHS, geometry, mounted VHD and
+required option) fail named native/schema tests; exact restored source returns
+265 green. Review/publication/final CI remain pending. Native runtime unchanged.
 
-NEXT: finish VHD exact-head CI; Disk omission/review gates;
+NEXT: finish VHD exact-head CI; Disk review/publication gates;
 ATA/XT-IDE pending transfers, remaining devices/bus clocks/audio/host I/O,
 atomic whole-machine dependency preflight and real process-restart continuation.
 Hardware trace,VNC,keyboard/serial RPC and physical XT/gameplay parity remain
