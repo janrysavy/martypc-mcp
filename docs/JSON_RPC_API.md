@@ -233,3 +233,7 @@ accumulation/connection/enablement intentionally differ from enabled playback.
 The actual speaker=true factory regression and10000-cycle native comparison
 pass; this does not establish physical audible parity. Other configured audio
 owners remain explicitly subject to core snapshot preflight/refusal.
+
+Native GUI snapshot methods also require CPU trace/on/file and disassembly
+recording/file settings disabled; these external sinks are not persistent state.
+The cold candidate factory independently rejects such settings.

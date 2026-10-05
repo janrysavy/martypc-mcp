@@ -10,6 +10,15 @@ use marty_core::{
 };
 use marty_debug_rpc::snapshot::SnapshotExecutable;
 
+/// External trace/listing sinks are not included in persistent machine state.
+pub fn snapshot_sinks_disabled(config: &ConfigFileParams) -> bool {
+    !config.machine.cpu.trace_on
+        && config.machine.cpu.trace_mode.unwrap_or_default() == marty_core::cpu_common::TraceMode::None
+        && config.machine.cpu.trace_file.is_none()
+        && config.machine.disassembly_file.is_none()
+        && !config.machine.disassembly_recording.unwrap_or(false)
+}
+
 pub struct GuiSnapshotFactory {
     machine_config: MachineConfiguration,
     preferences: MachinePreferences,
@@ -35,6 +44,9 @@ impl GuiSnapshotFactory {
     }
 
     pub fn build(&self, config: &ConfigFileParams) -> Result<Machine, String> {
+        if !snapshot_sinks_disabled(config) {
+            return Err("GUI snapshot factory requires trace/listing sinks disabled".into());
+        }
         MachineBuilder::new()
             .with_core_config(Box::new(config))
             .with_machine_config(&self.machine_config)
@@ -102,11 +114,48 @@ mod tests {
     };
 
     #[test]
+    fn snapshot_factory_refuses_each_external_trace_or_listing_setting() {
+        let mut config =
+            marty_config::read_config(include_str!("../../../../../install/martypc.toml"), Default::default()).unwrap();
+        config.machine.cpu.trace_on = false;
+        config.machine.cpu.trace_mode = None;
+        config.machine.cpu.trace_file = None;
+        config.machine.disassembly_file = None;
+        config.machine.disassembly_recording = Some(false);
+        assert!(snapshot_sinks_disabled(&config));
+        let factory = GuiSnapshotFactory::new(
+            Default::default(), Default::default(), MachineRomManifest::new(), None,
+        ).unwrap();
+        for setting in 0..5 {
+            match setting {
+                0 => config.machine.cpu.trace_on = true,
+                1 => config.machine.cpu.trace_mode = Some(marty_core::cpu_common::TraceMode::Instruction),
+                2 => config.machine.cpu.trace_file = Some("trace.txt".into()),
+                3 => config.machine.disassembly_file = Some("listing.txt".into()),
+                4 => config.machine.disassembly_recording = Some(true),
+                _ => unreachable!(),
+            }
+            assert!(!snapshot_sinks_disabled(&config), "setting {setting}");
+            assert!(factory.build(&config).err().unwrap().contains("sinks disabled"));
+            config.machine.cpu.trace_on = false;
+            config.machine.cpu.trace_mode = None;
+            config.machine.cpu.trace_file = None;
+            config.machine.disassembly_file = None;
+            config.machine.disassembly_recording = Some(false);
+        }
+    }
+
+    #[test]
     fn loaded_gui_factory_restores_native_machine_without_audio_output_queues() {
         let mut config =
             marty_config::read_config(include_str!("../../../../../install/martypc.toml"), Default::default()).unwrap();
         config.machine.no_roms = true;
         config.emulator.audio.enabled = false;
+        config.machine.cpu.trace_on = false;
+        config.machine.cpu.trace_mode = None;
+        config.machine.cpu.trace_file = None;
+        config.machine.disassembly_file = None;
+        config.machine.disassembly_recording = Some(false);
         let description = MachineConfiguration {
             machine_type: MachineType::Ibm5160,
             speaker: true,

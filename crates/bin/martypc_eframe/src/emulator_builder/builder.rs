@@ -741,10 +741,11 @@ impl EmulatorBuilder {
         }
 
         // Retain loaded immutable dependencies, never a borrow of the live Machine.
-        // Snapshot methods are absent when host audio/local input is active.
+        // Snapshot methods are absent with external trace/listing/audio sinks or local input.
         #[cfg(not(target_arch = "wasm32"))]
         let snapshot_factory = if config.emulator.rpc_port.is_some()
             && sound_player.is_none() && !config.emulator.local_input_enabled()
+            && crate::emulator::snapshots::snapshot_sinks_disabled(&config)
         {
             Some(crate::emulator::snapshots::GuiSnapshotFactory::new(
                 machine_config.clone(), machine_preferences, rom_manifest.clone(), kb_layout.clone(),
