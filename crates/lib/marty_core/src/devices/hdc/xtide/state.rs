@@ -52,6 +52,9 @@ impl XtIdeState {
 }
 
 impl XtIdeController {
+    pub(crate) fn snapshot_rw_files(&self) -> bool {
+        self.drives.iter().all(|d| d.disk().is_none_or(|disk| disk.snapshot_rw_file()))
+    }
     pub(crate) fn snapshot_state(
         &mut self,
         mode: DiskCaptureMode,

@@ -1,8 +1,19 @@
 # Fork handoff
 
-NEXT: finish scoped review/final CI for storage PR32. Then implement frontend/RPC
-restore factory/provider policy, rebind and a final live Machine swap. Prove
-fresh-process Pyro replay. Core Machine PR31 is CI-approved and integrated.
+NEXT: finish headless fresh-process/Pyro snapshot replay, then native GUI consumer
+rebind/import. No GUI snapshot methods are enabled. Storage PR32 is integrated
+at exact8bc61587 after final Windows/Linux CI37301899013 passes.
+FINISHED local headless RPC: fresh42 frontend/RPC tests, fresh317 serial+sound
+core tests,600 bound source inputs and fresh normal Windows consumer build
+b3e0b8e6. Actual executable digest, mandatory independent expected archive SHA,
+paused revision guards, isolated new RW disk copies and final Machine swap.
+Runtime provider guard refuses Cursor/raw RO/append Files; constrained typed File
+constructors preserve actual RW/non-append access, not cached read_only flags.
+40 native CPU/PIT/CGA steps with nondefault CPU options/PIT phase, partial ATA
+byte17 and native writes to both restored Files pass; original refs unchanged.
+Cleanup failures log retained paths. First review addressed; follow-up pending.
+Real stock frontend refuses trace/listing sinks; no-sink profile exports at reset.
+Fresh-process/Pyro and GUI restore are still WIP; do not assume they pass.
 The selected profile is no-floppy IBM XT/CGA with DOS/Pyro VHDs. Generic FDC,
 weak-media entropy and floppy ownership are deferred. Never silently omit a
 configured unsupported owner. Local UI input stays off during deterministic RPC.

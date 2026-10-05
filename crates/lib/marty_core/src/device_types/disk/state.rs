@@ -24,6 +24,9 @@ impl DiskState {
 }
 
 impl Disk {
+    pub(crate) fn snapshot_rw_file(&self) -> bool {
+        self.vhd.as_ref().is_none_or(VirtualHardDisk::snapshot_rw_file)
+    }
     pub(crate) fn snapshot_state(&mut self, mode: DiskCaptureMode, limit: u64) -> Result<(DiskState, Option<Vec<u8>>)> {
         let (vhd, payload) = match self.vhd.as_mut() {
             Some(vhd) => {

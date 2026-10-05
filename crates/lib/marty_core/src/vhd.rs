@@ -52,10 +52,21 @@ pub use state::{DiskCaptureMode, DiskSnapshotRequirement};
 pub(crate) use state::VhdState;
 
 /// A trait alias for objects that support reading, writing, and seeking.
-pub trait VhdIO: Read + Write + Seek {}
+pub trait VhdIO: Read + Write + Seek {
+    fn as_any(&self) -> &dyn std::any::Any;
+}
 
 /// Implement VhdIO for all types that satisfy Read + Write + Seek.
-impl<T: Read + Write + Seek> VhdIO for T {}
+impl<T: Read + Write + Seek + std::any::Any> VhdIO for T {
+    fn as_any(&self) -> &dyn std::any::Any { self }
+}
+mod file_provider;
+pub use file_provider::SnapshotRwFile;
+impl VirtualHardDisk {
+    pub(crate) fn snapshot_rw_file(&self) -> bool {
+        self.vhd_file.as_ref().as_any().is::<SnapshotRwFile>()
+    }
+}
 
 pub const VHD_FOOTER_LEN: usize = 512;
 pub const VHD_SECTOR_SIZE: usize = 512;

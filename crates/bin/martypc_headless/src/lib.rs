@@ -658,6 +658,10 @@ pub fn run() {
         );
     }
 
+    // Retain loaded immutable constructor inputs; restore never reloads paths
+    // or moves the live Machine. Native snapshot preflight checks their binding.
+    let snapshot_roms = rom_manifest.clone();
+    let snapshot_keyboard = kb_layout.clone();
     let machine_builder = MachineBuilder::new()
         .with_core_config(Box::new(&config))
         .with_machine_config(&machine_config)
@@ -736,7 +740,22 @@ pub fn run() {
     emu.start();
 
     if let Some(port) = emu.config.emulator.rpc_port {
-        if let Err(error) = debug_rpc::serve(&mut emu.machine, port) {
+        let mut factory = || MachineBuilder::new()
+            .with_core_config(Box::new(&emu.config))
+            .with_machine_config(&machine_config)
+            .with_machine_preferences(&machine_preferences)
+            .with_roms(snapshot_roms.clone())
+            .with_keyboard_layout(snapshot_keyboard.clone())
+            .build().map_err(|error| error.to_string());
+        // mount_vhds() uses RW Files; restored disks receive new RW Files too.
+        // Host output/log sinks are omitted from the cold candidate; capture
+        // refuses their active owners rather than silently losing their state.
+        let mut host = debug_rpc::snapshot::SnapshotHost::for_rw_files(&mut factory)
+            .unwrap_or_else(|error| {
+                eprintln!("Snapshot executable identity failed: {error}");
+                std::process::exit(1);
+            });
+        if let Err(error) = debug_rpc::serve_with_snapshots(&mut emu.machine, port, &mut host) {
             eprintln!("JSON-RPC debugger failed: {error}");
             std::process::exit(1);
         }

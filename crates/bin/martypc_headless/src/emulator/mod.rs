@@ -35,7 +35,7 @@ use marty_config::{ConfigFileParams, VhdConfigEntry};
 use marty_core::{
     cpu_common::CpuOption,
     machine::{Machine, MachineEvent, MachineState},
-    vhd::VirtualHardDisk,
+    vhd::{VirtualHardDisk, SnapshotRwFile},
 };
 use marty_frontend_common::{
     cartridge_manager::CartridgeManager,
@@ -254,7 +254,10 @@ impl Emulator {
         let manager = &mut self.vhd_manager;
         mount_named_vhds(&mut self.machine, vhd_names, |drive, name| {
             let (file, _) = manager.load_vhd_file_by_name(drive, &OsString::from(name))?;
-            VirtualHardDisk::parse(Box::new(file), false)
+            drop(file);
+            let (_, path) = manager.is_drive_loaded(drive);
+            let path = path.ok_or_else(|| anyhow!("VHD manager lost mounted path"))?;
+            VirtualHardDisk::parse(Box::new(SnapshotRwFile::open(path)?), false)
         })
     }
 

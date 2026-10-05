@@ -152,3 +152,41 @@ uses the pinned unchanged PyPC Python client, and closes its owned process.
 It does not boot DOS or execute Pyro. Automatic fork CI tests and builds this
 frontend on Windows/Linux without uploading artifacts or caching build trees.
 The inherited macOS and WASM workflows are available only by manual dispatch.
+
+## Headless persistent snapshots
+
+The headless frontend enables `machine.snapshot.export/import` with its loaded
+ROM/config/keyboard factory. The native UI does not enable these methods yet:
+external renderer/receiver rebinding still needs proof. Query capabilities.
+
+Both methods require pause and `expected_state_revision`. Export accepts a NEW
+`path` and `disk_mode` (`embed`, `auto`=embed, or `reference`), flushes the archive,
+and returns its SHA-256 and the actual running executable SHA-256. Retain the
+archive digest independently. Import requires `path`, that `expected_sha256`,
+and a NEW `disk_root` whose parent already exists. Optional `references` maps
+string slots `0`/`1` to exact matching reference disk files. All checks precede
+the live swap. Both modes create separate RW/non-append File copies; references
+and currently mounted disks are never reused as mutable restore providers.
+
+Export refuses providers other than constructor-enforced `SnapshotRwFile`,
+including Cursor, arbitrary/read-only/append Files. Cached VHD read_only remains
+metadata; native emulation behavior is unchanged. Existing output paths/roots
+are refused. Cleanup failures name retained paths in stderr; successful cleanup
+cannot be guaranteed against host I/O failures. Import leaves the guest paused,
+increments the revision, resets breakpoints/predicates/completed operations and
+retains monotonic ID allocation. Old operation IDs cannot identify new work.
+
+The separate strict `martypc-machine` ZIP format requires an exact executable
+build and an independently supplied archive digest. Default limits are128MiB
+compressed,32MiB metadata and512MiB total including references. See
+[storage contract](SNAPSHOT_STORAGE.md). Core codecs refuse uncomposed configured
+owners, active logging/listing/audio queues and unsupported profiles; they do
+not silently omit them. Default install trace/listing sinks are not snapshot
+ready even when the UI has not enabled trace playback. The parent preparer's
+`--snapshots --no-floppy --video CGA` selects a no-sink test profile while keeping
+guest PIT/PPI/speaker simulation. Optional host audio output is disabled there.
+
+Local proof:42 RPC/config/headless tests and317 serial+sound core tests pass,
+with native continuation and original reference-file isolation. The real
+headless frontend has exported a reset checkpoint. Fresh-process/Pyro replay
+and native GUI restore remain OPEN.

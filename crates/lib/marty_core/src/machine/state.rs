@@ -117,6 +117,10 @@ impl MachineSnapshot {
 }
 
 impl Machine {
+    /// Runtime provider contract, separate from captured cached read_only flags.
+    /// Only mounted constructor-enforced RW File providers are accepted.
+    pub fn snapshot_rw_files(&self) -> bool { self.bus().snapshot_rw_files() }
+
     fn snapshot_core_supported(&self) -> Result<()> {
         if self.debug_snd_file.is_some()
             || self.options.record_listing

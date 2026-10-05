@@ -21,6 +21,8 @@ use std::{
     time::{Duration, Instant},
 };
 
+pub mod snapshot;
+
 const METHODS: &[&str] = &[
     "agent.capabilities",
     "emulator.info",
@@ -692,6 +694,10 @@ impl Agent {
         }
     }
     fn request(&mut self, machine: &mut Machine, line: &[u8]) -> Option<Value> {
+        self.request_with_snapshots(machine, line, None)
+    }
+    fn request_with_snapshots(&mut self, machine: &mut Machine, line: &[u8],
+        host: Option<&mut snapshot::SnapshotHost<'_>>) -> Option<Value> {
         let error = |id, code, message| json!({"jsonrpc":"2.0","id":id,"error":{"code":code,"message":message}});
         let request: Value = match serde_json::from_slice(line) {
             Ok(v) => v,
@@ -708,10 +714,11 @@ impl Agent {
         {
             return Some(error(id, -32600, "invalid request"));
         }
-        let result = self.handle(
+        let result = self.handle_with_snapshots(
             machine,
             request["method"].as_str().unwrap(),
             request.get("params").unwrap_or(&json!({})),
+            host,
         );
         if request.get("id").is_none() {
             return None;
@@ -851,20 +858,28 @@ impl Drop for DebugRpc {
     }
 }
 pub fn serve(machine: &mut Machine, port: u16) -> std::io::Result<()> {
+    serve_inner(machine, port, None)
+}
+/// Headless only: the factory uses loaded immutable dependencies and no live disks.
+/// The frontend must own known RW File providers. GUI consumer rebind is not implemented.
+pub fn serve_with_snapshots(machine: &mut Machine, port: u16, host: &mut snapshot::SnapshotHost<'_>) -> std::io::Result<()> {
+    serve_inner(machine, port, Some(host))
+}
+fn serve_inner(machine: &mut Machine, port: u16, mut host: Option<&mut snapshot::SnapshotHost<'_>>) -> std::io::Result<()> {
     let mut rpc = DebugRpc::bind(machine, port)?;
     loop {
         if rpc.agent.running {
             for _ in 0..64 {
                 match rpc.receive.try_recv() {
                     Ok((line, reply)) => {
-                        let _ = reply.send(rpc.agent.request(machine, &line));
+                        let _ = reply.send(rpc.agent.request_with_snapshots(machine, &line, host.as_deref_mut()));
                     }
                     Err(_) => break,
                 }
             }
             rpc.agent.advance(machine);
         } else if let Ok((line, reply)) = rpc.receive.recv() {
-            let _ = reply.send(rpc.agent.request(machine, &line));
+            let _ = reply.send(rpc.agent.request_with_snapshots(machine, &line, host.as_deref_mut()));
         } else {
             return Ok(());
         }
