@@ -1,11 +1,23 @@
 # Fork handoff
 
+FINISHED local native GUI restart for the no-floppy CGA/RW-VHD Pyro profile.
+Fresh normal EXE f7b6b9ea (601 source inputs) preserves every captured Machine
+field and both VHD hashes across real process restart at23->24 and41->42 guest
+seconds; the latter preserves pending BIOS Enter and level-generation RNG.
+Wrong digest refusal preserves cold Machine/disks. Paused repaints/import also
+leave full state unchanged. Scoped follow-up review finds no concrete profile
+defect; prior VHD-path finding was disproved by actual manager code.
+Evidence: https://github.com/janrysavy/pyro221_next/tree/master/docs/evidence/martypc_rpc_20261004
+CI now includes serial+sound core regression on Windows/Linux and17 native GUI
+library checks on Windows. NEXT: final-head CI then linear PR34 integration.
+Whole-floor survival, pixels and physical timing/audio remain OPEN.
+
 FINISHED explicit native GUI snapshot sink guard: factory availability and cold
 construction reject configured CPU trace/on/file or disassembly recording/file.
 Fresh17 GUI library checks pass, including five independent refusal settings.
 The older positive fixture inherited stock trace settings; first refusal is
-retained and the fixture now uses the actual no-sink Pyro profile. No new GUI
-restart proof yet. Earlier pump-only disabled-method notes below are historical.
+retained and the fixture now uses the actual no-sink Pyro profile. Earlier
+pump-only notes below are historical.
 
 FINISHED configured-speaker repair: real native GUI export refused an output
 queue despite disabled SoundOutputConfig. A speaker=true positive factory
@@ -16,9 +28,7 @@ PIT channel/clock fields after10000 cycles. Five host output fields intentionall
 differ, including PitSpeaker.enabled, which has no native reads. The first
 comparison omitted that captured enable flag; its failure is retained. Host PCM
 sampling is disabled; physical audible parity is not claimed.
-NEXT: fresh normal native GUI product, live complete-Machine idle/restore and
-visible process restart; review loaded ownership and address findings before CI
-integration. PR34 stays draft. No new GUI runtime completion claim.
+PR34 remains draft pending final-head CI; bounded live proof is recorded above.
 FINISHED local GUI wiring:62 fresh checks (10 config,31 RPC,5 headless,16 native
 GUI library tests),601 source inputs stable before/after. Loaded ROM/config/
 keyboard dependencies build a cold candidate; imported state yields before
@@ -40,11 +50,8 @@ Scoped review confirms the in-process pump; its TCP coverage gap is closed by
 a real persistent connection exporting/importing/inspecting/refusing/inspecting.
 Initial fixture incorrectly expected state.get.paused; corrected to the actual
 session.status.state contract, without changing production. New TCP test was
-not re-reviewed; GUI process/consumer proof remains OPEN.
-GUI methods remain disabled. Wire loaded factory/RW providers and derived
-consumers next; audit wall-frame event draining and light-pen/debug writes.
-No new normal UI/product/process proof for this pump addition yet.
-No GUI snapshot methods are enabled. Storage PR32 is integrated
+not re-reviewed in that transport-only slice; later scoped GUI review and
+live bounded continuation are now complete. Storage PR32 is integrated
 at exact8bc61587 after final Windows/Linux CI37301899013 passes.
 FINISHED local headless RPC: fresh42 frontend/RPC tests, fresh317 serial+sound
 core tests,600 bound source inputs and fresh normal Windows consumer build

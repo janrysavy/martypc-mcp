@@ -46,8 +46,8 @@ a second execution/mutation owner; queued frontend media/host-file completions
 are also ignored under RPC. Reboot/debug-step/menu hotkeys cannot take execution
 ownership even with manual input enabled. Looping audio pause follows RPC's
 actual running state. Live sound-output/input injection proof remains open.
-This does not disable deliberate RPC input
-or restore commands; snapshots and hardware keyboard RPC are still OPEN.
+Deliberate RPC input remains available; snapshot commands require a supported
+profile. Hardware keyboard RPC remains OPEN.
 
 The server binds only `127.0.0.1`. Send one JSON-RPC 2.0 object per newline over
 TCP; connections are persistent. Replies preserve request IDs. Notifications
@@ -133,7 +133,7 @@ memory. Configure `[machine.game_port]` with `io_base = 0x201` to attach a card.
 Host input is a paused boundary operation; explicitly resume after setting it.
 
 **Unsupported:** instruction/hardware tracing, memory/interrupt watchpoints,
-step-over, video/VNC, keyboard injection, serial channels, snapshots,
+step-over, video/VNC, keyboard injection, serial channels,
 frontend file-transfer services and frontend speed/cursor controls. Unsupported
 PPI software-turbo configurations are refused before the listener starts:
 their native `frame_update` housekeeping is not scheduled by this frontend.
@@ -153,11 +153,11 @@ It does not boot DOS or execute Pyro. Automatic fork CI tests and builds this
 frontend on Windows/Linux without uploading artifacts or caching build trees.
 The inherited macOS and WASM workflows are available only by manual dispatch.
 
-## Headless persistent snapshots
+## Persistent snapshots
 
-The headless frontend enables `machine.snapshot.export/import` with its loaded
-ROM/config/keyboard factory. The native UI does not enable these methods yet:
-external renderer/receiver rebinding still needs proof. Query capabilities.
+Headless and supported native GUI profiles enable `machine.snapshot.export/import`
+with their loaded ROM/config/keyboard factories. Query capabilities: unsupported
+frontend settings leave the methods unavailable or fail core preflight explicitly.
 
 Both methods require pause and `expected_state_revision`. Export accepts a NEW
 `path` and `disk_mode` (`embed`, `auto`=embed, or `reference`), flushes the archive,
@@ -193,22 +193,21 @@ tested headless product also replays three original Pyro startup/first-level
 windows across real process restart, including pending BIOS Enter, all captured
 Machine fields and both disk hashes. Prior317 serial+sound core tests cover
 native component continuation and original reference-file isolation. Broader
-gameplay, physical timing/audio and native GUI restore remain OPEN.
+gameplay and physical timing/audio remain OPEN. Bounded GUI proof is below.
 
 `DebugRpc::pump_with_snapshots` accepts a supported frontend's SnapshotHost and
 returns true immediately after a successful import. No later queued request or
 native instruction executes in that pump; the caller must refresh derived
 frontend consumers before pumping again. Refusal returns no restore signal,
 preserves the live Machine and allows queued inspection. Paused pumps consume
-no guest cycles. This transport API does not enable the GUI by itself: loaded
-factory/providers, renderer/input/event consumers and wall-frame neutrality
-still require integration and real GUI replay proof.
+no guest cycles. The GUI wires loaded factory/providers and refreshes derived
+renderer/input/event consumers before the next pump.
 
 Native GUI observation under RPC preserves native Machine/presentable-event
 queues and video debug flags. Light-pen mutations require explicit local input;
 ordinary RPC observation leaves captured light-pen state untouched. Rendering
-still reads native video buffers. These guards compile in the default native UI;
-complete GUI snapshot import/rebind/restart remains WIP and disabled.
+still reads native video buffers. Actual paused repaint/import measurements
+preserve every captured Machine field and both VHD hashes.
 
 Native GUI snapshots are now wired locally on the draft branch. They are offered
 only with RPC, local input off and no host sound player (`--nosound`). The core's
@@ -224,8 +223,13 @@ new Machine owns its separate restored disk copies (paths in the import receipt)
 Renderers reacquire native buffers/extents/mode/palette by stable card IDs. No
 machine options, PIT phase or pending native event queues are rewritten by this
 refresh. Host performance timing/pixels are derived, not captured guest state.
-Loaded factory native continuation passes; actual GPU observation and fresh GUI
-process-restart proof remain OPEN. PR34 remains draft pending those checks/review.
+Actual visible GUI process restart preserves complete captured Machine and both
+VHD hashes at23->24 Pyro startup seconds and41->42 level initialization seconds,
+including pending BIOS Enter, consumed input and matching seed changes.
+Wrong archive digest preserves cold state. Scoped follow-up review finds no
+concrete defect within this profile. PR34 remains draft pending final-head CI.
+Rendered pixel equality, hardware keyboard, whole-floor survival and physical
+audio/timing are not established by these bounded restart measurements.
 
 The configured PC speaker honors disabled host output when creating its sample
 channel. Native PIT counters/gates/phase and PPI state still run. Host PCM sample
