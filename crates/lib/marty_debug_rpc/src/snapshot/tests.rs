@@ -601,3 +601,20 @@ fn snapshot_rpc_refuses_unverified_providers_and_never_overwrites_existing_files
     drop(m);
     println!("RPC_PROVIDER_REFUSAL: Cursor, raw read-only File and append File rejected before export; existing disk unchanged; typed providers enforce RW/non-append constructors");
 }
+
+#[test]
+fn cached_executable_identity_reports_native_gui_without_rehashing_each_pump() {
+    let identity = SnapshotExecutable::current().unwrap();
+    let actual = Sha256::digest(fs::read(std::env::current_exe().unwrap()).unwrap());
+    let mut factory = || Ok(cold(false));
+    let mut host = SnapshotHost::for_rw_files_with_executable(
+        &mut factory, &identity, SnapshotFrontend::NativeGui);
+    let mut m = cold(false);
+    let mut a = Agent::new(1);
+    let caps = invoke(&mut a, &mut m, &mut host, "agent.capabilities", json!({})).unwrap();
+    assert_eq!(caps["snapshot"]["frontend"], "native-gui");
+    assert_eq!(caps["snapshot"]["build_sha256"], hex(&actual.into()));
+    let ordinary = SnapshotHost::for_rw_files(&mut factory).unwrap();
+    assert!(matches!(ordinary.frontend, SnapshotFrontend::Headless));
+    assert_eq!(ordinary.build, identity.0);
+}
