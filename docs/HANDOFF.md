@@ -65,7 +65,10 @@ the existing1.0 dependency to production (lock unchanged); fresh Windows normal
 core/headless consumer build passes,596 inputs bound. Final CI still pending.
 Native reinstall_roms retains historical maps;
 later RAM writes can alter installed patch bytes. Both legitimate states remain
-restorable. Follow-up review/final CI pending; no exhaustive metadata reachability
+restorable. Final scoped review finds no concrete candidate defect; the historical
+patch-map store is checked but its fresh installation side effect is not separately
+proven. Keep that narrow evidence limit. Final CI/integration pending; no exhaustive
+metadata reachability
 or device-origin channel/frontend/VHD-bearing Machine/process/Pyro proof.
 
 NOT DONE: Machine/audio/frontend persistent composition, outer configuration/
