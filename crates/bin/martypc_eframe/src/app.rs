@@ -764,12 +764,6 @@ impl MartyApp {
             #[cfg(target_arch = "wasm32")]
             let active_mouse_capture_hint = "";
 
-            // Process timestep.
-            if !rpc_owned {
-                process_update(emu, dm, &mut self.tm);
-                handle_thread_event(emu, ctx);
-            }
-
             let virtual_mouse = emu
                 .machine
                 .mouse_mut()
@@ -1080,6 +1074,14 @@ impl MartyApp {
                     }
                 }
             });
+
+            // Primary and secondary display callbacks have now collected and
+            // mapped pointer input. Execute only after that input is available,
+            // rather than consuming the previous UI frame's pointer sample.
+            if !rpc_owned {
+                process_update(emu, dm, &mut self.tm);
+                handle_thread_event(emu, ctx);
+            }
 
             let absolute_mouse_position = emu
                 .gui

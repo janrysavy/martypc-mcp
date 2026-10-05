@@ -3,8 +3,9 @@
 FINISHED local corrective source for deterministic native RPC (local input off):
 logic uses the existing timestep runner; read/control requests precede its tick
 gate and execution keeps configured quotas. RPC clamps lag to two frames.
-Explicit manual input retains the existing visible UI/pointer path; no new
-manual ordering or hidden-window guarantee is claimed. Snapshot import now
+Manual UI now collects/maps primary and secondary pointer input before its
+timestep, correcting the reviewed prior-frame sample delay. Explicit local
+input still requires a visible window. Snapshot import now
 yields the entire timestep, including later catch-up and render callbacks.
 Local59 frontend timing,31 RPC and17 GUI tests plus a source-bound UI build pass.
 The clamped GUI preserves complete paused Machine/disks and replays a minimized
@@ -15,7 +16,7 @@ input order; neither is accepted. The next review identified import catch-up
 and absolute-pointer ordering defects; the corrective source above addresses
 both. A subsequent paced native trial reproduced
 read timeouts at the old timestep gate. Its failure remains in the parent.
-Original-Pyro code identity and minimized replay pass on the prior181a build;
+Original-Pyro code identity and minimized replay pass on prior181a/b006 builds;
 WIP: runtime on the final corrective executable, follow-up review, final-head CI and
 parent pin integration. Do not assume those gates passed. Snapshot executable
 identity stays strict: another executable must boot its own fresh test session.
