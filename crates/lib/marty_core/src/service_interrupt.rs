@@ -203,13 +203,14 @@ const CRC32_POLYNOMIAL: u32 = 0xEDB8_8320;
 const MAX_TRANSFER_FILENAME_LEN: usize = 255;
 const INITIAL_FILE_TRANSFER_HANDLE: FileTransferHandle = 0x1000;
 
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum FileTransferDirection {
     GuestToHost,
     HostToGuest,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct FileTransferOperation {
     filename: String,
     size: u64,
@@ -221,7 +222,8 @@ pub struct FileTransferOperation {
     non_interactive: bool,
 }
 
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 struct PendingHostFileRequest {
     handle: FileTransferHandle,
     structure_segment: u16,
@@ -230,7 +232,8 @@ struct PendingHostFileRequest {
     filename_offset: u16,
 }
 
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 enum HostFileRequestState {
     #[default]
     Idle,
@@ -1893,3 +1896,6 @@ mod tests {
         );
     }
 }
+
+mod state;
+pub(crate) use state::ServiceInterruptState;

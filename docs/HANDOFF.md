@@ -1,7 +1,8 @@
 # Fork handoff
 
-NEXT: finish bus composition controls/review/CI, then combine CPU and Machine
-metadata/service/events/input with the composed bus. Implement authenticated
+NEXT: finish bus composition CI/integration, validate the new service owner
+controls/review/CI, then combine CPU and Machine metadata/events/input with
+the composed bus. Implement authenticated
 save/load and a final live Machine swap, then prove fresh-process Pyro replay.
 The selected profile is no-floppy IBM XT/CGA with DOS/Pyro VHDs. Generic FDC,
 weak-media entropy and floppy ownership are deferred. Never silently omit a
@@ -24,7 +25,17 @@ Guest device/timing algorithms are unchanged. Two earlier owner omissions are
 caught in native outputs. Fresh305 tests pass after requiring actual owner
 port lists and CGA identity in I/O, MMIO and traversal. Regression refuses
 stale routes even with installed owners, plus Mouse I/O (no native dispatch).
-Refreshed controls/follow-up review and final CI are pending. Disk-write/flush continuation is not newly proven by this bus probe.
+Refreshed controls pass and scoped review reports no concrete bus restore
+defect. Final CI/integration is pending. Converse wiring/general profiles
+and outer authentication stay open. No new disk-write/flush proof.
+
+FINISHED local service owner: fresh307 core tests, nine fresh service/CPU/RAM
+checkpoints with native pending host completion, partial transfer data/CRC,
+events/registers/memory, speed bounds and LIFO handle reuse. Strict required
+schema and six invalid restore cases leave the manager unchanged. The first
+fixture incorrectly used an uninitialized Default CPU; existing CPU preflight
+refused it. Fixed by using the native initialized Intel8088 constructor.
+Actual omission controls/review/CI remain pending. No whole-Machine proof.
 
 NOT DONE: CPU/Machine/service/audio/frontend composition, outer configuration/
 ROM/metadata authentication and host disk access/path/alias policy, pending
