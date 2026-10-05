@@ -1,17 +1,22 @@
 # Native GUI RPC, 2026-10-05
 
-FINISHED local corrective source: native logic applies the original input path
-before the existing timestep runner. Read/control requests are serviced before
-its tick gate; execution keeps configured cycle quotas. RPC alone clamps slow
-host deltas to two frames instead of discarding every minimized update.
-Local58 frontend timing,31 RPC and17 GUI tests plus a source-bound UI build pass.
+FINISHED local corrective source for deterministic native RPC (local input off):
+logic uses the existing timestep runner; read/control requests precede its tick
+gate and execution keeps configured quotas. RPC clamps lag to two frames.
+Explicit manual input retains the existing visible UI/pointer path; no new
+manual ordering or hidden-window guarantee is claimed. Snapshot import now
+yields the entire timestep, including later catch-up and render callbacks.
+Local59 frontend timing,31 RPC and17 GUI tests plus a source-bound UI build pass.
 The clamped GUI preserves complete paused Machine/disks and replays a minimized
 one-millisecond continuation after import with complete equality.
 
 The first scoped review rejected the unpaced u32::MAX candidate and changed
-input order; neither is accepted. A subsequent paced native trial reproduced
+input order; neither is accepted. The next review identified import catch-up
+and absolute-pointer ordering defects; the corrective source above addresses
+both. A subsequent paced native trial reproduced
 read timeouts at the old timestep gate. Its failure remains in the parent.
-WIP: original-Pyro runtime, follow-up review, final-head Windows/Linux CI and
+Original-Pyro code identity and minimized replay pass on the prior181a build;
+WIP: runtime on the final corrective executable, follow-up review, final-head CI and
 parent pin integration. Do not assume those gates passed. Snapshot executable
 identity stays strict: another executable must boot its own fresh test session.
 
