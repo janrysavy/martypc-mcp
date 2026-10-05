@@ -307,9 +307,16 @@ set_geometry stale below-base CHS is explicitly preserved by two storage-only
 JSON restores; saturating position_vhd is not a valid-address guarantee.
 Identity scope is exact native Disk/geometry/CHS files plus explicit intended
 edits; snapshot/dependency files are separately pinned, not baseline-equal.
-Snapshot production is unchanged. Repair review/fresh frontends/final CI pending.
+Snapshot production is unchanged. Fresh38 frontend tests and Windows native
+UI/headless builds pass on d7dd3be0. A fresh source-bound271 core run deletes
+previous test executables and records clean source hashes before/after compilation.
+The continuation count means25 restored checkpoints:24 matrix positions plus
+one unload/rebind; two observations per matrix checkpoint are not extra restores.
+The same named whole-file comparator accepts originals and rejects a deliberate
+pre-anchor field-type copy. Final bounded reviews/CI/integration are tracked
+in the parent's handoff/evidence; these are not Machine restart claims.
 
-NEXT: finish Disk repair review/fresh frontends/final CI (VHD is integrated);
+NEXT: finish Disk final review/CI/integration tracked by parent (VHD is integrated);
 ATA/XT-IDE pending transfers, remaining devices/bus clocks/audio/host I/O,
 atomic whole-machine dependency preflight and real process-restart continuation.
 Hardware trace,VNC,keyboard/serial RPC and physical XT/gameplay parity remain
