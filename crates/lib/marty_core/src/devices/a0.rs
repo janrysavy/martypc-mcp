@@ -38,6 +38,9 @@ pub enum A0Type {
     Tandy1000,
 }
 
+mod state;
+pub(crate) use state::A0State;
+
 use crate::{
     bus::{BusInterface, DeviceRunTimeUnit, IoDevice},
     cpu_common::LogicAnalyzer,
