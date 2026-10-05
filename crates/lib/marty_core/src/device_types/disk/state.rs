@@ -17,6 +17,12 @@ pub(crate) struct DiskState {
     vhd: Option<VhdState>,
 }
 
+impl DiskState {
+    pub(crate) fn disk_requirement(&self) -> Option<crate::vhd::DiskSnapshotRequirement> {
+        self.vhd.as_ref().map(VhdState::disk_requirement)
+    }
+}
+
 impl Disk {
     pub(crate) fn snapshot_state(&mut self, mode: DiskCaptureMode, limit: u64) -> Result<(DiskState, Option<Vec<u8>>)> {
         let (vhd, payload) = match self.vhd.as_mut() {

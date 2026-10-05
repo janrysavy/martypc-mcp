@@ -108,6 +108,14 @@ machine_state! {
     disassembly: Disassembly,
 }
 
+impl MachineSnapshot {
+    /// Actual mounted VHD identity for each controller slot, independent of paths.
+    /// Unloaded drives have no payload even if native Disk/ATA objects still exist.
+    pub fn disk_requirements(&self) -> [Option<crate::vhd::DiskSnapshotRequirement>; 2] {
+        self.bus.disk_requirements()
+    }
+}
+
 impl Machine {
     fn snapshot_core_supported(&self) -> Result<()> {
         if self.debug_snd_file.is_some()

@@ -10,6 +10,10 @@ use std::{
 };
 
 fn fixture() -> BusInterface {
+    fixture_with_drives(1)
+}
+
+fn fixture_with_drives(drive_count: usize) -> BusInterface {
     let mut bus = BusInterface::default();
     let machine_type = MachineType::Ibm5160;
     let config = crate::machine_config::MachineConfiguration {
@@ -53,7 +57,7 @@ fn fixture() -> BusInterface {
         std::process::id(),
         NEXT.fetch_add(1, Ordering::Relaxed)
     ));
-    let mut controller = XtIdeController::new(Some(0x340), 1);
+    let mut controller = XtIdeController::new(Some(0x340), drive_count);
     let geometry = controller.get_supported_formats()[0].geometry;
     drop(create_vhd(path.clone().into_os_string(), geometry.c, geometry.h, geometry.s).unwrap());
     let bytes = std::fs::read(&path).unwrap();
@@ -294,4 +298,34 @@ fn bus_owner_preserves_native_mutable_metadata_and_refuses_orphan_routes_and_aud
     assert!(orphan.speaker_src.is_none());
     assert!(orphan.snapshot_bus_state(DiskCaptureMode::Embed, 0).is_err());
     println!("BUS_OWNER_REVIEW: native mutable descriptors/CGA clock continue; six orphan routes, actual owner port lists, three mismatched video identities and orphan PIT sender refused");
+}
+
+#[test]
+fn composed_disk_requirements_match_native_bytes_modes_read_only_and_unload() {
+    use sha2::{Digest, Sha256};
+    // Native unload validates the configured drive count; use two real drives.
+    let mut bus = fixture_with_drives(2);
+    let (saved, data) = capture(&mut bus);
+    let req = saved.disk_requirements();
+    assert_eq!(req[1], None);
+    let raw = data[0].as_ref().unwrap();
+    assert_eq!(req[0].as_ref().unwrap().bytes, raw.len() as u64);
+    assert_eq!(req[0].as_ref().unwrap().sha256, <[u8; 32]>::from(Sha256::digest(raw)));
+    assert!(req[0].as_ref().unwrap().embedded);
+    assert!(!req[0].as_ref().unwrap().read_only);
+    let readonly = VirtualHardDisk::parse(Box::new(Cursor::new(raw.clone())), true).unwrap();
+    bus.xtide.as_mut().unwrap().set_vhd(1, readonly).unwrap();
+    let (saved, data) = bus.snapshot_bus_state(DiskCaptureMode::Reference, 0).unwrap();
+    assert!(data.iter().all(Option::is_none));
+    let req = saved.disk_requirements();
+    assert!(!req[0].as_ref().unwrap().embedded);
+    assert!(!req[0].as_ref().unwrap().read_only);
+    assert!(req[1].as_ref().unwrap().read_only);
+    assert_eq!(req[0].as_ref().unwrap().sha256, req[1].as_ref().unwrap().sha256);
+    bus.xtide.as_mut().unwrap().unload_vhd(0).unwrap();
+    bus.xtide.as_mut().unwrap().unload_vhd(1).unwrap();
+    let (saved, data) = bus.snapshot_bus_state(DiskCaptureMode::Embed, 0).unwrap();
+    assert_eq!(saved.disk_requirements(), [None, None]);
+    assert!(data.iter().all(Option::is_none));
+    println!("DISK_REQUIREMENTS:actual mounted bytes/hash, both controller slots, embed/reference policy, readonly and native unload; no archive/process proof");
 }

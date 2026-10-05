@@ -93,7 +93,22 @@ fn read_payload(io: &mut dyn VhdIO, mode: DiskCaptureMode, limit: u64) -> Result
     result
 }
 
+/// File identity and guest write policy needed by the outer snapshot loader.
+/// Paths/backend access and metadata authentication remain caller obligations.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DiskSnapshotRequirement {
+    pub bytes: u64,
+    pub sha256: [u8; 32],
+    pub embedded: bool,
+    pub read_only: bool,
+}
+
 impl VhdState {
+    pub(crate) fn disk_requirement(&self) -> DiskSnapshotRequirement {
+        DiskSnapshotRequirement { bytes: self.io.bytes, sha256: self.io.sha256,
+            embedded: self.io.embedded, read_only: self.read_only }
+    }
+
     fn preflight(&self) -> Result<()> {
         if self.version != 1
             || self.size <= VHD_FOOTER_LEN as u64

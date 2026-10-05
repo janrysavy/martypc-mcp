@@ -45,6 +45,12 @@ enum ErrorState {
     AtaUnsupportedVhd,
 }
 
+impl XtIdeState {
+    pub(crate) fn disk_requirements(&self) -> [Option<crate::vhd::DiskSnapshotRequirement>; 2] {
+        std::array::from_fn(|i| self.drives[i].disk_requirement())
+    }
+}
+
 impl XtIdeController {
     pub(crate) fn snapshot_state(
         &mut self,

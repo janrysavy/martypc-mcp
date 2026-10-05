@@ -75,6 +75,12 @@ enum DispatchState {
     MultipleMode,
 }
 
+impl AtaDeviceState {
+    pub(crate) fn disk_requirement(&self) -> Option<crate::vhd::DiskSnapshotRequirement> {
+        self.disk.as_ref().and_then(DiskState::disk_requirement)
+    }
+}
+
 fn encode_dispatch(callback: Option<CommandDispatchFn>) -> Result<Option<DispatchState>> {
     let Some(callback) = callback else {
         return Ok(None);

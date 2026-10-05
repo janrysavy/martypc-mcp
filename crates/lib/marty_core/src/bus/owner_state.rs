@@ -48,6 +48,12 @@ pub(crate) struct BusState {
     video: Vec<(VideoCardId, CgaState)>,
 }
 
+impl BusState {
+    pub(crate) fn disk_requirements(&self) -> [Option<crate::vhd::DiskSnapshotRequirement>; 2] {
+        self.xtide.as_ref().map(XtIdeState::disk_requirements).unwrap_or([None, None])
+    }
+}
+
 macro_rules! capture {
     ($bus:expr, $field:ident) => {
         $bus.$field

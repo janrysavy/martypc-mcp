@@ -7,6 +7,13 @@ The selected profile is no-floppy IBM XT/CGA with DOS/Pyro VHDs. Generic FDC,
 weak-media entropy and floppy ownership are deferred. Never silently omit a
 configured unsupported owner. Local UI input stays off during deterministic RPC.
 
+FINISHED local snapshot disk requirements: fresh314 serial+sound core tests,596
+source inputs bound before/after. Typed Machine accessors expose each actual
+mounted VHD size/SHA, embed/reference and guest read-only policy; no schema or
+emulation change. Both native slots and unload are tested. Initial fixture
+failed because unload slot1 requires two configured drives; fixed the fixture,
+not native semantics. Persistent container/RPC/process/Pyro remain WIP.
+
 INTEGRATED mainec95459b after final Windows/Linux CI: native UI/input policy,
 queue/BIU/CPU, bus RAM, motherboard devices, keyboard/FIFO, game port, CGA,
 VHD/Disk/ATA/XT-IDE, UART/mouse, bus clocks, A0, bus and service owners (PR6..30). Component evidence
