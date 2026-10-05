@@ -378,9 +378,19 @@ mod tests {
         live.cur_cylinder = 7;
         live.cur_head = 3;
         live.cur_sector = 5;
+        // The native flag is metadata, not a guard on a writable provider.
+        live.write_sector(&[0x5E; SECTOR_SIZE], 0, 0, 0).unwrap();
         let (saved, payload) = capture(&mut live);
+        assert_eq!(&payload[..SECTOR_SIZE], &[0x5E; SECTOR_SIZE]);
         let mut restored = VirtualHardDisk::prepare_restore(&saved, Box::new(Cursor::new(payload))).unwrap();
         assert_eq!(capture(&mut restored), capture(&mut live));
+        live.write_sector(&[0xA7; SECTOR_SIZE], 0, 0, 0).unwrap();
+        restored.write_sector(&[0xA7; SECTOR_SIZE], 0, 0, 0).unwrap();
+        let actual = capture(&mut restored);
+        assert!(actual.0.read_only);
+        assert_eq!(&actual.1[..SECTOR_SIZE], &[0xA7; SECTOR_SIZE]);
+        assert_eq!(actual, capture(&mut live));
+        println!("VHD_READ_ONLY_METADATA:native flag true still permits sector writes through writable Cursor before/after restore; exact 5E/A7 bytes verified; OS provider permissions not proven");
         let encoded = serde_json::to_value(saved).unwrap();
         let mut native = native_fields("VirtualHardDisk");
         native.remove("vhd_file");

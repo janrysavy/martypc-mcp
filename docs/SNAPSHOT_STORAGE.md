@@ -57,3 +57,10 @@ corrected to cached metadata, preserving native writer semantics. Its other
 provenance/process/provider limits remain open; no concrete container codec
 defect was identified. Crafted decompression-bomb coverage is not claimed.
 Final CI is pending. The wording/comment correction was not re-reviewed.
+
+A subsequent direct native probe verifies sector bytes 5E/A7 are written with
+read_only=true through writable Cursor before and after restore (fresh317 tests).
+The reviewer overstated the old test: it only preserved the flag. Normal
+core/headless product f741 is explicitly reused after this test-only addition;
+production prefixes and all other compiler inputs are unchanged. This does not
+prove reopening an OS-protected backing provider.

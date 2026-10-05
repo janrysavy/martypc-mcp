@@ -19,6 +19,12 @@ Actual build provenance/host provider/decompression-bomb coverage stay open.
 Final CI pending; no
 frontend/RPC/host provider policy/process/Pyro proof.
 
+FINISHED native flag probe: fresh317 serial+sound tests verify read_only=true
+still writes exact sector bytes5E/A7 through writable Cursor before/after restore.
+The review overstated the older test: it preserved the flag but never wrote.
+Actual write permission belongs to the provider. Guest algorithms unchanged;
+normal f741 core/headless product explicitly reused after this test-only change.
+
 FINISHED local snapshot disk requirements: fresh314 serial+sound core tests,596
 source inputs bound before/after. Typed Machine accessors expose each actual
 mounted VHD size/SHA, embed/reference and cached read_only metadata; no schema or
