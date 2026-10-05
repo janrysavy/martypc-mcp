@@ -32,7 +32,7 @@
 
 use crate::device_types::fdc::ImageInsertionPolicy;
 
-#[derive(Copy, Clone, Debug, Default, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug, Default, Eq, PartialEq, serde::Serialize)]
 pub struct MachinePreferences {
     pub image_insertion_policy: ImageInsertionPolicy,
 }

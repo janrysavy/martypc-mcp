@@ -111,7 +111,7 @@ impl FromStr for VideoType {
 
 #[allow(dead_code)]
 #[allow(non_camel_case_types)]
-#[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Eq, Hash)]
+#[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Eq, Hash, serde::Serialize)]
 pub enum VideoCardSubType {
     #[default]
     None,

@@ -31,7 +31,7 @@
     // TODO: Move this a component model, and make it part of a motherboard type
 */
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, serde::Serialize)]
 pub enum A0Type {
     PCXT,
     PCJr,

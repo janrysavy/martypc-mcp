@@ -35,7 +35,7 @@
 use std::{collections::HashMap, path::PathBuf};
 
 /// A single ROM image load requested by a machine ROM manifest.
-#[derive(Clone, Default, Debug)]
+#[derive(Clone, Default, Debug, serde::Serialize)]
 pub struct MachineRomEntry {
     /// Display name or source filename for the ROM image.
     pub name:   String,
@@ -56,7 +56,7 @@ pub struct MachineRomEntry {
 ///
 /// Checkpoints allow the core to report when execution reaches known ROM locations, such as
 /// initialization routines or diagnostic entry points.
-#[derive(Clone, Default, Debug)]
+#[derive(Clone, Default, Debug, serde::Serialize)]
 pub struct MachineCheckpoint {
     /// Physical memory address that triggers the checkpoint.
     pub addr: u32,
@@ -67,7 +67,7 @@ pub struct MachineCheckpoint {
 }
 
 /// A byte patch that may be applied when execution reaches a trigger address.
-#[derive(Clone, Default, Debug)]
+#[derive(Clone, Default, Debug, serde::Serialize)]
 pub struct MachinePatch {
     /// Human-readable patch description.
     pub desc: String,
@@ -86,7 +86,7 @@ pub struct MachinePatch {
 /// The manifest is produced by the frontend ROM manager and consumed by the core.
 /// It contains the exact ROM images selected for a machine configuration, plus optional checkpoints
 /// and patches associated with those ROMs.
-#[derive(Clone, Default, Debug)]
+#[derive(Clone, Default, Debug, serde::Serialize)]
 pub struct MachineRomManifest {
     /// Execution checkpoints associated with the selected ROMs.
     pub checkpoints: Vec<MachineCheckpoint>,

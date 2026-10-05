@@ -90,32 +90,32 @@ pub struct DeviceSpec {
     hotplug: bool,          // Whether device can be added/removed while machine is running.
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, serde::Serialize)]
 pub enum KbControllerType {
     Ppi,
     PCJr,
     At,
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, serde::Serialize)]
 pub enum SoundChipType {
     Sn76489,
     Ncr8496,
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, serde::Serialize)]
 pub enum PicType {
     Single,
     Chained,
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, serde::Serialize)]
 pub enum DmaType {
     Single,
     Chained,
 }
 
-#[derive(Copy, Clone, Debug, Deserialize)]
+#[derive(Copy, Clone, Debug, Deserialize, serde::Serialize)]
 pub enum BusType {
     Isa8,
     Isa16,
@@ -124,17 +124,17 @@ pub enum BusType {
 
 // Machine Configuration file types
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, serde::Serialize)]
 pub struct CpuConfig {
     pub upgrade_type: Option<CpuType>,
 }
 
-#[derive(Clone, Debug, Default, Deserialize)]
+#[derive(Clone, Debug, Default, Deserialize, serde::Serialize)]
 pub struct MemoryConfig {
     pub conventional: ConventionalMemoryConfig,
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, serde::Serialize)]
 pub struct EmsMemoryConfig {
     pub ems_type: EmsType,
     pub window: u32,
@@ -142,7 +142,7 @@ pub struct EmsMemoryConfig {
     pub size: usize,
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, serde::Serialize)]
 pub struct ConventionalMemoryConfig {
     pub size: u32,
     pub wait_states: u32,
@@ -157,7 +157,7 @@ impl Default for ConventionalMemoryConfig {
     }
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, serde::Serialize)]
 pub struct KeyboardConfig {
     #[serde(rename = "type")]
     pub kb_type: KeyboardType,
@@ -168,25 +168,25 @@ pub struct KeyboardConfig {
     pub typematic_rate: Option<f64>,
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, serde::Serialize)]
 pub struct SerialMouseConfig {
     #[serde(rename = "type")]
     pub mouse_type: SerialMouseType,
     pub port: u32,
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, serde::Serialize)]
 pub struct VirtualMouseConfig {
     pub irq: u8,
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, serde::Serialize)]
 pub struct GamePortConfig {
     pub io_base: u16,
     pub controller_layout: Option<ControllerLayout>,
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, serde::Serialize)]
 pub struct VideoCardConfig {
     #[serde(rename = "type")]
     pub video_type: VideoType,
@@ -197,7 +197,7 @@ pub struct VideoCardConfig {
     pub monitor_emulation: bool,
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, serde::Serialize)]
 pub struct SoundDeviceConfig {
     #[serde(rename = "type")]
     pub sound_type: SoundType,
@@ -205,7 +205,7 @@ pub struct SoundDeviceConfig {
     pub lpt_port:   Option<usize>,
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, serde::Serialize)]
 pub struct SerialPortConfig {
     pub io_base: u32,
     pub irq: u32,
@@ -213,26 +213,26 @@ pub struct SerialPortConfig {
     pub out2_suppresses_int: bool,
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, serde::Serialize)]
 pub struct SerialControllerConfig {
     #[serde(rename = "type")]
     pub sc_type: SerialControllerType,
     pub port:    Vec<SerialPortConfig>,
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, serde::Serialize)]
 pub struct ParallelControllerConfig {
     #[serde(rename = "type")]
     pub lpt_type: ParallelControllerType,
     pub port: Vec<ParallelPortConfig>,
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, serde::Serialize)]
 pub struct ParallelPortConfig {
     pub io_base: u32,
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, serde::Serialize)]
 pub struct FloppyControllerConfig {
     #[serde(rename = "type")]
     pub fdc_type: FdcType,
@@ -240,21 +240,21 @@ pub struct FloppyControllerConfig {
     pub drive:    Vec<FloppyDriveConfig>,
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, serde::Serialize)]
 pub struct FloppyDriveConfig {
     #[serde(rename = "type")]
     pub fd_type: FloppyDriveType,
     pub image:   Option<String>,
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, serde::Serialize)]
 pub struct HardDriveControllerConfig {
     #[serde(rename = "type")]
     pub hdc_type: HardDiskControllerType,
     pub drive:    Option<Vec<HardDriveConfig>>,
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, serde::Serialize)]
 pub struct HardDriveConfig {
     #[serde(rename = "type")]
     pub hd_type: Option<u32>,
@@ -262,23 +262,23 @@ pub struct HardDriveConfig {
     pub vhd: Option<String>,
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, serde::Serialize)]
 pub struct FloppyImage {
     pub image: String,
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, serde::Serialize)]
 pub struct HardDriveImage {
     pub image: String,
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, serde::Serialize)]
 pub struct MediaConfig {
     pub floppy: Option<Vec<FloppyImage>>,
     pub hdd:    Option<Vec<HardDriveImage>>,
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, serde::Serialize)]
 pub struct ConventionalExpansionConfig {
     #[serde(rename = "type")]
     pub bus_type: BusType,
@@ -287,7 +287,7 @@ pub struct ConventionalExpansionConfig {
     pub wait_states: u32,
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, serde::Serialize)]
 pub struct MachineConfiguration {
     pub speaker: bool,
     pub cassette: bool,
@@ -372,7 +372,7 @@ pub fn get_optional_rom_features(machine_type: MachineType) -> Option<&'static V
 /// Defines the basic architecture of a machine. These are the fixed components on a machine's motherboard or otherwise
 /// non-optional components common to all machines of its type. Optional components are defined in a machine
 /// configuration file.
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, serde::Serialize)]
 pub struct MachineDescriptor {
     pub machine_type: MachineType,
     pub system_crystal: f64,        // The main system crystal speed in MHz.

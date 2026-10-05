@@ -2197,3 +2197,5 @@ impl Intel808x {
         }
     }
 }
+
+pub(crate) use state::Intel808xState;

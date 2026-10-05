@@ -95,6 +95,8 @@ use crate::{
 };
 
 mod input_state;
+mod state;
+pub use state::MachineSnapshot;
 
 pub use marty_common::types::rom::{MachineCheckpoint, MachinePatch, MachineRomEntry, MachineRomManifest};
 use marty_common::{MartyHashMap, PresentableDeviceEvent};
@@ -126,7 +128,7 @@ pub struct KeybufferEntry {
     pub translate: bool,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum MachineEvent {
     CheckpointHit(usize, u32),
     Halted,
@@ -134,7 +136,7 @@ pub enum MachineEvent {
     Service(ServiceEvent),
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum MachineState {
     /// The emulated machine is powered on.
     On,
@@ -304,7 +306,7 @@ pub struct PitData {
     next_sample_size: usize,
 }
 
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct MachineOptions {
     pub record_listing: bool,
 }

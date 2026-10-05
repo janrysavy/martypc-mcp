@@ -35,7 +35,7 @@ use crossbeam_channel::Receiver;
 
 pub const DEFAULT_SAMPLE_RATE: u32 = 44100;
 
-#[derive(Debug)]
+#[derive(Debug, serde::Serialize)]
 pub struct SoundOutputConfig {
     pub enabled: bool,
     pub sample_rate: u32,

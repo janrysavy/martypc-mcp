@@ -1,9 +1,8 @@
 # Fork handoff
 
-NEXT: finish bus composition CI/integration, validate the new service owner
-controls/review/CI, then combine CPU and Machine metadata/events/input with
-the composed bus. Implement authenticated
-save/load and a final live Machine swap, then prove fresh-process Pyro replay.
+NEXT: finish bus/service final CI and integration; validate/review the new
+whole-Machine candidate owner, then implement authenticated persistent save/load,
+frontend/RPC rebind and a final live Machine swap. Prove fresh-process Pyro replay.
 The selected profile is no-floppy IBM XT/CGA with DOS/Pyro VHDs. Generic FDC,
 weak-media entropy and floppy ownership are deferred. Never silently omit a
 configured unsupported owner. Local UI input stays off during deterministic RPC.
@@ -43,7 +42,14 @@ AX/BX/CX/DX/SI/flags, RAM100..3ff and CRC continuity. Other services, independen
 CRC correctness and exhaustive field/error-path coverage remain unproven.
 Final CI/integration pending; no whole-Machine/process/Pyro proof.
 
-NOT DONE: CPU/Machine/service/audio/frontend composition, outer configuration/
+FINISHED first local Machine owner: fresh309 core tests;24 fresh configured
+CPU/bus/service/core restores continue native 8088 instructions, PIT/CGA writes,
+ROM patch handling and matching captured storage. Required/unknown schema, eight
+invalid candidates and changed ROM/config are refused. Initial fixture compilation
+used a nonexistent Register16::IP; fixed with native get_ip. No disk, frontend,
+process or Pyro proof. Controls, scoped review and CI remain pending.
+
+NOT DONE: Machine/audio/frontend persistent composition, outer configuration/
 ROM/metadata authentication and host disk access/path/alias policy, pending
 speaker output queues, persistent whole-Machine/process/Pyro restart. Do not
 infer those from component tests. Attached audio queues and unsupported installed

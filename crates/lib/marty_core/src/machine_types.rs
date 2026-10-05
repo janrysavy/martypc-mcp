@@ -128,7 +128,7 @@ mod machine_name_tests {
     }
 }
 
-#[derive(Copy, Clone, Debug, Deserialize, Hash, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug, Deserialize, Hash, Eq, PartialEq, serde::Serialize)]
 pub enum SoundType {
     AdLib,
     SoundSource,
@@ -172,7 +172,7 @@ impl FromStr for SoundType {
     }
 }
 
-#[derive(Copy, Clone, Debug, Default, Deserialize)]
+#[derive(Copy, Clone, Debug, Default, Deserialize, serde::Serialize, PartialEq)]
 pub enum OnHaltBehavior {
     #[default]
     Continue,
@@ -195,7 +195,7 @@ impl FromStr for OnHaltBehavior {
     }
 }
 
-#[derive(Copy, Clone, Default, Debug, Hash, Eq, PartialEq)]
+#[derive(Copy, Clone, Default, Debug, Hash, Eq, PartialEq, serde::Serialize)]
 pub enum FloppyDriveType {
     #[default]
     Floppy360K,
@@ -298,7 +298,7 @@ impl<'de> serde::Deserialize<'de> for FloppyDriveType {
     }
 }
 
-#[derive(Copy, Clone, Debug, Deserialize, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug, Deserialize, Eq, PartialEq, serde::Serialize)]
 pub enum FdcType {
     IbmNec,
     IbmPCJrNec,
@@ -313,7 +313,7 @@ impl FdcType {
     }
 }
 
-#[derive(Copy, Clone, Debug, Deserialize, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug, Deserialize, Eq, PartialEq, serde::Serialize)]
 pub enum HardDiskControllerType {
     IbmXebec,
     XtIde,
@@ -335,28 +335,28 @@ impl FromStr for HardDiskControllerType {
     }
 }
 
-#[derive(Copy, Clone, Debug, Deserialize, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug, Deserialize, Eq, PartialEq, serde::Serialize)]
 pub enum HardDriveFormat {
     Mfm,
     Rll,
 }
 
-#[derive(Copy, Clone, Debug, Deserialize, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug, Deserialize, Eq, PartialEq, serde::Serialize)]
 pub enum SerialControllerType {
     IbmAsync,
 }
 
-#[derive(Copy, Clone, Debug, Deserialize, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug, Deserialize, Eq, PartialEq, serde::Serialize)]
 pub enum SerialMouseType {
     Microsoft,
 }
 
-#[derive(Copy, Clone, Debug, Deserialize, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug, Deserialize, Eq, PartialEq, serde::Serialize)]
 pub enum ParallelControllerType {
     Standard,
 }
 
-#[derive(Copy, Clone, Debug, Deserialize, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug, Deserialize, Eq, PartialEq, serde::Serialize)]
 pub enum EmsType {
     LoTech2MB,
     Fantasy4MB,

@@ -85,7 +85,7 @@ pub const OPCODE_PREFIX_REPMASK: u32 = 0b1111_0000_0000;
 // The first two bits of the prefixes field stores the number of prefixes to restore from 0-3.
 pub const OPCODE_PREFIX_CT_MASK: u32 = 0b0000_0000_0011;
 
-#[derive(Copy, Clone, Debug, Default, Deserialize, Eq, PartialEq, Hash)]
+#[derive(Copy, Clone, Debug, Default, Deserialize, Eq, PartialEq, Hash, serde::Serialize)]
 pub enum CpuArch {
     #[default]
     I86,
@@ -335,7 +335,7 @@ pub struct CpuDebugState {
     pub dram_refresh_cycle_num: String,
 }
 
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash, Default)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash, Default, serde::Serialize)]
 pub enum CpuType {
     #[default]
     Intel8088,
@@ -575,7 +575,7 @@ pub enum CpuDispatch {
     NecVx0,
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Disassembly {
     pub cs: u16,
     pub ip: u16,

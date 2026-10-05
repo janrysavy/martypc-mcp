@@ -40,7 +40,7 @@ use std::fmt;
 /// Policy for handling image insertion with technically mismatched image types.
 /// Strict will enforce physical diskette dimensions. Lenient will allow insertion of 5.25" DD
 /// images into 3.5" drives.
-#[derive(Copy, Clone, Debug, Default, Deserialize, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug, Default, Deserialize, Eq, PartialEq, serde::Serialize)]
 pub enum ImageInsertionPolicy {
     #[default]
     Strict,

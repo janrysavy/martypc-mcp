@@ -154,7 +154,7 @@ pub struct TimingTableEntry {
     pub us: f64,
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum ClockFactor {
     Divisor(u8),
     Multiplier(u8),

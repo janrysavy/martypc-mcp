@@ -27,14 +27,14 @@
 
 //! Events emitted by emulated devices for presentation by a frontend.
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum PresentableDeviceEvent {
     PowerOn,
     PowerOff,
     FloppyDrive { controller: u8, drive: u8, event: FloppyDriveEvent },
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum FloppyDriveEvent {
     MotorStarted { media_present: bool },
     MotorStopped { media_present: bool },
