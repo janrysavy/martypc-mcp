@@ -29,13 +29,19 @@ Refreshed controls pass and scoped review reports no concrete bus restore
 defect. Final CI/integration is pending. Converse wiring/general profiles
 and outer authentication stay open. No new disk-write/flush proof.
 
-FINISHED local service owner: fresh307 core tests, nine fresh service/CPU/RAM
+FINISHED local service owner: fresh307 core/309 serial+sound tests, nine
+fresh service/CPU/RAM
 checkpoints with native pending host completion, partial transfer data/CRC,
 events/registers/memory, speed bounds and LIFO handle reuse. Strict required
 schema and six invalid restore cases leave the manager unchanged. The first
 fixture incorrectly used an uninitialized Default CPU; existing CPU preflight
 refused it. Fixed by using the native initialized Intel8088 constructor.
-Actual omission controls/review/CI remain pending. No whole-Machine proof.
+Two actual omitted stores fail native host completion; exact restoration
+returns307 green. Scoped review finds field-complete codec/tested refusal
+atomicity, no concrete defect. New comparisons cover visited transfer paths,
+AX/BX/CX/DX/SI/flags, RAM100..3ff and CRC continuity. Other services, independent
+CRC correctness and exhaustive field/error-path coverage remain unproven.
+Final CI/integration pending; no whole-Machine/process/Pyro proof.
 
 NOT DONE: CPU/Machine/service/audio/frontend composition, outer configuration/
 ROM/metadata authentication and host disk access/path/alias policy, pending
