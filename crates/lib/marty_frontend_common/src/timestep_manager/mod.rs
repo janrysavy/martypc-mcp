@@ -273,10 +273,29 @@ impl TimestepManager {
         dm: &mut D,
         second_callback: F,
         mut emu_update_callback: G,
-        mut emu_render_callback: H,
+        emu_render_callback: H,
     ) where
         F: FnOnce(&mut E) -> MachinePerfStats,
         G: FnMut(&mut E, u32),
+        H: FnMut(&mut E, &mut D, &TimestepManager, &PerfSnapshot, Duration, &mut TimestepUpdate),
+    {
+        self.wm_update_while(emu, dm, second_callback,
+            |emu, cycles| { emu_update_callback(emu, cycles); true }, emu_render_callback);
+    }
+
+    /// A false update result yields the entire timestep, including remaining
+    /// catch-up and render callbacks. Snapshot import must return to the event
+    /// loop before later queued requests or instructions can run.
+    pub fn wm_update_while<E, D, F, G, H>(
+        &mut self,
+        emu: &mut E,
+        dm: &mut D,
+        second_callback: F,
+        mut emu_update_callback: G,
+        mut emu_render_callback: H,
+    ) where
+        F: FnOnce(&mut E) -> MachinePerfStats,
+        G: FnMut(&mut E, u32) -> bool,
         H: FnMut(&mut E, &mut D, &TimestepManager, &PerfSnapshot, Duration, &mut TimestepUpdate),
     {
         if !self.init {
@@ -319,8 +338,12 @@ impl TimestepManager {
             self.last_frame_instant = Instant::now();
             let emu_start = Instant::now();
             for _ in 0..emu_updates_due {
-                emu_update_callback(emu, self.cpu_cycle_update_target);
+                let continue_update = emu_update_callback(emu, self.cpu_cycle_update_target);
                 self.perf_stats.emu_ups.tick();
+                if !continue_update {
+                    self.perf_stats.emu_frame_time = emu_start.elapsed();
+                    return;
+                }
             }
             self.perf_stats.emu_frame_time = emu_start.elapsed();
         }
@@ -439,6 +462,22 @@ impl TimestepManager {
 #[cfg(test)]
 mod tests {
     use super::{Duration, HertzEvent, Instant, MachinePerfStats, PerfCounter, TimestepManager};
+
+    #[test]
+    fn import_yield_stops_remaining_catchup_and_render_callbacks() {
+        let mut tm = TimestepManager::default();
+        tm.set_emu_update_rate(100.0);
+        tm.set_emu_render_rate(100.0);
+        tm.set_cpu_mhz(2.0);
+        tm.set_clamp_oversized_delta(true);
+        tm.init = true;
+        tm.last_instant = Instant::now() - Duration::from_millis(100);
+        let mut calls = Vec::new();
+        tm.wm_update_while(&mut (), &mut (), |_| MachinePerfStats::default(),
+            |_, cycles| { calls.push(cycles); false },
+            |_, _, _, _, _, _| panic!("render ran after import yield"));
+        assert_eq!(calls, vec![20000]); // Two were due; only the first ran.
+    }
 
     #[test]
     fn slow_rpc_updates_keep_configured_cycle_budget_and_bound_catchup() {

@@ -736,7 +736,8 @@ impl MartyApp {
         // }
 
         #[cfg(not(target_arch = "wasm32"))]
-        let rpc_owned = self.emu.as_ref().is_some_and(|emu| emu.rpc.is_some());
+        let rpc_owned = self.emu.as_ref().is_some_and(|emu|
+            emu.rpc.is_some() && !emu.config.emulator.local_input_enabled());
         #[cfg(target_arch = "wasm32")]
         let rpc_owned = false;
         if !rpc_owned { self.prepare_input(ctx); }
@@ -1120,10 +1121,12 @@ impl MartyApp {
 impl eframe::App for MartyApp {
     fn logic(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
         // eframe skips ui() for minimized/hidden windows, but still calls
-        // logic() when a repaint is requested. Preserve input-before-run and
-        // calculated timestep budgets instead of gating RPC on painting.
+        // logic() when a repaint is requested. Deterministic RPC sessions keep
+        // calculated budgets independent of painting. Explicit manual input
+        // retains the existing UI path, including display-relative pointers.
         #[cfg(not(target_arch = "wasm32"))]
-        if self.emu.as_ref().is_some_and(|emu| emu.rpc.is_some()) {
+        if self.emu.as_ref().is_some_and(|emu|
+            emu.rpc.is_some() && !emu.config.emulator.local_input_enabled()) {
             self.prepare_input(ctx);
             if let (Some(emu), Some(dm)) = (self.emu.as_mut(), self.dm.as_mut()) {
                 process_update(emu, dm, &mut self.tm);

@@ -31,9 +31,12 @@ machine runner with a debugger pump. Its soft8ms budget is checked before every
 request/native boundary; one atomic request/instruction may overrun it. The
 transport channel holds at most64 queued requests. This is not a hard latency SLA.
 Neither repaint nor inspection advances paused guest time. RPC requests and
-execution are serviced by the GUI logic callback even while its window is
-minimized or hidden. The visible UI timestep never runs an RPC-owned
-guest a second time. Input is applied before requests/execution, and execution
+execution in deterministic sessions (local input off) are serviced by the GUI
+logic callback even while its window is minimized or hidden. The visible UI
+timestep never runs that guest a second time. Explicit manual local-input
+sessions retain the existing visible UI/input routing, including absolute
+mouse/light-pen mapping; they require a visible window and have no new
+input-ordering guarantee. Execution
 keeps configured cycle quotas. RPC slow host deltas are capped to two frames
 rather than discarded; normal UI pacing still discards them. Read/control
 requests do not wait for an emulation/render tick. Logic requests another poll

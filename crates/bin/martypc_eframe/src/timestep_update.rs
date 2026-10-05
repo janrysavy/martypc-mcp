@@ -142,7 +142,7 @@ pub fn process_update(emu: &mut Emulator, dm: &mut EFrameDisplayManager, tm: &mu
         if emu.rpc.is_some() && pump_rpc(emu, 0) { return; }
     }
 
-    tm.wm_update(
+    tm.wm_update_while(
         emu,
         dm,
         |emuc| {
@@ -159,10 +159,10 @@ pub fn process_update(emu: &mut Emulator, dm: &mut EFrameDisplayManager, tm: &mu
             // Per emu update freq
             #[cfg(not(target_arch = "wasm32"))]
             if emuc.rpc.is_some() {
-                pump_rpc(emuc, cycles);
-                return;
+                return !pump_rpc(emuc, cycles);
             }
             emuc.machine.run(cycles, &mut emuc.exec_control.borrow_mut());
+            true
         },
         |emuc, dmc, tmc, &perf, duration, tmu| {
             // Per frame freq
