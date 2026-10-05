@@ -9,6 +9,144 @@ use marty_core::{
 };
 use std::sync::atomic::AtomicU64;
 
+#[test]
+fn ui_snapshot_pump_yields_after_import_before_queued_continue() {
+    let scratch = Scratch::new();
+    let mut factory = || Ok(cold(false));
+    let mut host = SnapshotHost::for_rw_files(&mut factory).unwrap();
+    let program = [0xff, 0x06, 0x00, 0x02, 0xeb, 0xfa];
+    let mut m = cold(false);
+    m.load_program(&program, 0, 0x100, 0, 0x100).unwrap();
+    let initial = saved(&mut m);
+    let mut exporter = Agent::new(1);
+    let path = scratch.0.join("ui-pump.zip");
+    let exported = invoke(
+        &mut exporter,
+        &mut m,
+        &mut host,
+        "machine.snapshot.export",
+        json!({"path":path,"expected_state_revision":0}),
+    )
+    .unwrap();
+    let (sender, receive) = mpsc::sync_channel(64);
+    let mut rpc = DebugRpc {
+        agent: Agent::new(1),
+        receive,
+        stop: Arc::new(AtomicBool::new(false)),
+        listener_thread: None,
+    };
+    for _ in 0..20 {
+        rpc.agent.step(&mut m);
+    }
+    assert_ne!(saved(&mut m), initial);
+    let (reply, imported) = mpsc::channel();
+    sender
+        .send((
+            serde_json::to_vec(&json!({"jsonrpc":"2.0","id":10,
+        "method":"machine.snapshot.import","params":{"path":path,
+        "expected_sha256":exported["sha256"],"disk_root":scratch.0.join("restored"),
+        "expected_state_revision":rpc.agent.revision}}))
+            .unwrap(),
+            reply,
+        ))
+        .unwrap();
+    let (reply, continued) = mpsc::channel();
+    sender
+        .send((
+            serde_json::to_vec(&json!({"jsonrpc":"2.0","id":11,
+        "method":"execution.continue"}))
+            .unwrap(),
+            reply,
+        ))
+        .unwrap();
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while !rpc.pump_with_snapshots(&mut m, 10000, &mut host) {
+        assert!(Instant::now() < deadline, "import did not yield a rebind opportunity");
+    }
+    let result = imported.recv().unwrap().unwrap();
+    assert_eq!(result["id"], 10);
+    assert_eq!(result["result"]["paused"], true);
+    assert!(matches!(continued.try_recv(), Err(mpsc::TryRecvError::Empty)));
+    assert!(!rpc.agent.running);
+    assert_eq!(rpc.agent.restore_generation, 1);
+    assert!(saved(&mut m) == initial, "complete imported Machine differs");
+    // This is the frontend's synchronous rebind opportunity. No next request
+    // or native instruction has run. The next pump may resume the new machine.
+    assert!(!rpc.pump_with_snapshots(&mut m, 1, &mut host));
+    assert_eq!(continued.recv().unwrap().unwrap()["id"], 11);
+    let mut reference = cold(false);
+    reference.load_program(&program, 0, 0x100, 0, 0x100).unwrap();
+    let mut reference_agent = Agent::new(1);
+    reference_agent
+        .handle(&mut reference, "execution.continue", &json!({}))
+        .unwrap();
+    reference_agent.advance(&mut reference);
+    assert!(saved(&mut m) == saved(&mut reference), "next native boundary differs");
+    rpc.agent.handle(&mut m, "execution.pause", &json!({})).unwrap();
+    let before = saved(&mut m);
+    for _ in 0..20 {
+        assert!(!rpc.pump_with_snapshots(&mut m, 10000, &mut host));
+    }
+    assert!(saved(&mut m) == before, "paused/refused pump changed Machine");
+    println!("UI_SNAPSHOT_PUMP: committed import yields before queued continue; next native boundary matches independent reference;20 paused pumps preserve complete Machine");
+}
+
+#[test]
+fn ui_snapshot_pump_refusal_does_not_signal_restore_or_block_inspection() {
+    let scratch = Scratch::new();
+    let mut factory = || Ok(cold(false));
+    let mut host = SnapshotHost::for_rw_files(&mut factory).unwrap();
+    let mut m = cold(false);
+    let (sender, receive) = mpsc::sync_channel(64);
+    let mut rpc = DebugRpc {
+        agent: Agent::new(1),
+        receive,
+        stop: Arc::new(AtomicBool::new(false)),
+        listener_thread: None,
+    };
+    let path = scratch.0.join("ui-refusal.zip");
+    invoke(
+        &mut rpc.agent,
+        &mut m,
+        &mut host,
+        "machine.snapshot.export",
+        json!({"path":path,"expected_state_revision":0}),
+    )
+    .unwrap();
+    let before = saved(&mut m);
+    let (reply, refused) = mpsc::channel();
+    sender
+        .send((
+            serde_json::to_vec(&json!({"jsonrpc":"2.0","id":20,
+        "method":"machine.snapshot.import","params":{"path":path,
+        "expected_sha256":"00".repeat(32),"disk_root":scratch.0.join("must-not-exist"),
+        "expected_state_revision":0}}))
+            .unwrap(),
+            reply,
+        ))
+        .unwrap();
+    let (reply, inspected) = mpsc::channel();
+    sender
+        .send((
+            serde_json::to_vec(&json!({"jsonrpc":"2.0","id":21,
+        "method":"state.get"}))
+            .unwrap(),
+            reply,
+        ))
+        .unwrap();
+    assert!(!rpc.pump_with_snapshots(&mut m, 10000, &mut host));
+    let result = refused.recv().unwrap().unwrap();
+    assert_eq!(result["error"]["code"], -32000);
+    assert_eq!(rpc.agent.restore_generation, 0);
+    assert!(!scratch.0.join("must-not-exist").exists());
+    // A large refused atomic request may exhaust the soft budget; the next
+    // pump services inspection without mistaking a refusal for a Machine swap.
+    assert!(!rpc.pump_with_snapshots(&mut m, 10000, &mut host));
+    assert_eq!(inspected.recv().unwrap().unwrap()["id"], 21);
+    assert!(saved(&mut m) == before, "paused/refused pump changed Machine");
+    println!("UI_SNAPSHOT_REFUSAL: wrong digest preserves complete Machine, creates no disk root, signals no rebind; queued inspection still serviced");
+}
+
 fn cold(disks: bool) -> Machine {
     let mut config =
         marty_config::read_config(include_str!("../../../../../install/martypc.toml"), Default::default()).unwrap();
