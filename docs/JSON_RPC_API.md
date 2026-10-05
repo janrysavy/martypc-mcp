@@ -203,3 +203,9 @@ preserves the live Machine and allows queued inspection. Paused pumps consume
 no guest cycles. This transport API does not enable the GUI by itself: loaded
 factory/providers, renderer/input/event consumers and wall-frame neutrality
 still require integration and real GUI replay proof.
+
+Native GUI observation under RPC preserves native Machine/presentable-event
+queues and video debug flags. Light-pen mutations require explicit local input;
+ordinary RPC observation leaves captured light-pen state untouched. Rendering
+still reads native video buffers. These guards compile in the default native UI;
+complete GUI snapshot import/rebind/restart remains WIP and disabled.

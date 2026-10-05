@@ -1,6 +1,14 @@
 # Fork handoff
 
-NEXT: native GUI consumer rebind/import and broader gameplay replay.
+NEXT: native GUI loaded factory/RW providers, derived consumer rebind and
+visible process-restart proof. Keep snapshot methods disabled until composed.
+FINISHED local observation guards: default-feature native GUI compiler check
+passes with600 source inputs bound before/after. RPC repaint no longer drains
+Machine/presentable queues or writes debug flags; light-pen writes require
+explicit local input. This is a source/compile result, not a fresh GUI executable
+or live complete-Machine equality proof. Existing local input/worker guards
+remain in force. No new gameplay/physical timing/audio parity claim.
+Headless PR33 is integrated at exact2c6082c9 after Windows/Linux CI37309652341.
 FINISHED local transport slice:45 fresh RPC/config/headless tests pass;600 inputs
 bound. Snapshot-aware nonblocking pump yields immediately after import, before
 queued Continue or native execution; next boundary matches an independent
