@@ -21,8 +21,10 @@ restored bus on error. Fixed XTIDE format wiring, six orphan route refusals and
 actual orphan PIT sender refusal. Native descriptor writers and CGA clock-mode
 setter are measured as mutable state, not forced to equal constructor values.
 Guest device/timing algorithms are unchanged. Two earlier owner omissions are
-caught in native outputs; refreshed controls/follow-up review and final CI are
-pending. Disk-write/flush continuation is not newly proven by this bus probe.
+caught in native outputs. Fresh305 tests pass after requiring actual owner
+port lists and CGA identity in I/O, MMIO and traversal. Regression refuses
+stale routes even with installed owners, plus Mouse I/O (no native dispatch).
+Refreshed controls/follow-up review and final CI are pending. Disk-write/flush continuation is not newly proven by this bus probe.
 
 NOT DONE: CPU/Machine/service/audio/frontend composition, outer configuration/
 ROM/metadata authentication and host disk access/path/alias policy, pending

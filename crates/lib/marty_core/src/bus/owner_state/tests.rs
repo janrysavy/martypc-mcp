@@ -248,6 +248,41 @@ fn bus_owner_preserves_native_mutable_metadata_and_refuses_orphan_routes_and_aud
         invalid.register_map(route, MemRangeDescriptor::new(0xB8000, MMIO_MAP_SIZE, false));
         assert!(invalid.snapshot_bus_state(DiskCaptureMode::Embed, 0).is_err());
     }
+    // Installed owners still cannot service an arbitrary stale routed port.
+    let mut wrong_port = fixture();
+    let routes: Vec<_> = wrong_port.io_map.values().cloned().collect();
+    for route in routes.into_iter().chain([IoDeviceType::Mouse]) {
+        wrong_port.io_map.insert(0x777, route);
+        assert!(wrong_port.snapshot_bus_state(DiskCaptureMode::Embed, 0).is_err());
+    }
+    wrong_port.io_map.remove(&0x777);
+    assert!(wrong_port.snapshot_bus_state(DiskCaptureMode::Embed, 0).is_ok());
+    // A CGA dispatch value must not disguise a different card identity. Exercise
+    // I/O, MMIO and traversal guards independently with real CGA owners.
+    for case in 0..3 {
+        let mut invalid = BusInterface::default();
+        let id = VideoCardId {
+            idx: 0,
+            vtype: VideoType::MDA,
+        };
+        let card = CGACard::new(TraceLogger::None, ClockingMode::Cycle, false);
+        if case == 0 {
+            add_io_device!(invalid, card, IoDeviceType::Video(id));
+        }
+        if case == 1 {
+            add_mmio_device!(invalid, card, MmioDeviceType::Video(id));
+        }
+        invalid.videocards.insert(id, VideoCardDispatch::Cga(Box::new(card)));
+        invalid.videocard_ids.push(id);
+        let error = invalid
+            .snapshot_bus_state(DiskCaptureMode::Embed, 0)
+            .unwrap_err()
+            .to_string();
+        assert!(
+            error.contains(["I/O route", "MMIO route", "video traversal"][case]),
+            "{error}"
+        );
+    }
     let mut orphan = fixture();
     let (sender, _receiver) = crossbeam_channel::unbounded();
     orphan.pit = Some(Pit::new(
@@ -258,5 +293,5 @@ fn bus_owner_preserves_native_mutable_metadata_and_refuses_orphan_routes_and_aud
     ));
     assert!(orphan.speaker_src.is_none());
     assert!(orphan.snapshot_bus_state(DiskCaptureMode::Embed, 0).is_err());
-    println!("BUS_OWNER_REVIEW: native mutable descriptors/CGA clock continue; six orphan routes and actual orphan PIT sender refused");
+    println!("BUS_OWNER_REVIEW: native mutable descriptors/CGA clock continue; six orphan routes, actual owner port lists, three mismatched video identities and orphan PIT sender refused");
 }

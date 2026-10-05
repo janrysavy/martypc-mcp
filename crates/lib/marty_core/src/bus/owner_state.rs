@@ -97,24 +97,29 @@ impl BusInterface {
         if self.speaker_src.is_some() || self.pit.as_ref().is_some_and(Pit::snapshot_audio_sender_connected) {
             bail!("attached machine speaker output queue is not composed yet");
         }
-        for route in self.io_map.values() {
-            let present = match route {
-                IoDeviceType::A0Register => self.a0.is_some(),
-                IoDeviceType::Ppi => self.ppi.is_some(),
-                IoDeviceType::Pit => self.pit.is_some(),
-                IoDeviceType::DmaPrimary => self.dma1.is_some(),
-                IoDeviceType::DmaSecondary => self.dma2.is_some(),
-                IoDeviceType::PicPrimary => self.pic1.is_some(),
-                IoDeviceType::PicSecondary => self.pic2.is_some(),
-                IoDeviceType::Serial => self.serial.is_some(),
-                IoDeviceType::HardDiskController => self.xtide.is_some(),
-                IoDeviceType::Mouse => self.mouse.is_some(),
-                IoDeviceType::GamePort => self.game_port.is_some(),
-                IoDeviceType::Video(id) => matches!(self.videocards.get(id), Some(VideoCardDispatch::Cga(_))),
+        for (port, route) in &self.io_map {
+            let owns_port = |ports: Vec<(String, u16)>| ports.iter().any(|(_, p)| p == port);
+            let wired = match route {
+                IoDeviceType::A0Register => self.a0.as_ref().is_some_and(|d| owns_port(d.port_list())),
+                IoDeviceType::Ppi => self.ppi.as_ref().is_some_and(|d| owns_port(d.port_list())),
+                IoDeviceType::Pit => self.pit.as_ref().is_some_and(|d| owns_port(d.port_list())),
+                IoDeviceType::DmaPrimary => self.dma1.as_ref().is_some_and(|d| owns_port(d.port_list())),
+                IoDeviceType::DmaSecondary => self.dma2.as_ref().is_some_and(|d| owns_port(d.port_list())),
+                IoDeviceType::PicPrimary => self.pic1.as_ref().is_some_and(|d| owns_port(d.port_list())),
+                IoDeviceType::PicSecondary => self.pic2.as_ref().is_some_and(|d| owns_port(d.port_list())),
+                IoDeviceType::Serial => self.serial.as_ref().is_some_and(|d| owns_port(d.port_list())),
+                IoDeviceType::HardDiskController => self.xtide.as_ref().is_some_and(|d| owns_port(d.port_list())),
+                IoDeviceType::GamePort => self.game_port.as_ref().is_some_and(|d| owns_port(d.port_list())),
+                IoDeviceType::Video(id) if id.vtype == VideoType::CGA => match self.videocards.get(id) {
+                    Some(VideoCardDispatch::Cga(card)) => owns_port(card.port_list()),
+                    _ => false,
+                },
+                // Native Mouse has no I/O port list or bus I/O dispatch arm.
+                // Its scheduled/serial state is captured separately below.
                 _ => false,
             };
-            if !present {
-                bail!("I/O route has no supported installed snapshot owner");
+            if !wired {
+                bail!("I/O route has no supported installed snapshot owner at this port");
             }
         }
         for route in self
@@ -125,7 +130,9 @@ impl BusInterface {
         {
             match route {
                 MmioDeviceType::None | MmioDeviceType::Memory | MmioDeviceType::Rom => {}
-                MmioDeviceType::Video(id) if matches!(self.videocards.get(&id), Some(VideoCardDispatch::Cga(_))) => {}
+                MmioDeviceType::Video(id)
+                    if id.vtype == VideoType::CGA
+                        && matches!(self.videocards.get(&id), Some(VideoCardDispatch::Cga(_))) => {}
                 _ => bail!("MMIO route has no supported installed snapshot owner"),
             }
         }
@@ -133,10 +140,11 @@ impl BusInterface {
         // orphaned entries rather than silently dropping an installed adapter.
         let mut ids = std::collections::HashSet::new();
         if self.videocard_ids.len() != self.videocards.len()
-            || self
-                .videocard_ids
-                .iter()
-                .any(|id| !ids.insert(*id) || !matches!(self.videocards.get(id), Some(VideoCardDispatch::Cga(_))))
+            || self.videocard_ids.iter().any(|id| {
+                id.vtype != VideoType::CGA
+                    || !ids.insert(*id)
+                    || !matches!(self.videocards.get(id), Some(VideoCardDispatch::Cga(_)))
+            })
         {
             bail!("unsupported video owner or inconsistent video traversal");
         }
