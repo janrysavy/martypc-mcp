@@ -180,9 +180,16 @@ impl Machine {
                 .values()
                 .any(|i| *i >= self.rom_manifest.checkpoints.len())
             || saved.patch_map.values().any(|i| *i >= self.rom_manifest.patches.len())
+            || saved.events.iter().any(|event| {
+                matches!(event, MachineEvent::CheckpointHit(index, _) if *index >= self.rom_manifest.checkpoints.len())
+            })
         {
-            bail!("invalid Machine clock or ROM map index");
+            bail!("invalid Machine clock or ROM map/event index");
         }
+        // Native reinstall_roms retains historical maps and queued event levels.
+        // Their bounds must be safe, but forcing the current manifest's addresses
+        // or levels would reject actual native history. Metadata provenance and
+        // external dependencies must be authenticated by the outer loader.
         // Machine::new finishes with set_cpu_factor; its temporary zero period
         // never escapes the constructor. Pending turbo leaves the current factor
         // and period unchanged until run() applies the next factor. Match the

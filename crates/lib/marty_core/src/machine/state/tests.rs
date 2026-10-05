@@ -74,6 +74,10 @@ impl CoreConfig for NoRoms {
 }
 
 fn fixture() -> Machine {
+    fixture_with_manifest(None)
+}
+
+fn fixture_with_manifest(override_manifest: Option<MachineRomManifest>) -> Machine {
     let core = NoRoms(MachineType::Ibm5160);
     let config = MachineConfiguration {
         machine_type: MachineType::Ibm5160,
@@ -105,6 +109,7 @@ fn fixture() -> Machine {
             ..Default::default()
         }],
     };
+    let manifest = override_manifest.unwrap_or(manifest);
     let mut machine = MachineBuilder::new()
         .with_core_config(Box::new(&core))
         .with_machine_config(&config)
@@ -282,26 +287,47 @@ fn whole_machine_review_rejects_unsupported_listing_and_inconsistent_clock() {
         .unwrap();
     assert!(reference.rom_manifest.patches[0].installed);
     let saved = capture(&mut reference);
-    assert!(fixture().prepare_snapshot_restore(&saved, [None, None]).is_ok());
+    let mut overwritten = fixture().prepare_snapshot_restore(&saved, [None, None]).unwrap();
+    assert_eq!(overwritten.cpu.bus_mut().read_u8(0x1500, 0).unwrap().0, 0x11);
+    assert_eq!(overwritten.cpu.bus_mut().read_u8(0x1501, 0).unwrap().0, 0x22);
     // Native reinstall_roms replaces the manifest without rebuilding maps.
     // Preserve these native historical maps instead of forcing constructor maps.
     let mut changed = reference.rom_manifest.clone();
     changed.checkpoints[0].addr = 0x2000;
+    changed.checkpoints[0].lvl = 7;
     changed.patches[0].trigger = 0x2000;
     reference.reinstall_roms(changed.clone()).unwrap();
+    // The earlier queued hit still has its original level2, even though the
+    // current manifest now says7. Level equality would erase legitimate history.
+    assert!(reference.events.contains(&MachineEvent::CheckpointHit(0, 2)));
+    reference.cpu.reset();
     let saved = capture(&mut reference);
     assert!(reference.checkpoint_map.contains_key(&0x1000));
-    let mut fresh = fixture();
-    fresh.reinstall_roms(changed).unwrap();
-    assert!(fresh.prepare_snapshot_restore(&saved, [None, None]).is_ok());
+    let fresh = fixture_with_manifest(Some(changed));
+    assert!(fresh.checkpoint_map.contains_key(&0x2000));
+    assert!(!fresh.checkpoint_map.contains_key(&0x1000));
+    let mut restored = fresh.prepare_snapshot_restore(&saved, [None, None]).unwrap();
+    assert!(restored.checkpoint_map.contains_key(&0x1000));
+    assert!(restored.patch_map.contains_key(&0x1000));
+    let mut peer_control = ExecutionControl::new();
+    peer_control.set_state(ExecutionState::Running);
+    assert_eq!(reference.run(1, &mut control), restored.run(1, &mut peer_control));
+    assert!(restored.events.contains(&MachineEvent::CheckpointHit(0, 7)));
+    assert!(restored.events.contains(&MachineEvent::CheckpointHit(0, 2)));
+    assert_eq!(
+        native_output(&mut reference),
+        native_output(&mut restored),
+        "native historical map execution"
+    );
     let wire = serde_json::to_value(saved).unwrap();
     let mut accepted = Vec::new();
-    for case in 0..3 {
+    for case in 0..4 {
         let mut invalid = wire.clone();
         match case {
             0 => invalid["options"]["record_listing"] = true.into(),
             1 => invalid["cpu_clock_period"] = 0_u64.into(),
-            _ => invalid["cpu_clock_period"] = (wire["cpu_clock_period"].as_u64().unwrap() + 1).into(),
+            2 => invalid["cpu_clock_period"] = (wire["cpu_clock_period"].as_u64().unwrap() + 1).into(),
+            _ => invalid["events"] = serde_json::json!([{"CheckpointHit":[99,2]}]),
         }
         let mut candidate = fixture();
         candidate.reinstall_roms(reference.rom_manifest.clone()).unwrap();

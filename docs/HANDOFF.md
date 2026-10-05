@@ -55,7 +55,14 @@ presentation queue stores fail those consumers; exact restoration passes310.
 Public DiskCaptureMode now permits frontend callers; fresh312 serial+sound
 tests pass after the visibility fix. Review reproduced enabled-listing and
 zero/inconsistent period acceptance; fixed preflight now refuses all three.
-Fresh313 serial+sound tests pass. Native reinstall_roms retains historical maps;
+Fresh313 serial+sound tests pass. Follow-up confirms those two repairs. Queued
+checkpoint index99 accepted before, refused after the bounds repair. Fresh313
+passes with native reads of overwritten patch RAM and execution through restored
+historical maps from a candidate constructed with different maps. Native queued
+level2 survives manifest level7 and is preserved alongside new level7 hits.
+Normal CI build failed: serde_json is currently only a dev-dependency; move it
+to production dependencies next and verify normal consumer builds.
+Native reinstall_roms retains historical maps;
 later RAM writes can alter installed patch bytes. Both legitimate states remain
 restorable. Follow-up review/final CI pending; no exhaustive metadata reachability
 or device-origin channel/frontend/VHD-bearing Machine/process/Pyro proof.
