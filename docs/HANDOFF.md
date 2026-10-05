@@ -5,6 +5,9 @@ profile before further timing research. Generic floppy media/FDC is deferred.
 
 WIP bus-clock component: fresh300 core tests pass, including64 destructive
 JSON continuations through native PIT/PIC/CGA and returned bus events.
+Refresh scheduling is explicitly enabled in the fixture (native default is off);
+this proves its existing consumer, not normal Pyro startup enabling that flag.
+Required/unknown fields are checked at the top level and both nested records.
 Three native conversion/seeded storage restores plus cold lookup storage
 preserve exact binary64 bits; seven invalid restores are atomic. Device-owned
 state is deliberately retained in continuation probes, not reconstructed.

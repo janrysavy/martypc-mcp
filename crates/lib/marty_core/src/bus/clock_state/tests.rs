@@ -110,6 +110,9 @@ fn xt() -> BusInterface {
     bus.videocard_ids.push(id);
     // Program real native PIT ports; keep each bus's own independent devices.
     bus.pit = Some(Pit::new(PitType::Model8253, 14.31818, 12, None));
+    // Native refresh scheduling defaults off. Enable its existing consumer in
+    // this fixture; do not claim that normal Pyro startup enables this flag.
+    bus.refresh_enabled = true;
     for (port, byte) in [(0x43, 0x34), (0x40, 19), (0x40, 0), (0x43, 0x74), (0x41, 11), (0x41, 0)] {
         bus.io_write_u8(port, byte, 0, None);
     }
@@ -124,6 +127,7 @@ fn bus_clock_restore_continues_native_pit_refresh_and_cga() {
     let mut kb = VecDeque::new();
     let mut observed_pending = false;
     let mut saw_cga_remainder = false;
+    let mut saw_refresh_event = false;
     for n in 0..64 {
         let ticks = [1, 2, 5, 8, 13, 34][n % 6];
         if n % 3 == 0 {
@@ -140,6 +144,7 @@ fn bus_clock_restore_continues_native_pit_refresh_and_cga() {
         assert_eq!(a.is_intr_imminent(), b.is_intr_imminent());
         let ea = a.run_devices(ticks as f64 / 14.31818, ticks, None, &mut ka, None);
         let eb = b.run_devices(ticks as f64 / 14.31818, ticks, None, &mut kb, None);
+        saw_refresh_event |= matches!(ea, Some(DeviceEvent::DramRefreshUpdate(..)));
         assert_eq!(
             format!("{ea:?}"),
             format!("{eb:?}"),
@@ -172,8 +177,8 @@ fn bus_clock_restore_continues_native_pit_refresh_and_cga() {
             "native bus n={n}"
         );
     }
-    assert!(observed_pending && saw_cga_remainder);
-    println!("BUS_CLOCK_NATIVE: 64 destructive JSON restores; independent native PIT/PIC/CGA retained");
+    assert!(observed_pending && saw_cga_remainder && saw_refresh_event);
+    println!("BUS_CLOCK_NATIVE: 64 destructive JSON restores; independent native PIT/PIC/CGA retained; refresh consumer explicitly enabled in fixture");
 }
 
 #[test]
@@ -192,6 +197,34 @@ fn bus_clock_schema_invalid_restores_leave_live_state_unchanged() {
     let mut unknown = value.clone();
     unknown["unexpected"] = serde_json::json!(true);
     assert!(serde_json::from_value::<BusClockState>(unknown).is_err());
+    for path in ["config", "timing_table"] {
+        let nested = if path == "config" {
+            &value[path]
+        } else {
+            &value[path][0]
+        };
+        for key in nested.as_object().unwrap().keys() {
+            let mut missing = value.clone();
+            let object = if path == "config" {
+                &mut missing[path]
+            } else {
+                &mut missing[path][0]
+            };
+            object.as_object_mut().unwrap().remove(key);
+            assert!(
+                serde_json::from_value::<BusClockState>(missing).is_err(),
+                "required {path}.{key}"
+            );
+        }
+        let mut unknown = value.clone();
+        let object = if path == "config" {
+            &mut unknown[path]
+        } else {
+            &mut unknown[path][0]
+        };
+        object["unexpected"] = serde_json::json!(true);
+        assert!(serde_json::from_value::<BusClockState>(unknown).is_err());
+    }
     for n in 0..7 {
         let mut bad = saved.clone();
         match n {
