@@ -276,16 +276,18 @@ scope gaps. New direct tests cover both failure paths with unchanged live disk;
 all261 core tests pass. Real File reference now reopens through independent
 native parsing rather than prepare_restore. Metadata authentication belongs to
 the future outer container; disk hash alone covers backing bytes only. No
-production restore algorithm changed. Follow-up review/final CI/integration pending.
+production restore algorithm changed. Fresh38 frontend tests/UI builds pass
+on4a6586c9; scoped follow-up closes both findings with no remaining bounded
+defect. Final CI/integration is tracked by the parent's handoff/evidence.
 Caller-owned access policy/backend/path, atomic multi-disk dependencies,
 Disk/ATA/XT-IDE transfer state and actual process/machine restart remain OPEN.
 The parent retains source/product-bound raw transcripts and control recipes.
 
-WIP Disk wrapper is committed on local codex/snapshot-disk at03648eca:264
-core tests pass; omission/review/publication gates remain pending. Rebase it
-onto the VHD follow-up after its committed positive tests and review.
+WIP Disk wrapper PR22 has265 core tests and four paired deliberate omissions;
+review/frontend/final CI remain pending. Its parent-bound receipts retain exact
+source/product hashes; complete machine/controller restart is not proven.
 
-NEXT: finish VHD follow-up review and exact-head CI, then Disk omission/review;
+NEXT: finish VHD exact-head CI, then Disk review/frontend gates;
 ATA/XT-IDE pending transfers, remaining devices/bus clocks/audio/host I/O,
 atomic whole-machine dependency preflight and real process-restart continuation.
 Hardware trace,VNC,keyboard/serial RPC and physical XT/gameplay parity remain
