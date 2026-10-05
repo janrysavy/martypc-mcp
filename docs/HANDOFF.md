@@ -1,17 +1,19 @@
 # Native GUI RPC, 2026-10-05
 
-FINISHED source fix: App::logic owns the existing debugger pump independently
-of painting. The visible timestep does not double-run an RPC guest. Paused
-pumps do not advance guest cycles; the existing8ms soft host budget remains.
-Local31 RPC tests,17 GUI tests and a source-bound native UI build pass.
-The old original-Pyro GUI stalls while minimized and recovers unchanged.
-The patched BIOS paused/full-Machine/both-disk comparisons and minimized
-one-millisecond import/continuation replay pass.
+FINISHED local corrective source: native logic applies the original input path
+before the existing timestep runner. Read/control requests are serviced before
+its tick gate; execution keeps configured cycle quotas. RPC alone clamps slow
+host deltas to two frames instead of discarding every minimized update.
+Local58 frontend timing,31 RPC and17 GUI tests plus a source-bound UI build pass.
+The clamped GUI preserves complete paused Machine/disks and replays a minimized
+one-millisecond continuation after import with complete equality.
 
-WIP: original-Pyro runtime comparison, external review, final-head Windows/Linux
-CI and parent pin integration. Do not assume these gates have passed yet.
-The Pyro parent keeps the executed recipes/receipts; snapshot build identities
-remain strict, so another executable must boot its own fresh test session.
+The first scoped review rejected the unpaced u32::MAX candidate and changed
+input order; neither is accepted. A subsequent paced native trial reproduced
+read timeouts at the old timestep gate. Its failure remains in the parent.
+WIP: original-Pyro runtime, follow-up review, final-head Windows/Linux CI and
+parent pin integration. Do not assume those gates passed. Snapshot executable
+identity stays strict: another executable must boot its own fresh test session.
 
 ## Prior snapshot handoff (historical status)
 

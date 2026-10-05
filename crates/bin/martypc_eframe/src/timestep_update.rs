@@ -65,6 +65,24 @@ use marty_frontend_common::{
 
 use web_time::Instant;
 
+#[cfg(not(target_arch = "wasm32"))]
+fn pump_rpc(emu: &mut Emulator, cycles: u32) -> bool {
+    let rpc = emu.rpc.as_mut().expect("RPC runner selected without a server");
+    let restored = if let Some(snapshot) = &emu.snapshot_factory {
+        let mut factory = || snapshot.build(&emu.config);
+        let mut host = marty_debug_rpc::snapshot::SnapshotHost::for_rw_files_with_executable(
+            &mut factory, &snapshot.executable,
+            marty_debug_rpc::snapshot::SnapshotFrontend::NativeGui,
+        );
+        rpc.pump_with_snapshots(&mut emu.machine, cycles, &mut host)
+    } else {
+        rpc.pump(&mut emu.machine, cycles);
+        false
+    };
+    if restored { emu.refresh_after_snapshot(); }
+    restored
+}
+
 pub fn process_update(emu: &mut Emulator, dm: &mut EFrameDisplayManager, tm: &mut TimestepManager) {
     let local_input = emu.config.emulator.local_input_enabled();
     let mouse_enabled = local_input && emu.gui.get_option(GuiBoolean::MouseEnabled).unwrap_or(true);
@@ -116,6 +134,14 @@ pub fn process_update(emu: &mut Emulator, dm: &mut EFrameDisplayManager, tm: &mu
         }
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        tm.set_clamp_oversized_delta(emu.rpc.is_some());
+        // Input has already been applied. Requests must not wait for an
+        // emulation/render tick. Import yields before any further work.
+        if emu.rpc.is_some() && pump_rpc(emu, 0) { return; }
+    }
+
     tm.wm_update(
         emu,
         dm,
@@ -133,8 +159,7 @@ pub fn process_update(emu: &mut Emulator, dm: &mut EFrameDisplayManager, tm: &mu
             // Per emu update freq
             #[cfg(not(target_arch = "wasm32"))]
             if emuc.rpc.is_some() {
-                // App::logic services RPC independently of visible rendering.
-                // Never advance the same guest again from the UI timestep.
+                pump_rpc(emuc, cycles);
                 return;
             }
             emuc.machine.run(cycles, &mut emuc.exec_control.borrow_mut());

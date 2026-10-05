@@ -33,7 +33,11 @@ transport channel holds at most64 queued requests. This is not a hard latency SL
 Neither repaint nor inspection advances paused guest time. RPC requests and
 execution are serviced by the GUI logic callback even while its window is
 minimized or hidden. The visible UI timestep never runs an RPC-owned
-guest a second time. Logic requests another poll after4ms; operating-system
+guest a second time. Input is applied before requests/execution, and execution
+keeps configured cycle quotas. RPC slow host deltas are capped to two frames
+rather than discarded; normal UI pacing still discards them. Read/control
+requests do not wait for an emulation/render tick. Logic requests another poll
+after4ms; operating-system
 scheduling and the soft pump budget still preclude a hard response-time promise.
 RPC configurations skip wall-frame guest housekeeping in both frontends;
 software PPI turbo remains refused and host serial bridging is not supported

@@ -206,6 +206,7 @@ pub struct TimestepManager {
 
     cpu_mhz: f64,                 // Mhz of the primary emulated CPU (drives sys ticks)
     cpu_cycle_update_target: u32, // Number of CPU cycles to execute per emulator update
+    clamp_oversized_delta: bool, // RPC must make bounded progress even when a hidden window repaints slowly
     frame_target: Duration,       // Target frame time in microseconds
     throttle_factor: Cell<f64>,   // Factor to adjust CPU cycle target by to keep up with emu_render_rate
 
@@ -230,6 +231,7 @@ impl Default for TimestepManager {
 
             cpu_mhz: 1.0,
             cpu_cycle_update_target: (1_000_000.0 / DEFAULT_EMU_FPS_TARGET) as u32,
+            clamp_oversized_delta: false,
             frame_target: Duration::from_secs_f64(SECOND.as_secs_f64() / DEFAULT_EMU_FPS_TARGET as f64),
             throttle_factor: Cell::new(1.0),
 
@@ -283,16 +285,24 @@ impl TimestepManager {
         }
 
         self.current_instant = Instant::now();
-        let elapsed = self.last_instant.elapsed();
+        let mut elapsed = self.last_instant.elapsed();
         self.last_instant = self.current_instant;
 
         // Ignore deltas that are too big (updates may have stopped due to drawing window, etc.
         // honoring large deltas will lead to audio queue backup
         if elapsed > self.frame_target * 2 {
-            #[cfg(not(debug_assertions))]
-            log::debug!("Ignoring oversized timestep: {:?}", elapsed);
-            //self.last_instant = self.current_instant;
-            return;
+            if self.clamp_oversized_delta {
+                // Keep the normal configured cycle quota, bounded to the same
+                // two-frame maximum. Dropping every slow minimized repaint
+                // would otherwise leave an RPC operation running but stalled.
+                elapsed = self.frame_target * 2;
+            }
+            else {
+                #[cfg(not(debug_assertions))]
+                log::debug!("Ignoring oversized timestep: {:?}", elapsed);
+                //self.last_instant = self.current_instant;
+                return;
+            }
         }
 
         self.total_running_time += elapsed;
@@ -399,6 +409,11 @@ impl TimestepManager {
         );
     }
 
+    /// Opt in only for RPC execution; normal UI/audio pacing keeps discarding lag.
+    pub fn set_clamp_oversized_delta(&mut self, enabled: bool) {
+        self.clamp_oversized_delta = enabled;
+    }
+
     fn recalculate_target(&mut self) {
         self.cpu_cycle_update_target =
             ((self.cpu_mhz * 1_000_000.0 / self.emu_update_rate.get() as f64) * self.throttle_factor.get()) as u32;
@@ -423,7 +438,26 @@ impl TimestepManager {
 
 #[cfg(test)]
 mod tests {
-    use super::{Duration, HertzEvent, PerfCounter};
+    use super::{Duration, HertzEvent, Instant, MachinePerfStats, PerfCounter, TimestepManager};
+
+    #[test]
+    fn slow_rpc_updates_keep_configured_cycle_budget_and_bound_catchup() {
+        for clamp in [false, true] {
+            let mut tm = TimestepManager::default();
+            tm.set_emu_update_rate(100.0);
+            tm.set_emu_render_rate(100.0);
+            tm.set_throttle_factor(0.5);
+            tm.set_cpu_mhz(2.0);
+            tm.set_clamp_oversized_delta(clamp);
+            tm.init = true;
+            tm.last_instant = Instant::now() - Duration::from_millis(100);
+            let mut budgets = Vec::new();
+            tm.wm_update(&mut (), &mut (), |_| MachinePerfStats::default(),
+                |_, cycles| budgets.push(cycles), |_, _, _, _, _, _| {});
+            assert_eq!(budgets, if clamp { vec![10000, 10000] } else { vec![] });
+            assert_eq!(tm.total_running_time, if clamp { Duration::from_millis(20) } else { Duration::ZERO });
+        }
+    }
 
     #[test]
     fn seventy_hz_event_reports_all_ticks_on_sixty_hz_host() {

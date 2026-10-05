@@ -29,6 +29,8 @@ jobs:
         run: cargo test -p marty_debug_rpc -p marty_config -p martypc_headless --no-default-features --lib --locked
       - name: Build headless debugger
         run: cargo build -p martypc_headless --no-default-features --locked
+      - name: Test frontend timing and bounded RPC catchup
+        run: cargo test -p marty_frontend_common --no-default-features --lib --locked
       - name: Test core snapshot component and service paths
         run: cargo test -p marty_core --no-default-features --lib --locked
       - name: Test serial bridge and configured speaker snapshot paths
