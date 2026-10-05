@@ -1,4 +1,6 @@
 use super::*;
+use crate::devices::hdc::xtide::*;
+use crate::machine::storage::*;
 use crate::{
     cpu_common::{CpuAddress, Register16},
     cpu_validator::ValidatorType,
@@ -6,6 +8,7 @@ use crate::{
     machine_config::VideoCardConfig,
 };
 use marty_common::types::joystick::ControllerLayout;
+use std::io::{Cursor, Write};
 struct NoRoms(MachineType);
 impl CoreConfig for NoRoms {
     fn get_base_dir(&self) -> PathBuf {
@@ -78,9 +81,17 @@ fn fixture() -> Machine {
 }
 
 fn fixture_with_manifest(override_manifest: Option<MachineRomManifest>) -> Machine {
+    fixture_profile(override_manifest, false)
+}
+
+fn fixture_profile(override_manifest: Option<MachineRomManifest>, disks: bool) -> Machine {
     let core = NoRoms(MachineType::Ibm5160);
     let config = MachineConfiguration {
         machine_type: MachineType::Ibm5160,
+        hdc: disks.then_some(crate::machine_config::HardDriveControllerConfig {
+            hdc_type: crate::machine_types::HardDiskControllerType::XtIde,
+            drive: None,
+        }),
         video: vec![VideoCardConfig {
             video_type: VideoType::CGA,
             video_subtype: None,
@@ -341,4 +352,255 @@ fn whole_machine_review_rejects_unsupported_listing_and_inconsistent_clock() {
         accepted.is_empty(),
         "unsupported listing/zero/inconsistent native clock accepted"
     );
+}
+
+fn archive_disk_fixture() -> Machine {
+    let mut machine = fixture_profile(None, true);
+    let target = std::env::var_os("CARGO_TARGET_DIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../target"));
+    std::fs::create_dir_all(&target).unwrap();
+    let path = target.join(format!("archive-fixture-{}.vhd", uuid::Uuid::new_v4()));
+    let controller = machine.cpu.bus_mut().xtide_mut().as_mut().unwrap();
+    let geometry = controller.get_supported_formats()[0].geometry;
+    drop(crate::vhd::create_vhd(path.clone().into_os_string(), geometry.c, geometry.h, geometry.s).unwrap());
+    let raw = std::fs::read(&path).unwrap();
+    std::fs::remove_file(path).unwrap();
+    let mut disk = crate::vhd::VirtualHardDisk::parse(Box::new(Cursor::new(raw)), false).unwrap();
+    disk.write_sector(&(0..512).map(|i| (i * 13 + 7) as u8).collect::<Vec<_>>(), 0, 0, 0)
+        .unwrap();
+    let (_, bytes) = disk.snapshot_state(DiskCaptureMode::Embed, 0).unwrap();
+    let readonly = crate::vhd::VirtualHardDisk::parse(Box::new(Cursor::new(bytes.unwrap())), true).unwrap();
+    controller.set_vhd(0, disk).unwrap();
+    controller.set_vhd(1, readonly).unwrap();
+    controller.mask_register_write(0);
+    machine
+}
+
+fn archive_providers(disks: [Option<Vec<u8>>; 2]) -> [Option<Box<dyn VhdIO>>; 2] {
+    disks.map(|disk| disk.map(|bytes| Box::new(Cursor::new(bytes)) as Box<dyn VhdIO>))
+}
+
+#[test]
+fn persisted_archive_closes_reopens_and_restores_native_machine_with_partial_ata_read() {
+    use sha2::{Digest, Sha256};
+    let mut original = archive_disk_fixture();
+    for (register, byte) in [
+        (HDC_DRIVE_HEAD_REGISTER, 0xA0),
+        (HDC_SECTOR_COUNT_REGISTER, 1),
+        (HDC_SECTOR_NUMBER_REGISTER, 1),
+        (HDC_STATUS_REGISTER, 0x20),
+    ] {
+        original
+            .cpu
+            .bus_mut()
+            .io_write_u8(DEFAULT_IO_BASE + register, byte, 0, None);
+    }
+    for i in 0..17 {
+        let port = DEFAULT_IO_BASE
+            + if i % 2 == 0 {
+                HDC_DATA_REGISTER0
+            } else {
+                HDC_DATA_REGISTER1
+            };
+        assert_eq!(original.cpu.bus_mut().io_read_u8(port, 0), (i * 13 + 7) as u8);
+    }
+    let (saved, disks) = original.snapshot_state_quiesced(DiskCaptureMode::Embed, 0).unwrap();
+    let build = [0x31; 32];
+    let (archive, checksum) = encode_snapshot_archive(&saved, &disks, build, SnapshotArchiveLimits::default()).unwrap();
+    assert!(archive.len() < disks[0].as_ref().unwrap().len() / 2);
+    let target = std::env::var_os("CARGO_TARGET_DIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../target"));
+    let path = target.join(format!("machine-archive-{}.zip", uuid::Uuid::new_v4()));
+    {
+        let mut file = std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&path)
+            .unwrap();
+        file.write_all(&archive).unwrap();
+        file.sync_all().unwrap();
+    }
+    let reopened = std::fs::read(&path).unwrap();
+    std::fs::remove_file(path).unwrap();
+    assert_eq!(<[u8; 32]>::from(Sha256::digest(&reopened)), checksum);
+    let decoded = decode_snapshot_archive(
+        &reopened,
+        checksum,
+        build,
+        [None, None],
+        SnapshotArchiveLimits::default(),
+    )
+    .unwrap();
+    assert_eq!(decoded.machine, saved);
+    assert_eq!(decoded.disks, disks);
+    let requirements = decoded.machine.disk_requirements();
+    assert!(!requirements[0].as_ref().unwrap().read_only);
+    assert!(requirements[1].as_ref().unwrap().read_only);
+    let mut restored = fixture_profile(None, true)
+        .prepare_snapshot_restore(&decoded.machine, archive_providers(decoded.disks))
+        .unwrap();
+    for i in 17..512 {
+        let port = DEFAULT_IO_BASE
+            + if i % 2 == 0 {
+                HDC_DATA_REGISTER0
+            } else {
+                HDC_DATA_REGISTER1
+            };
+        let expected = (i * 13 + 7) as u8;
+        assert_eq!(original.cpu.bus_mut().io_read_u8(port, 0), expected);
+        assert_eq!(restored.cpu.bus_mut().io_read_u8(port, 0), expected);
+    }
+    let mut a = ExecutionControl::new();
+    a.set_state(ExecutionState::Running);
+    let mut b = ExecutionControl::new();
+    b.set_state(ExecutionState::Running);
+    for cycles in [13, 1000, 8192] {
+        assert_eq!(original.run(cycles, &mut a), restored.run(cycles, &mut b));
+        assert_eq!(native_output(&mut original), native_output(&mut restored));
+    }
+    assert_eq!(
+        original.snapshot_state_quiesced(DiskCaptureMode::Embed, 0).unwrap(),
+        restored.snapshot_state_quiesced(DiskCaptureMode::Embed, 0).unwrap()
+    );
+    println!("ARCHIVE_NATIVE:File sync/close/reopen, two mounted VHDs and read-only policy, partial ATA byte17 continuation with independent sector pattern, CPU/PIT/CGA cycles and full captured storage; no fresh-process/Pyro/frontend proof");
+}
+
+#[test]
+fn archive_references_require_exact_bytes_and_all_refusals_leave_live_machine_unchanged() {
+    let mut live = archive_disk_fixture();
+    let (before, raw) = live.snapshot_state_quiesced(DiskCaptureMode::Embed, 0).unwrap();
+    let (saved, no_payloads) = live.snapshot_state_quiesced(DiskCaptureMode::Reference, 0).unwrap();
+    let build = [0x32; 32];
+    let limits = SnapshotArchiveLimits::default();
+    let (archive, checksum) = encode_snapshot_archive(&saved, &no_payloads, build, limits).unwrap();
+    assert!(decode_snapshot_archive(&archive, checksum, build, [None, None], limits).is_err());
+    for slot in 0..2 {
+        let mut wrong = raw.clone();
+        wrong[slot].as_mut().unwrap()[7] ^= 1;
+        assert!(decode_snapshot_archive(&archive, checksum, build, wrong, limits).is_err());
+    }
+    let decoded = decode_snapshot_archive(&archive, checksum, build, raw.clone(), limits).unwrap();
+    let mut restored = fixture_profile(None, true)
+        .prepare_snapshot_restore(&decoded.machine, archive_providers(decoded.disks))
+        .unwrap();
+    assert_eq!(
+        restored
+            .snapshot_state_quiesced(DiskCaptureMode::Reference, 0)
+            .unwrap()
+            .0,
+        saved
+    );
+    assert_eq!(
+        live.snapshot_state_quiesced(DiskCaptureMode::Embed, 0).unwrap(),
+        (before, raw)
+    );
+    assert!(encode_snapshot_archive(&saved, &[Some(vec![0; 512]), None], build, limits).is_err());
+    println!("ARCHIVE_REFERENCE:both required disks hash-checked, altered byte in either slot/missing refs refused; supplied original matching bytes restore; independent live owner unchanged");
+}
+
+// Repack with a different writer: controls alter real archive members, never
+// the production decoder or an expected string copied out of that decoder.
+fn mutate_archive(raw: &[u8], case: usize) -> Vec<u8> {
+    use std::io::Read;
+    use zip::{write::SimpleFileOptions, CompressionMethod, ZipArchive, ZipWriter};
+    let mut src = ZipArchive::new(Cursor::new(raw)).unwrap();
+    let mut dst = ZipWriter::new(Cursor::new(Vec::new()));
+    let options = SimpleFileOptions::default().compression_method(CompressionMethod::Deflated);
+    for index in 0..src.len() {
+        let mut file = src.by_index(index).unwrap();
+        let name = file.name().to_owned();
+        let mut bytes = Vec::new();
+        file.read_to_end(&mut bytes).unwrap();
+        if case == 0 && name == "machine.json" {
+            bytes.push(b' ');
+        }
+        if name == "manifest.json" && (1..=3).contains(&case) {
+            let mut value: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+            match case {
+                1 => value["build"][0] = 0.into(),
+                2 => value["version"] = 2.into(),
+                _ => value["unknown"] = true.into(),
+            }
+            bytes = serde_json::to_vec(&value).unwrap();
+        }
+        if case == 4 && name == "machine.json" {
+            continue;
+        }
+        dst.start_file(&name, options).unwrap();
+        dst.write_all(&bytes).unwrap();
+        if case == 5 && name == "manifest.json" {
+            dst.start_file("manifest.jsox", options).unwrap();
+            dst.write_all(&bytes).unwrap();
+        }
+    }
+    if case == 6 {
+        dst.start_file("../outside", options).unwrap();
+        dst.write_all(b"no extraction").unwrap();
+    }
+    let mut bytes = dst.finish().unwrap().into_inner();
+    if case == 5 {
+        // zip2 rejects duplicate names on write but collapses them on read.
+        // Change equal-length local/central names after writing a valid archive.
+        let positions: Vec<_> = bytes
+            .windows(13)
+            .enumerate()
+            .filter_map(|(i, part)| (part == b"manifest.jsox").then_some(i))
+            .collect();
+        assert_eq!(positions.len(), 2);
+        for i in positions {
+            bytes[i..i + 13].copy_from_slice(b"manifest.json");
+        }
+    }
+    bytes
+}
+
+#[test]
+fn archive_refuses_corrupt_metadata_wrong_build_duplicate_paths_and_byte_budgets() {
+    use sha2::{Digest, Sha256};
+    let mut live = fixture();
+    let saved = capture(&mut live);
+    let build = [0x33; 32];
+    let limits = SnapshotArchiveLimits::default();
+    let (archive, checksum) = encode_snapshot_archive(&saved, &[None, None], build, limits).unwrap();
+    assert!(decode_snapshot_archive(&archive, [0; 32], build, [None, None], limits).is_err());
+    assert!(decode_snapshot_archive(&archive, checksum, [0; 32], [None, None], limits).is_err());
+    for case in 0..7 {
+        let mutant = mutate_archive(&archive, case);
+        // Original retained digest catches tampering before ZIP/JSON is trusted.
+        assert!(decode_snapshot_archive(&mutant, checksum, build, [None, None], limits).is_err());
+        // Even an independently supplied new digest cannot permit inconsistent
+        // members, wrong build/version, loose schema or unexpected/duplicate paths.
+        let digest: [u8; 32] = Sha256::digest(&mutant).into();
+        assert!(
+            decode_snapshot_archive(&mutant, digest, build, [None, None], limits).is_err(),
+            "case {case}"
+        );
+    }
+    for reduced in [
+        SnapshotArchiveLimits {
+            archive_bytes: 1,
+            ..limits
+        },
+        SnapshotArchiveLimits {
+            metadata_bytes: 1,
+            ..limits
+        },
+        SnapshotArchiveLimits {
+            total_bytes: 1,
+            ..limits
+        },
+    ] {
+        assert!(decode_snapshot_archive(&archive, checksum, build, [None, None], reduced).is_err());
+    }
+    assert!(decode_snapshot_archive(&archive, checksum, build, [Some(vec![1]), None], limits).is_err());
+    assert_eq!(capture(&mut live), saved);
+    assert_eq!(
+        decode_snapshot_archive(&archive, checksum, build, [None, None], limits)
+            .unwrap()
+            .machine,
+        saved
+    );
+    println!("ARCHIVE_REFUSAL:retained external digest/build, altered metadata, required members, strict manifest, duplicate/unknown paths, archive/metadata/total budgets and orphan refs; unchanged positive source and live owner pass");
 }

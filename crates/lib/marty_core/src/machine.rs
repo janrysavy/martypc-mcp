@@ -96,6 +96,7 @@ use crate::{
 
 mod input_state;
 mod state;
+pub mod storage;
 pub use state::MachineSnapshot;
 
 pub use marty_common::types::rom::{MachineCheckpoint, MachinePatch, MachineRomEntry, MachineRomManifest};

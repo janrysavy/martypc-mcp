@@ -1,22 +1,31 @@
 # Fork handoff
 
-NEXT: finish review/final CI for the new
-whole-Machine candidate owner, then implement authenticated persistent save/load,
-frontend/RPC rebind and a final live Machine swap. Prove fresh-process Pyro replay.
+NEXT: finish scoped review/final CI for storage PR32. Then implement frontend/RPC
+restore factory/provider policy, rebind and a final live Machine swap. Prove
+fresh-process Pyro replay. Core Machine PR31 is CI-approved and integrated.
 The selected profile is no-floppy IBM XT/CGA with DOS/Pyro VHDs. Generic FDC,
 weak-media entropy and floppy ownership are deferred. Never silently omit a
 configured unsupported owner. Local UI input stays off during deterministic RPC.
+
+FINISHED local container: fresh317 serial+sound core tests,597 bound inputs,
+plus fresh normal Windows core/headless build. Synced File close/reopen restores
+two VHDs/read-only policy, partial ATA byte17 with independent sector pattern,
+native CPU/PIT/CGA continuation and full captured storage. Missing/altered refs,
+metadata/build/digest/member/budget controls refused. Actual duplicate filename
+acceptance repaired by raw ZIP32 count validation; failure retained.
+[Storage API and proof limits](SNAPSHOT_STORAGE.md). Review/CI pending; no
+frontend/RPC/host provider policy/process/Pyro proof.
 
 FINISHED local snapshot disk requirements: fresh314 serial+sound core tests,596
 source inputs bound before/after. Typed Machine accessors expose each actual
 mounted VHD size/SHA, embed/reference and guest read-only policy; no schema or
 emulation change. Both native slots and unload are tested. Initial fixture
 failed because unload slot1 requires two configured drives; fixed the fixture,
-not native semantics. Persistent container/RPC/process/Pyro remain WIP.
+not native semantics. Container integration/RPC/process/Pyro remain WIP.
 
-INTEGRATED mainec95459b after final Windows/Linux CI: native UI/input policy,
+INTEGRATED main9df4b73a after final Windows/Linux CI: native UI/input policy,
 queue/BIU/CPU, bus RAM, motherboard devices, keyboard/FIFO, game port, CGA,
-VHD/Disk/ATA/XT-IDE, UART/mouse, bus clocks, A0, bus and service owners (PR6..30). Component evidence
+VHD/Disk/ATA/XT-IDE, UART/mouse, bus clocks, A0, bus and service owners (PR6..31). Component evidence
 and exact CI/product/source receipts live in the parent repository:
 https://github.com/janrysavy/pyro221_next/tree/master/docs/evidence/martypc_rpc_20261004
 
@@ -69,17 +78,17 @@ historical maps from a candidate constructed with different maps. Native queued
 level2 survives manifest level7 and is preserved alongside new level7 hits.
 Normal CI build failed because serde_json was only a dev-dependency. Moved
 the existing1.0 dependency to production (lock unchanged); fresh Windows normal
-core/headless consumer build passes,596 inputs bound. Final CI still pending.
+core/headless consumer build passes,596 inputs bound. Final CI37296505851 passed.
 Native reinstall_roms retains historical maps;
 later RAM writes can alter installed patch bytes. Both legitimate states remain
 restorable. Final scoped review finds no concrete candidate defect; the historical
 patch-map store is checked but its fresh installation side effect is not separately
-proven. Keep that narrow evidence limit. Final CI/integration pending; no exhaustive
+proven. Keep that narrow evidence limit. Exact9df4b73a integrated; no exhaustive
 metadata reachability
 or device-origin channel/frontend/VHD-bearing Machine/process/Pyro proof.
 
-NOT DONE: Machine/audio/frontend persistent composition, outer configuration/
-ROM/metadata authentication and host disk access/path/alias policy, pending
+NOT DONE: frontend/RPC persistent composition, portable configuration/ROM
+rebinding and host disk access/path/alias policy, pending
 speaker output queues, persistent whole-Machine/process/Pyro restart. Do not
 infer those from component tests. Attached audio queues and unsupported installed
 bus owners are explicitly refused until they have composed snapshot support.

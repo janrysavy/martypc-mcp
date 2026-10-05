@@ -3282,6 +3282,7 @@ dependencies = [
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-time",
+ "zip 2.6.1",
 ]
 
 [[package]]
