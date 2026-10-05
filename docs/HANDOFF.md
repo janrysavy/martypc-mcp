@@ -1,7 +1,7 @@
 # Fork handoff
 
-NEXT: finish headless fresh-process/Pyro snapshot replay, then native GUI consumer
-rebind/import. No GUI snapshot methods are enabled. Storage PR32 is integrated
+NEXT: native GUI consumer rebind/import and broader gameplay replay.
+No GUI snapshot methods are enabled. Storage PR32 is integrated
 at exact8bc61587 after final Windows/Linux CI37301899013 passes.
 FINISHED local headless RPC: fresh42 frontend/RPC tests, fresh317 serial+sound
 core tests,600 bound source inputs and fresh normal Windows consumer build
@@ -11,9 +11,18 @@ Runtime provider guard refuses Cursor/raw RO/append Files; constrained typed Fil
 constructors preserve actual RW/non-append access, not cached read_only flags.
 40 native CPU/PIT/CGA steps with nondefault CPU options/PIT phase, partial ATA
 byte17 and native writes to both restored Files pass; original refs unchanged.
-Cleanup failures log retained paths. First review addressed; follow-up pending.
+Cleanup failures log retained paths. Both scoped reviews are complete; their
+remaining real factory/process gap is now covered by bounded native runs.
 Real stock frontend refuses trace/listing sinks; no-sink profile exports at reset.
-Fresh-process/Pyro and GUI restore are still WIP; do not assume they pass.
+FINISHED bounded headless process restart: two unmodified Pyro startup windows
+(36->37 and37->38 seconds) compare every captured Machine field and both VHDs.
+A third40->41-second replay preserves pending BIOS Enter, consumes it identically
+and generates the first level with RandSeed24130000->CE19534E on both branches.
+Wrong independent archive digest leaves each cold Machine/disks unchanged.
+Parent evidence: machine-restart.json.gz and machine-restart-queued.json.gz in
+https://github.com/janrysavy/pyro221_next/tree/master/docs/evidence/martypc_rpc_20261004
+Production/product9adf487c/b3e0b8e6 are unchanged for this documentation update.
+GUI restore, physical timing/input/audio and whole-floor gameplay remain OPEN.
 The selected profile is no-floppy IBM XT/CGA with DOS/Pyro VHDs. Generic FDC,
 weak-media entropy and floppy ownership are deferred. Never silently omit a
 configured unsupported owner. Local UI input stays off during deterministic RPC.
