@@ -114,6 +114,7 @@ pub struct MartyApp {
     pub emu: Option<Emulator>,
     dm: Option<EFrameDisplayManager>,
     tm: TimestepManager,
+    pending_ungrab: bool,
 }
 
 impl Default for MartyApp {
@@ -136,6 +137,7 @@ impl Default for MartyApp {
             emu: None,
             dm: None,
             tm: TimestepManager::default(),
+            pending_ungrab: false,
         }
     }
 }
@@ -585,20 +587,8 @@ impl MartyApp {
 }
 
 impl MartyApp {
-    /// Called each time the UI needs repainting, which may be many times per second.
-    /// A display manager must be created before this is called.
-    fn update_frame(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
-        let ctx = ui.ctx().clone();
-        let ctx = &ctx;
-
-        // Enumerate the host's gamepads if the feature is enabled
-        // #[cfg(feature = "use_gilrs")]
-        // let mut gilrs = Gilrs::new().unwrap();
-        // log::debug!("Enumerating {} gamepads...", gilrs.gamepads().count());
-        // for (_id, gamepad) in gilrs.gamepads() {
-        //     log::debug!("Found gamepad: {:?}", gamepad.name());
-        // }
-
+    // Preserve input-before-execution ordering for both UI and RPC logic.
+    fn prepare_input(&mut self, ctx: &Context) {
         // Get current viewport focus state.
         ctx.input(|i| {
             let vi = i.viewport();
@@ -700,23 +690,6 @@ impl MartyApp {
 
             let dm = self.dm.as_mut().unwrap();
 
-            #[cfg(not(target_arch = "wasm32"))]
-            let mouse_capture_hint = emu
-                .hkm
-                .hotkey_string(HotkeyEvent::CaptureMouse)
-                .map(|hotkey| format!("Press {hotkey} to release mouse"))
-                .unwrap_or_default();
-
-            #[cfg(not(target_arch = "wasm32"))]
-            let active_mouse_capture_hint = if emu.mouse_data.is_captured {
-                mouse_capture_hint.as_str()
-            }
-            else {
-                ""
-            };
-            #[cfg(target_arch = "wasm32")]
-            let active_mouse_capture_hint = "";
-
             // Collect primary-display pointer input before running the machine so it can enter the current timestep.
             // We can't access context in the GUI closure below, so retain a flag to un-grab the mouse afterward.
             let mut ungrab = false;
@@ -744,9 +717,57 @@ impl MartyApp {
                 };
             });
 
+            self.pending_ungrab |= ungrab;
+        }
+    }
+
+    /// Called each time the UI needs repainting, which may be many times per second.
+    /// A display manager must be created before this is called.
+    fn update_frame(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        let ctx = ui.ctx().clone();
+        let ctx = &ctx;
+
+        // Enumerate the host's gamepads if the feature is enabled
+        // #[cfg(feature = "use_gilrs")]
+        // let mut gilrs = Gilrs::new().unwrap();
+        // log::debug!("Enumerating {} gamepads...", gilrs.gamepads().count());
+        // for (_id, gamepad) in gilrs.gamepads() {
+        //     log::debug!("Found gamepad: {:?}", gamepad.name());
+        // }
+
+        #[cfg(not(target_arch = "wasm32"))]
+        let rpc_owned = self.emu.as_ref().is_some_and(|emu| emu.rpc.is_some());
+        #[cfg(target_arch = "wasm32")]
+        let rpc_owned = false;
+        if !rpc_owned { self.prepare_input(ctx); }
+        let ungrab = std::mem::take(&mut self.pending_ungrab);
+
+        if let Some(emu) = &mut self.emu {
+            let middle_click_capture_shortcut = emu.config.emulator.input.middle_click_capture_shortcut;
+            let dm = self.dm.as_mut().unwrap();
+
+            #[cfg(not(target_arch = "wasm32"))]
+            let mouse_capture_hint = emu
+                .hkm
+                .hotkey_string(HotkeyEvent::CaptureMouse)
+                .map(|hotkey| format!("Press {hotkey} to release mouse"))
+                .unwrap_or_default();
+
+            #[cfg(not(target_arch = "wasm32"))]
+            let active_mouse_capture_hint = if emu.mouse_data.is_captured {
+                mouse_capture_hint.as_str()
+            }
+            else {
+                ""
+            };
+            #[cfg(target_arch = "wasm32")]
+            let active_mouse_capture_hint = "";
+
             // Process timestep.
-            process_update(emu, dm, &mut self.tm);
-            handle_thread_event(emu, ctx);
+            if !rpc_owned {
+                process_update(emu, dm, &mut self.tm);
+                handle_thread_event(emu, ctx);
+            }
 
             let virtual_mouse = emu
                 .machine
@@ -1099,26 +1120,17 @@ impl MartyApp {
 impl eframe::App for MartyApp {
     fn logic(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
         // eframe skips ui() for minimized/hidden windows, but still calls
-        // logic() when a repaint is requested. RPC owns guest execution on
-        // this same thread; painting and wall-frame pacing must not gate it.
+        // logic() when a repaint is requested. Preserve input-before-run and
+        // calculated timestep budgets instead of gating RPC on painting.
         #[cfg(not(target_arch = "wasm32"))]
-        if let Some(emu) = self.emu.as_mut().filter(|emu| emu.rpc.is_some()) {
-            let rpc = emu.rpc.as_mut().unwrap();
-            let restored = if let Some(snapshot) = &emu.snapshot_factory {
-                let mut factory = || snapshot.build(&emu.config);
-                let mut host = marty_debug_rpc::snapshot::SnapshotHost::for_rw_files_with_executable(
-                    &mut factory, &snapshot.executable,
-                    marty_debug_rpc::snapshot::SnapshotFrontend::NativeGui,
-                );
-                rpc.pump_with_snapshots(&mut emu.machine, u32::MAX, &mut host)
-            } else {
-                rpc.pump(&mut emu.machine, u32::MAX);
-                false
-            };
-            if restored { emu.refresh_after_snapshot(); }
-            // pump checks its existing 8-ms soft host budget at each native
-            // boundary/request. Paused pumps spend no guest cycles. Poll even
-            // when no UI is painted, so an idle paused session can receive RPC.
+        if self.emu.as_ref().is_some_and(|emu| emu.rpc.is_some()) {
+            self.prepare_input(ctx);
+            if let (Some(emu), Some(dm)) = (self.emu.as_mut(), self.dm.as_mut()) {
+                process_update(emu, dm, &mut self.tm);
+                handle_thread_event(emu, ctx);
+            }
+            // The existing RPC pump has an8ms soft host budget and never
+            // advances a paused guest. Keep logic scheduled while UI is hidden.
             ctx.request_repaint_after(std::time::Duration::from_millis(4));
         }
     }
