@@ -109,6 +109,7 @@ mod tests {
         config.emulator.audio.enabled = false;
         let description = MachineConfiguration {
             machine_type: MachineType::Ibm5160,
+            speaker: true,
             video: vec![VideoCardConfig {
                 video_type: VideoType::CGA,
                 video_subtype: None,

@@ -1,5 +1,14 @@
 # Fork handoff
 
+FINISHED configured-speaker repair: real native GUI export refused an output
+queue despite disabled SoundOutputConfig. A speaker=true positive factory
+fixture reproduces the refusal; PC-speaker sender creation now honors the host
+output flag. Fresh318 serial+sound core and62 frontend checks pass (601 inputs).
+Enabled/disabled host output match CPU cycles/register, full PPI and all native
+PIT channel/clock fields after10000 cycles. Five host output fields intentionally
+differ, including PitSpeaker.enabled, which has no native reads. The first
+comparison omitted that captured enable flag; its failure is retained. Host PCM
+sampling is disabled; physical audible parity is not claimed.
 NEXT: fresh normal native GUI product, live complete-Machine idle/restore and
 visible process restart; review loaded ownership and address findings before CI
 integration. PR34 stays draft. No new GUI runtime completion claim.

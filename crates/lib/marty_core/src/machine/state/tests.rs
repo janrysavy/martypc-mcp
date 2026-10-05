@@ -604,3 +604,59 @@ fn archive_refuses_corrupt_metadata_wrong_build_duplicate_paths_and_byte_budgets
     );
     println!("ARCHIVE_REFUSAL:retained external digest/build, altered metadata, required members, strict manifest, duplicate/unknown paths, archive/metadata/total budgets and orphan refs; unchanged positive source and live owner pass");
 }
+
+#[cfg(feature = "sound")]
+#[test]
+fn disabled_host_speaker_queue_preserves_native_timer_and_ppi_execution() {
+    use crate::sound::SoundOutputConfig;
+    let build = |enabled| {
+        let core = NoRoms(MachineType::Ibm5160);
+        let config = MachineConfiguration {
+            machine_type: MachineType::Ibm5160,
+            speaker: true,
+            ..Default::default()
+        };
+        let mut machine = MachineBuilder::new()
+            .with_core_config(Box::new(&core))
+            .with_machine_config(&config)
+            .with_roms(MachineRomManifest::new())
+            .with_sound_config(SoundOutputConfig { enabled, ..Default::default() })
+            .build().unwrap();
+        // CLI; PIT2 square wave/reload10; enable PPI speaker/gate; INC AX loop.
+        machine.load_program(&[0xfa, 0xb0, 0xb6, 0xe6, 0x43, 0xb0, 10,
+            0xe6, 0x42, 0xb0, 0, 0xe6, 0x42, 0xb0, 3, 0xe6, 0x61,
+            0x40, 0xeb, 0xfd], 0, 0x100, 0, 0x100).unwrap();
+        machine
+    };
+    let mut enabled = build(true);
+    let mut disabled = build(false);
+    assert_eq!(enabled.get_sound_sources().len(), 1);
+    assert!(disabled.get_sound_sources().is_empty());
+    for machine in [&mut enabled, &mut disabled] {
+        let mut control = ExecutionControl::new();
+        control.set_state(ExecutionState::Running);
+        machine.run(10000, &mut control);
+    }
+    assert_eq!(enabled.cpu_cycles(), disabled.cpu_cycles());
+    assert_eq!(enabled.system_ticks(), disabled.system_ticks());
+    assert_eq!(enabled.cpu.get_register16(Register16::AX), disabled.cpu.get_register16(Register16::AX));
+    assert!(enabled.get_sound_sources()[0].receiver.len() > 0);
+    assert_eq!(enabled.bus_mut().ppi_mut().as_mut().unwrap().snapshot_state().unwrap(),
+        disabled.bus_mut().ppi_mut().as_mut().unwrap().snapshot_state().unwrap());
+    let mut with_audio = serde_json::to_value(enabled.bus_mut().pit_mut().as_mut().unwrap().snapshot_state().unwrap()).unwrap();
+    let mut without_audio = serde_json::to_value(disabled.bus_mut().pit_mut().as_mut().unwrap().snapshot_state().unwrap()).unwrap();
+    // PitSpeaker.enabled is initialized from sender presence and has no native
+    // reads (only snapshot storage); it is also a host output flag.
+    assert_eq!(with_audio["speaker_enabled"], true);
+    assert_eq!(without_audio["speaker_enabled"], false);
+    // Only host sample sink/accumulation/enablement differs. All native channel, gate,
+    // latch, reload, phase and timer clocks are compared without exclusions.
+    for field in ["speaker_connected", "speaker_enabled", "speaker_buf_bits", "speaker_sample_accum_bits", "speaker_sample_ct"] {
+        assert!(with_audio.as_object_mut().unwrap().remove(field).is_some());
+        assert!(without_audio.as_object_mut().unwrap().remove(field).is_some());
+    }
+    assert_eq!(with_audio, without_audio);
+    assert!(disabled.snapshot_state_quiesced(DiskCaptureMode::Embed, 0).is_ok());
+    assert!(enabled.snapshot_state_quiesced(DiskCaptureMode::Embed, 0).is_err());
+    println!("SPEAKER_OUTPUT_POLICY: configured speaker, disabled host queue; native CPU/PPI/PIT clocks and channels equal to audible branch after10000 cycles; PCM accumulation/sink intentionally differ; enabled output refused by snapshot preflight");
+}
