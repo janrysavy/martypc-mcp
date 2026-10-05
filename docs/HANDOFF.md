@@ -289,9 +289,18 @@ VHD. A native unload/rebind keeps stale CHS. Strict required/unknown keys,
 provider-presence/hash/version refusals and independent Disk/CHS/geometry field
 inventories pass. Four DELIBERATE MUTANTS (CHS, geometry, mounted VHD and
 required option) fail named native/schema tests; exact restored source returns
-265 green. Review/publication/final CI remain pending. Native runtime unchanged.
+265 green. Initial snapshot runtime is unchanged in its frozen receipt.
+Review independently exposed existing sector-base bugs: contains accepted sector0
+below a one-based geometry, and VHD mapping always subtracted1. Three native
+regressions fail before correction; all268 core tests pass after using declared
+offsets, including82944 wider-integer boundary checks. Zero-based geometry stays
+valid. Native Disk/geometry change only those proven rules; full-file comparison
+against680341e9 plus explicit module/fix edits closes the earlier suffix-only
+identity gap. A pre-anchor field-type copy passes the old scope but fails the
+full-file verifier; this is source-only, never a live compiled mutation.
+Fresh snapshot omissions, frontend checks, follow-up review/final CI remain pending.
 
-NEXT: finish VHD exact-head CI; Disk review/publication gates;
+NEXT: finish VHD exact-head CI; rerun Disk omissions and review sector-base repairs;
 ATA/XT-IDE pending transfers, remaining devices/bus clocks/audio/host I/O,
 atomic whole-machine dependency preflight and real process-restart continuation.
 Hardware trace,VNC,keyboard/serial RPC and physical XT/gameplay parity remain

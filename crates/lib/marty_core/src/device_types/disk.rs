@@ -104,7 +104,8 @@ impl Disk {
 
     /// Returns the current position in VHD format CHS (0-indexed)
     pub fn position_vhd(&self) -> DiskChs {
-        DiskChs::new(self.position.c, self.position.h, self.position.s.saturating_sub(1))
+        // Use the actual declared sector base, including zero-based geometry.
+        DiskChs::new(self.position.c, self.position.h, self.position.s.saturating_sub(self.geometry.s_off))
     }
 
     pub fn seek(&mut self, chs: DiskChs) {

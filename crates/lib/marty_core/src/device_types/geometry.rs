@@ -37,6 +37,9 @@ use crate::{
 };
 use std::fmt::Display;
 
+#[cfg(test)]
+mod tests;
+
 /// A structure representing how sectors are laid out on a disk (assuming standard format)
 ///  - Cylinder (c)
 ///  - Head (h)
@@ -167,7 +170,9 @@ impl DriveGeometry {
     /// representing a sector id.
     pub fn contains(&self, chs: impl Into<DiskChs>) -> bool {
         let chs = chs.into();
-        self.c > chs.c && self.h > chs.h && self.s > (chs.s.saturating_sub(self.s_off))
+        // Check the lower bound before subtracting: saturation aliases every
+        // sector below the declared base to the first valid sector.
+        self.c > chs.c && self.h > chs.h && chs.s >= self.s_off && self.s > chs.s - self.s_off
     }
 
     pub fn chs_iter(&self) -> DiskChsIterator {
