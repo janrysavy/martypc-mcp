@@ -3,7 +3,8 @@
 NEXT: complete restartable snapshots of the actual no-floppy VHD/CGA Pyro
 profile before further timing research. Generic floppy media/FDC is deferred.
 
-WIP bus-clock component: fresh300 core tests pass, including64 destructive
+FINISHED local bus-clock component: fresh300 core/302 serial+sound tests pass,
+including64 destructive
 JSON continuations through native PIT/PIC/CGA and returned bus events.
 Refresh scheduling is explicitly enabled in the fixture (native default is off);
 this proves its existing consumer, not normal Pyro startup enabling that flag.
@@ -12,8 +13,13 @@ Three native conversion/seeded storage restores plus cold lookup storage
 preserve exact binary64 bits; seven invalid restores are atomic. Device-owned
 state is deliberately retained in continuation probes, not reconstructed.
 Production timing algorithms are unchanged; only snapshot module registration
-is added to native bus code. Actual omission controls, scoped review, final
-Windows/Linux CI and integration remain pending.
+is added to native bus code. Four actual omissions are caught; exact source
+restoration precedes fresh300 positive products. Scoped follow-up closes the
+first review findings: keyboard clock already has its own integrated owner;
+Cargo fresh=false means rustc ran. No remaining concrete scoped defect is found.
+Other machine/video/timer-crystal paths remain unproven. This documentation-only
+head changes no compiler input after tested6e28a87f. Final-head Windows/Linux CI
+and integration remain pending.
 Machine metadata/A0/audio owner assembly and process/Pyro restart remain OPEN.
 Full evidence is retained in the parent; no complete restart claim.
 No complete machine snapshot or process-restart continuation proof exists.
