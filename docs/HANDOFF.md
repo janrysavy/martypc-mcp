@@ -316,7 +316,22 @@ The same named whole-file comparator accepts originals and rejects a deliberate
 pre-anchor field-type copy. Final bounded reviews/CI/integration are tracked
 in the parent's handoff/evidence; these are not Machine restart claims.
 
-NEXT: finish Disk final review/CI/integration tracked by parent (VHD is integrated);
+FINISHED local ATA component:42 native fields have explicit versioned state;
+partial low/high bytes, buffer contents/cursor (native len+1), operation counters,
+command FIFO and known callback independent of opcode, pending bus flags and
+exact clock bits are preserved. Unknown callbacks are refused before disk I/O.
+Fresh278 core tests pass, including70 native API JSON checkpoints:32 read/identify,
+28 writes with independently parsed backing bytes,8 pending callbacks and2
+buffer/reset phases. Two IRQ/DREQ consumer checkpoints are explicitly seeded:
+native PIO handlers do not currently produce those requests. One extra seeded
+storage case and independent native field inventories cover inactive storage.
+Strict missing/extra keys and dependency/version/wiring/buffer refusals pass;
+no live ATA owner is mutated on restore refusal. Native ATA algorithms unchanged.
+WIP: actual omission controls, source-bound rerun, review/frontend/final CI.
+Controller selection/bus wiring, host access/path, complete Machine/process
+restart and Pyro continuation remain unproven.
+
+NEXT: finish ATA controls/review/gates; Disk final CI/integration tracked by parent;
 ATA/XT-IDE pending transfers, remaining devices/bus clocks/audio/host I/O,
 atomic whole-machine dependency preflight and real process-restart continuation.
 Hardware trace,VNC,keyboard/serial RPC and physical XT/gameplay parity remain

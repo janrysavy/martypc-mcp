@@ -27,6 +27,9 @@
 
 //! An AtaDevice implements an ATA storage device, typically a hard disk.
 
+mod state;
+pub(crate) use state::AtaDeviceState;
+
 use crate::{
     bus::BusInterface,
     device_types::{chs::DiskChs, disk::Disk},
