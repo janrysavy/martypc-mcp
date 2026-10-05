@@ -132,19 +132,9 @@ pub fn process_update(emu: &mut Emulator, dm: &mut EFrameDisplayManager, tm: &mu
         |emuc, cycles| {
             // Per emu update freq
             #[cfg(not(target_arch = "wasm32"))]
-            if let Some(rpc) = &mut emuc.rpc {
-                let restored = if let Some(snapshot) = &emuc.snapshot_factory {
-                    let mut factory = || snapshot.build(&emuc.config);
-                    let mut host = marty_debug_rpc::snapshot::SnapshotHost::for_rw_files_with_executable(
-                        &mut factory, &snapshot.executable,
-                        marty_debug_rpc::snapshot::SnapshotFrontend::NativeGui,
-                    );
-                    rpc.pump_with_snapshots(&mut emuc.machine, cycles, &mut host)
-                } else {
-                    rpc.pump(&mut emuc.machine, cycles);
-                    false
-                };
-                if restored { emuc.refresh_after_snapshot(); }
+            if emuc.rpc.is_some() {
+                // App::logic services RPC independently of visible rendering.
+                // Never advance the same guest again from the UI timestep.
                 return;
             }
             emuc.machine.run(cycles, &mut emuc.exec_control.borrow_mut());

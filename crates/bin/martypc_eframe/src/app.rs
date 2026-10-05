@@ -1097,6 +1097,32 @@ impl MartyApp {
 }
 
 impl eframe::App for MartyApp {
+    fn logic(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
+        // eframe skips ui() for minimized/hidden windows, but still calls
+        // logic() when a repaint is requested. RPC owns guest execution on
+        // this same thread; painting and wall-frame pacing must not gate it.
+        #[cfg(not(target_arch = "wasm32"))]
+        if let Some(emu) = self.emu.as_mut().filter(|emu| emu.rpc.is_some()) {
+            let rpc = emu.rpc.as_mut().unwrap();
+            let restored = if let Some(snapshot) = &emu.snapshot_factory {
+                let mut factory = || snapshot.build(&emu.config);
+                let mut host = marty_debug_rpc::snapshot::SnapshotHost::for_rw_files_with_executable(
+                    &mut factory, &snapshot.executable,
+                    marty_debug_rpc::snapshot::SnapshotFrontend::NativeGui,
+                );
+                rpc.pump_with_snapshots(&mut emu.machine, u32::MAX, &mut host)
+            } else {
+                rpc.pump(&mut emu.machine, u32::MAX);
+                false
+            };
+            if restored { emu.refresh_after_snapshot(); }
+            // pump checks its existing 8-ms soft host budget at each native
+            // boundary/request. Paused pumps spend no guest cycles. Poll even
+            // when no UI is painted, so an idle paused session can receive RPC.
+            ctx.request_repaint_after(std::time::Duration::from_millis(4));
+        }
+    }
+
     fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
         self.update_frame(ui, frame);
     }
