@@ -332,7 +332,10 @@ Six actual omissions and source-bound278 evidence remain frozen on8f1311c6;
 restore production is byte-identical. Fresh38 frontend tests/UI builds passed
 on8f1311c6. Review found witness/scope gaps, no definite production omission;
 direct storage checks now address the shared serializer limitation.
-WIP: fresh source-bound279 witness, paired repair controls, follow-up review
+Fresh source-bound279 and both repair controls pass. Follow-up review found
+consistent wire-key permutations were not checked; explicit seeded wire values
+now pass279 core tests while restore production remains unchanged.
+WIP: actual consistent-permutation control, follow-up review
 and final Windows/Linux CI. Initial Windows CI failed only CRLF inventory.
 Controller selection/bus wiring, host access/path, complete Machine/process
 restart and Pyro continuation remain unproven.

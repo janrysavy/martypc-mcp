@@ -461,6 +461,34 @@ fn schema_inventory_and_seeded_storage_cover_native_fields() {
         reference.send_dreq = selected == 10;
         reference.clear_dreq = selected == 11;
         reference.dreq_active = selected == 12;
+        // Stable wire-key meanings are checked separately from round-trip
+        // restoration. A consistent encoder/decoder permutation must fail.
+        let wire = serde_json::to_value(capture(&mut reference).0).unwrap();
+        let mut expected = serde_json::json!({
+            "version": 1, "disk_idx": 17, "irq": 5, "dma_channel": 3,
+            "state": 6, "last_error": 3, "last_error_drive": 29,
+            "command": 112, "command_chs": [1,1,3], "command_lba": 0x54321,
+            "command_fn": "Identify", "last_command": 197, "command_byte_n": 7,
+            "command_queue": [9,4,3], "sector_buffer_idx": 317,
+            "sector_buffer": [(0..512).map(|i| (i*19+37) as u8).collect::<Vec<_>>(), 513],
+            "status_register": 0xA7, "error_register": 0x53,
+            "sector_count_register": 11, "sector_number_register": 13,
+            "cylinder_low_register": 23, "cylinder_high_register": 31,
+            "drive_head_register": 0xB1, "status_reads": 93, "data_reads": 101,
+            "data_writes": 109, "data_register": [null,0xD3],
+            "operation_status": [3,4,5,6,71,83], "state_accumulator": (-0.0_f64).to_bits()
+        });
+        for (index,key) in ["lba", "dma", "error_flag", "receiving_dcb",
+            "command_result_pending", "dma_enabled", "irq_enabled", "send_interrupt",
+            "clear_interrupt", "interrupt_active", "send_dreq", "clear_dreq", "dreq_active"]
+            .into_iter().enumerate() {
+            expected[key] = (index == selected).into();
+        }
+        // Nested Disk wire semantics have their own independently tested codec;
+        // here verify that ATA puts that owner's state under the disk key.
+        expected["disk"] = serde_json::to_value(reference.disk_mut().unwrap()
+            .snapshot_state(DiskCaptureMode::Embed,0).unwrap().0).unwrap();
+        assert_eq!(wire,expected,"ATA wire-key meaning for one-hot case{selected}");
         let mut restored = roundtrip(&mut reference);
         native_storage(&reference, &restored);
         assert_eq!(capture(&mut restored), capture(&mut reference));
