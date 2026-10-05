@@ -30,6 +30,9 @@
 
 #![allow(dead_code)]
 
+mod state;
+pub(crate) use state::XtIdeState;
+
 use std::{error::Error, fmt::Debug};
 
 use crate::{

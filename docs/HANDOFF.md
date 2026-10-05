@@ -344,7 +344,22 @@ Initial Windows CI failed only CRLF inventory.
 Controller selection/bus wiring, host access/path, complete Machine/process
 restart and Pyro continuation remain unproven.
 
-NEXT: finish ATA controls/review/gates; Disk final CI/integration tracked by parent;
+FINISHED local XT-IDE component: ten controller fields, both ATA owners and
+complete capability descriptors have versioned state. Preparation authenticates
+both fresh disk providers before any live controller replacement; count1 permits
+native empty-slave selection1. Native algorithms unchanged apart from module
+registration. Fresh284 core tests pass:12 dual-drive partial-read and6 partial
+low/high-write native-port checkpoints, with independently parsed written sectors;
+1 empty-slave native-port continuation and1 native-unload storage checkpoint.
+Six seeded error/capability vectors are storage-only. Missing/extra schema keys,
+fixed drive-array length and second-disk missing/corrupt dependency refusals pass
+without live-owner mutation. Controller restore is not a complete bus/Machine
+or process-restart proof.
+WIP: publish draft PR, actual omitted-controller controls, source-bound fresh
+run, scoped review/frontend builds and final Windows/Linux CI.
+ATA final scoped wire review passed; final CI/integration tracked by parent.
+
+NEXT: finish XT-IDE evidence/review/final gates; ATA final CI tracked by parent;
 ATA/XT-IDE pending transfers, remaining devices/bus clocks/audio/host I/O,
 atomic whole-machine dependency preflight and real process-restart continuation.
 Hardware trace,VNC,keyboard/serial RPC and physical XT/gameplay parity remain
