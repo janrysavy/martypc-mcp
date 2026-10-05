@@ -298,9 +298,18 @@ valid. Native Disk/geometry change only those proven rules; full-file comparison
 against680341e9 plus explicit module/fix edits closes the earlier suffix-only
 identity gap. A pre-anchor field-type copy passes the old scope but fails the
 full-file verifier; this is source-only, never a live compiled mutation.
-Fresh snapshot omissions, frontend checks, follow-up review/final CI remain pending.
+Fresh four snapshot omissions also fail; exact source restoration passes268.
+Follow-up review finds a native next_sector byte-overflow. Two successor
+regressions fail before correction; guarded wider bounds now refuse invalid
+or unrepresentable successors instead of overflowing/skipping sectors.
+82944 independent wider-LBA successors and all271 core tests pass. Constructor/
+set_geometry stale below-base CHS is explicitly preserved by two storage-only
+JSON restores; saturating position_vhd is not a valid-address guarantee.
+Identity scope is exact native Disk/geometry/CHS files plus explicit intended
+edits; snapshot/dependency files are separately pinned, not baseline-equal.
+Snapshot production is unchanged. Repair review/fresh frontends/final CI pending.
 
-NEXT: finish VHD exact-head CI; rerun Disk omissions and review sector-base repairs;
+NEXT: finish Disk repair review/fresh frontends/final CI (VHD is integrated);
 ATA/XT-IDE pending transfers, remaining devices/bus clocks/audio/host I/O,
 atomic whole-machine dependency preflight and real process-restart continuation.
 Hardware trace,VNC,keyboard/serial RPC and physical XT/gameplay parity remain

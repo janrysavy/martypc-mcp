@@ -229,6 +229,34 @@ mod tests {
     }
 
     #[test]
+    fn native_stale_below_base_position_is_preserved_without_normalization() {
+        for replace_geometry in [false, true] {
+            let geometry = DriveGeometry::new(2, 2, 4, 17, 512);
+            let mut reference = if replace_geometry {
+                let mut disk = Disk::new(DriveGeometry::new(2, 2, 4, 1, 512));
+                disk.set_geometry(geometry);
+                disk
+            } else {
+                Disk::new(geometry)
+            };
+            // Native constructor/geometry replacement leaves sector1 cached.
+            // Its saturating VHD view is not a valid-address guarantee. This
+            // is a storage-only observation, not a successful sector transfer.
+            assert_eq!(reference.position(), DiskChs::new(0, 0, 1));
+            assert!(!reference.geometry().contains(reference.position()));
+            assert_eq!(reference.position_vhd(), DiskChs::new(0, 0, 0));
+            let (saved, payload) = capture(&mut reference);
+            let json = serde_json::to_string(&saved).unwrap();
+            let mut restored = restore(&serde_json::from_str(&json).unwrap(), payload);
+            assert_eq!(restored.position(), reference.position());
+            assert_eq!(restored.geometry(), reference.geometry());
+            assert_eq!(restored.position_vhd(), reference.position_vhd());
+            assert_eq!(restored.next_sector(), None);
+            assert_eq!(capture(&mut restored), capture(&mut reference));
+        }
+    }
+
+    #[test]
     fn schema_inventory_covers_native_disk_chs_and_geometry_fields() {
         let mut disk = Disk::new(DriveGeometry::new(2, 2, 4, 0, 512));
         let saved = serde_json::to_value(capture(&mut disk).0).unwrap();

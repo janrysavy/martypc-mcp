@@ -219,29 +219,24 @@ impl DiskChs {
     /// # Arguments:
     /// * `geom` - A [SectorLayout], representing the number of heads and cylinders on the disk.
     pub fn next_sector(&self, geom: &DriveGeometry) -> Option<DiskChs> {
-        if self.s < (geom.s() - 1 + geom.s_off) {
-            // println!(
-            //     "Geometry: {} current sector: {}, spt: {}, last valid sector:{} Next sector: {}",
-            //     geom,
-            //     self.s,
-            //     geom.s(),
-            //     geom.s() - 1 + geom.s_off,
-            //     self.s + 1
-            // );
-
-            // Not at last sector, just return next sector
-            Some(DiskChs::from((self.c, self.h, self.s + 1)))
+        // A stale/invalid CHS has no valid successor. Use wider bounds: sector
+        // offset + count may exceed the byte-sized address representation.
+        if !geom.contains(*self) {
+            return None;
         }
-        else if self.h < geom.h().saturating_sub(1) {
-            // At last sector, but not at last head, go to next head, same cylinder, sector 1
-            Some(DiskChs::from((self.c, self.h + 1, geom.s_off)))
+        let last_sector = geom.s_off as u16 + geom.s() as u16 - 1;
+        if (self.s as u16) < last_sector {
+            // Refuse an unrepresentable sector instead of wrapping or skipping
+            // declared sectors to reach the next head.
+            self.s.checked_add(1).map(|s| DiskChs::new(self.c, self.h, s))
         }
-        else if self.c < geom.c().saturating_sub(1) {
-            // At last sector and last head, go to next cylinder, head 0, sector (s_off)
-            Some(DiskChs::from((self.c + 1, 0, geom.s_off)))
+        else if self.h < geom.h() - 1 {
+            Some(DiskChs::new(self.c, self.h + 1, geom.s_off))
+        }
+        else if self.c < geom.c() - 1 {
+            Some(DiskChs::new(self.c + 1, 0, geom.s_off))
         }
         else {
-            // At end of disk.
             None
         }
     }
