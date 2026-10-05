@@ -1,5 +1,12 @@
 # Fork handoff
 
+FINISHED explicit native GUI snapshot sink guard: factory availability and cold
+construction reject configured CPU trace/on/file or disassembly recording/file.
+Fresh17 GUI library checks pass, including five independent refusal settings.
+The older positive fixture inherited stock trace settings; first refusal is
+retained and the fixture now uses the actual no-sink Pyro profile. No new GUI
+restart proof yet. Earlier pump-only disabled-method notes below are historical.
+
 FINISHED configured-speaker repair: real native GUI export refused an output
 queue despite disabled SoundOutputConfig. A speaker=true positive factory
 fixture reproduces the refusal; PC-speaker sender creation now honors the host
