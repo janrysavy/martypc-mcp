@@ -36,3 +36,7 @@ Build with cargo +1.98.0; CARGO_HOME, CARGO_TARGET_DIR and TEMP/TMP stay under
 the parent's ignored re/_build tree. CI covers Windows/Linux; no artifacts or
 caches are uploaded. Finished detail moved out of this handoff remains in the
 parent evidence and Git history.
+
+CI: run37286467609 hit the30-minute Windows job limit during cold UI build;
+Linux passed. The workflow now allows60 minutes without dropping any checks.
+Final exact-head CI still must pass before integration. Native code unchanged.
