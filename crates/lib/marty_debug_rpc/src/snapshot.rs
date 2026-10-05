@@ -226,6 +226,7 @@ impl Agent {
                 // finished. Headless has no external Machine consumers to rebind.
                 *machine = candidate;
                 self.revision += 1;
+                self.restore_generation += 1;
                 self.running = false;
                 self.control = ExecutionControl::new();
                 self.breakpoints.clear();

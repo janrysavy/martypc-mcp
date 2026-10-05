@@ -303,6 +303,7 @@ impl Breakpoint {
 
 struct Agent {
     revision: u64,
+    restore_generation: u64,
     running: bool,
     control: ExecutionControl,
     next: u64,
@@ -320,6 +321,7 @@ impl Agent {
     fn new(port: u16) -> Self {
         Self {
             revision: 0,
+            restore_generation: 0,
             running: false,
             control: ExecutionControl::new(),
             next: 0,
@@ -827,14 +829,32 @@ impl DebugRpc {
     /// it cannot be interrupted halfway through mutation. Paused repaint costs no
     /// guest cycles. The request channel holds at most 64 queued messages.
     pub fn pump(&mut self, machine: &mut Machine, cycle_budget: u32) {
+        self.pump_inner(machine, cycle_budget, None);
+    }
+
+    /// Pump snapshot requests on the machine/UI thread. A successful import
+    /// returns immediately, before any subsequent queued request or instruction.
+    /// The caller must refresh derived frontend consumers before pumping again;
+    /// do not enable this on a frontend with uncomposed external state.
+    pub fn pump_with_snapshots(&mut self, machine: &mut Machine, cycle_budget: u32,
+        host: &mut snapshot::SnapshotHost<'_>) -> bool {
+        self.pump_inner(machine, cycle_budget, Some(host))
+    }
+
+    fn pump_inner(&mut self, machine: &mut Machine, cycle_budget: u32,
+        mut host: Option<&mut snapshot::SnapshotHost<'_>>) -> bool {
         let start = machine.cpu().get_cycle_ct().0;
         let wall_deadline = Instant::now() + Duration::from_millis(8);
         loop {
             for _ in 0..64 {
-                if Instant::now() >= wall_deadline { return; }
+                if Instant::now() >= wall_deadline { return false; }
                 match self.receive.try_recv() {
                     Ok((line, reply)) => {
-                        let _ = reply.send(self.agent.request(machine, &line));
+                        let generation = self.agent.restore_generation;
+                        let value = self.agent.request_with_snapshots(machine, &line, host.as_deref_mut());
+                        let restored = self.agent.restore_generation != generation;
+                        let _ = reply.send(value);
+                        if restored { return true; }
                     }
                     Err(_) => break,
                 }
@@ -847,6 +867,7 @@ impl DebugRpc {
             }
             self.agent.advance(machine);
         }
+        false
     }
 }
 impl Drop for DebugRpc {

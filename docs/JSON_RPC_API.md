@@ -186,7 +186,18 @@ ready even when the UI has not enabled trace playback. The parent preparer's
 `--snapshots --no-floppy --video CGA` selects a no-sink test profile while keeping
 guest PIT/PPI/speaker simulation. Optional host audio output is disabled there.
 
-Local proof:42 RPC/config/headless tests and317 serial+sound core tests pass,
-with native continuation and original reference-file isolation. The real
-headless frontend has exported a reset checkpoint. Fresh-process/Pyro replay
-and native GUI restore remain OPEN.
+Local transport proof:44 fresh RPC/config/headless tests pass. The previously
+tested headless product also replays three original Pyro startup/first-level
+windows across real process restart, including pending BIOS Enter, all captured
+Machine fields and both disk hashes. Prior317 serial+sound core tests cover
+native component continuation and original reference-file isolation. Broader
+gameplay, physical timing/audio and native GUI restore remain OPEN.
+
+`DebugRpc::pump_with_snapshots` accepts a supported frontend's SnapshotHost and
+returns true immediately after a successful import. No later queued request or
+native instruction executes in that pump; the caller must refresh derived
+frontend consumers before pumping again. Refusal returns no restore signal,
+preserves the live Machine and allows queued inspection. Paused pumps consume
+no guest cycles. This transport API does not enable the GUI by itself: loaded
+factory/providers, renderer/input/event consumers and wall-frame neutrality
+still require integration and real GUI replay proof.

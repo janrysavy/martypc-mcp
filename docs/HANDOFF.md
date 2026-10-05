@@ -1,6 +1,13 @@
 # Fork handoff
 
 NEXT: native GUI consumer rebind/import and broader gameplay replay.
+FINISHED local transport slice:44 fresh RPC/config/headless tests pass;600 inputs
+bound. Snapshot-aware nonblocking pump yields immediately after import, before
+queued Continue or native execution; next boundary matches an independent
+reference. Wrong-digest refusal preserves complete Machine and pending inspection.
+GUI methods remain disabled. Wire loaded factory/RW providers and derived
+consumers next; audit wall-frame event draining and light-pen/debug writes.
+No new normal UI/product/process proof for this pump addition yet.
 No GUI snapshot methods are enabled. Storage PR32 is integrated
 at exact8bc61587 after final Windows/Linux CI37301899013 passes.
 FINISHED local headless RPC: fresh42 frontend/RPC tests, fresh317 serial+sound
