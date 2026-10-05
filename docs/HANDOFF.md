@@ -418,9 +418,13 @@ tests pass297 without serial and299 with serial:52 native JSON checkpoints
 The first packet oracle incorrectly rounded the final speed2 X count69;
 native IEEE754 emits68 and retains fractional carry, now checked bit-for-bit.
 This was a test expectation correction, not a native mouse repair.
-WIP: actual omission controls, source-bound fresh products, scoped review,
-frontend gates and final Windows/Linux CI/integration. Serial PR25 final CI
-is tracked by the parent. UART/PIC/host input/bus clocks are separate owners;
+FINISHED seven actual omission/schema controls, including consistently remapped
+X/Y capture and restoration. Exact source restoration precedes fresh297/299
+products bound to588 unchanged inputs. Scoped positive review found no concrete
+bounded defect. Fresh38 frontend tests and recreated native UI/headless products
+pass. Evidence and full review are retained by the parent. WIP: final Windows/
+Linux CI/integration; this update changes HANDOFF only after testedbfff3156.
+Serial PR25 final CI is tracked by the parent. UART/PIC/host input/bus clocks are separate owners;
 these tests do not prove atomic Machine or process/Pyro restart or hardware
 mouse timing. Next: finish mouse gates, remaining devices/media/bus clocks/audio,
 then complete dependency preflight and actual process restart/Pyro replay.
