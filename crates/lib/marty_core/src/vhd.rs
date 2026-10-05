@@ -48,7 +48,8 @@ use uuid::Uuid;
 use crate::bytebuf::{ByteBuf, ByteBufWriter};
 
 mod state;
-pub(crate) use state::{DiskCaptureMode, VhdState};
+pub use state::DiskCaptureMode;
+pub(crate) use state::VhdState;
 
 /// A trait alias for objects that support reading, writing, and seeking.
 pub trait VhdIO: Read + Write + Seek {}

@@ -11,7 +11,7 @@ use sha2::{Digest, Sha256};
 
 /// Auto embeds up to the explicit limit and refuses a silent large reference.
 #[derive(Copy, Clone, Debug, PartialEq)]
-pub(crate) enum DiskCaptureMode {
+pub enum DiskCaptureMode {
     Auto,
     Embed,
     Reference,
