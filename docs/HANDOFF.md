@@ -380,3 +380,18 @@ OPEN. Controlled BIOS-ring input is not hardware IRQ input.
 CI: Windows/Linux debugger/core tests and native builds; no artifacts/caches.
 macOS/WASM are manual. Native work uses cargo +1.98.0 with CARGO_HOME,
 CARGO_TARGET_DIR and TEMP/TMP under the parent's ignored re/_build tree.
+
+FINISHED local serial component: versioned state preserves both native UARTs,
+RX/TX queues, exact character/timer f64 bits, framing/divisor partial writes,
+pending IRQ action, registers and diagnostic storage. Native serial algorithms
+are unchanged apart from module registration. Open host handles are refused
+before any external I/O; inactive configuration/map/buffer is retained. Restore
+requires the same serial feature and prepares a fresh owner without opening ports.
+Fresh Windows tests pass291 without serial and293 with serial:50 native JSON
+continuation checkpoints (30 dual-port RX/TX,16 pending IRQ,2 loopback/overrun,
+2 partial divisor);2 cold-cache and1 seeded metadata checkpoint are storage-only.
+Serial feature adds3 inactive bridge storage checkpoints and2 stub-handle
+refusals. These are not a real OS-port reconnect/peer/physical timing proof.
+CI now explicitly tests both feature variants. WIP: source-bound fresh products,
+actual omission controls, review, final CI/integration; complete Machine/process
+restart, mouse/bus/disk/audio restoration and Pyro replay remain open.

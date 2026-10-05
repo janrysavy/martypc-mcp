@@ -30,6 +30,8 @@ jobs:
         run: cargo build -p martypc_headless --no-default-features --locked
       - name: Test core snapshot component and service paths
         run: cargo test -p marty_core --no-default-features --lib --locked
+      - name: Test serial bridge snapshot refusal and inactive configuration
+        run: cargo test -p marty_core --no-default-features --features serial --lib --locked
       - name: Build native observation UI
         if: runner.os == 'Windows'
         run: cargo build -p martypc_eframe --locked

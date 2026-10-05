@@ -36,6 +36,9 @@
     "IBM Asynchronous Communications Adapter"
 */
 
+mod state;
+pub(crate) use state::SerialControllerState;
+
 use std::collections::{BTreeMap, VecDeque};
 
 use crate::{
