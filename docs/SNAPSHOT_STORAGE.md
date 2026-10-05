@@ -14,8 +14,9 @@ Reference slots require explicit matching raw bytes on import. Both disk slots
 are checked before decoding returns; extra/missing references and mode mismatches
 are refused. Filenames are never extracted or treated as identities. The
 Machine's native preflight still validates configuration/ROMs and nested state.
-The caller must choose fresh disk providers and preserve guest read-only policy;
-host access/backend/alias policy is not proved by content equality.
+The caller must choose fresh disk providers and preserve the native cached read_only flag;
+native write_sector does not enforce that flag. Actual provider permissions,
+host access/backend/alias policy are not proved by content equality.
 
 Default limits are 128 MiB compressed archive, 32 MiB machine JSON and 512 MiB total
 uncompressed metadata/disks including supplied references. These are adjustable
@@ -38,7 +39,7 @@ swap. The decoder itself never mutates a running Machine.
 
 Fresh Windows serial+sound core run: 317 tests pass, 597 compiler inputs bound
 before/after. A synced archive File is closed and reopened; a fresh Machine with
-two VHDs preserves read-only policy and resumes a partial ATA read at byte 17,
+two VHDs preserves the cached read_only flag (metadata only) and resumes a partial ATA read at byte 17,
 matching an independently patterned sector and subsequent native CPU/PIT/CGA
 cycles and complete captured storage. Reference validation refuses changed bytes
 in either slot, then original matching bytes restore. Metadata/build/digest,
@@ -49,4 +50,10 @@ Exact sources/products/failures are retained in the parent evidence directory.
 
 This is same-process native candidate and actual File persistence proof.
 Frontend/RPC save/load, host provider policy, fresh-process continuation and
-original Pyro replay remain unimplemented. Scoped review and final CI are pending.
+original Pyro replay remain unimplemented. Test build IDs are fixture constants;
+actual executable build binding and external checksum retention must be proven
+by the frontend. The scoped review found the read-only-policy wording overclaimed:
+corrected to cached metadata, preserving native writer semantics. Its other
+provenance/process/provider limits remain open; no concrete container codec
+defect was identified. Crafted decompression-bomb coverage is not claimed.
+Final CI is pending. The wording/comment correction was not re-reviewed.

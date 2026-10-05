@@ -9,16 +9,19 @@ configured unsupported owner. Local UI input stays off during deterministic RPC.
 
 FINISHED local container: fresh317 serial+sound core tests,597 bound inputs,
 plus fresh normal Windows core/headless build. Synced File close/reopen restores
-two VHDs/read-only policy, partial ATA byte17 with independent sector pattern,
+two VHDs/cached read_only flag (metadata only), partial ATA byte17 with independent sector pattern,
 native CPU/PIT/CGA continuation and full captured storage. Missing/altered refs,
 metadata/build/digest/member/budget controls refused. Actual duplicate filename
 acceptance repaired by raw ZIP32 count validation; failure retained.
-[Storage API and proof limits](SNAPSHOT_STORAGE.md). Review/CI pending; no
+[Storage API and proof limits](SNAPSHOT_STORAGE.md). Review corrected an
+overclaim: cached read_only is not write protection; native writer unchanged.
+Actual build provenance/host provider/decompression-bomb coverage stay open.
+Final CI pending; no
 frontend/RPC/host provider policy/process/Pyro proof.
 
 FINISHED local snapshot disk requirements: fresh314 serial+sound core tests,596
 source inputs bound before/after. Typed Machine accessors expose each actual
-mounted VHD size/SHA, embed/reference and guest read-only policy; no schema or
+mounted VHD size/SHA, embed/reference and cached read_only metadata; no schema or
 emulation change. Both native slots and unload are tested. Initial fixture
 failed because unload slot1 requires two configured drives; fixed the fixture,
 not native semantics. Container integration/RPC/process/Pyro remain WIP.

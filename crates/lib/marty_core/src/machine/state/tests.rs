@@ -464,7 +464,7 @@ fn persisted_archive_closes_reopens_and_restores_native_machine_with_partial_ata
         original.snapshot_state_quiesced(DiskCaptureMode::Embed, 0).unwrap(),
         restored.snapshot_state_quiesced(DiskCaptureMode::Embed, 0).unwrap()
     );
-    println!("ARCHIVE_NATIVE:File sync/close/reopen, two mounted VHDs and read-only policy, partial ATA byte17 continuation with independent sector pattern, CPU/PIT/CGA cycles and full captured storage; no fresh-process/Pyro/frontend proof");
+    println!("ARCHIVE_NATIVE:File sync/close/reopen, two mounted VHDs and cached read_only flag (metadata only), partial ATA byte17 continuation with independent sector pattern, CPU/PIT/CGA cycles and full captured storage; no fresh-process/Pyro/frontend proof");
 }
 
 #[test]

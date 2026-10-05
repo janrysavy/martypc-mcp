@@ -93,13 +93,15 @@ fn read_payload(io: &mut dyn VhdIO, mode: DiskCaptureMode, limit: u64) -> Result
     result
 }
 
-/// File identity and guest write policy needed by the outer snapshot loader.
+/// File identity and native cached read_only flag for the outer snapshot loader.
 /// Paths/backend access and metadata authentication remain caller obligations.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DiskSnapshotRequirement {
     pub bytes: u64,
     pub sha256: [u8; 32],
     pub embedded: bool,
+    /// Cached metadata only: native write_sector does not enforce this flag.
+    /// The backing provider owns actual write permissions.
     pub read_only: bool,
 }
 
