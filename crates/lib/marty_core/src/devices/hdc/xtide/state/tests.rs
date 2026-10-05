@@ -216,11 +216,44 @@ fn empty_slave_probe_and_unloaded_native_disk_survive_json_restore() {
     assert_eq!(get(&mut a, HDC_DATA_REGISTER0), get(&mut b, HDC_DATA_REGISTER0));
     select(&mut a, 0);
     a.unload_vhd(0).unwrap();
-    let b = restore(&mut a);
+    let mut b = restore(&mut a);
     native_controller(&a, &b);
     assert!(b.drives[0].disk().is_some()); // Native unload retains the Disk wrapper.
-    assert!(capture(&mut a).1.iter().all(Option::is_none));
+    assert!(b.drives[0].disk().unwrap().vhd().is_none()); // Independent native backing presence.
+    let original = capture(&mut a);
+    let restored = capture(&mut b);
+    assert!(original.1.iter().all(Option::is_none));
+    assert!(restored.1.iter().all(Option::is_none));
+    assert_eq!(original, restored);
     println!("XTIDE:2 native empty-slave/unloaded-disk JSON checkpoints");
+}
+
+#[test]
+fn native_mount_accepts_slave_with_count_one_and_restore_preserves_it() {
+    // The low-level native API accepts slot1 even when drive_ct is1. Snapshot
+    // restoration preserves that existing state; outer configuration policy is
+    // a separate concern and must not silently rewrite native disk presence.
+    let mut a = fixture(false);
+    let mut other = fixture(true);
+    let payload = capture(&mut other).1[1].take().unwrap();
+    let vhd = VirtualHardDisk::parse(Box::new(Cursor::new(payload)), false).unwrap();
+    assert_eq!(a.drive_ct(), 1);
+    a.set_vhd(1, vhd).unwrap(); // Actual native setter, not a seeded drive pointer.
+    select(&mut a, 1);
+    a.mask_register_write(0);
+    put(&mut a, HDC_SECTOR_COUNT_REGISTER, 1);
+    put(&mut a, HDC_STATUS_REGISTER, 0x21);
+    let mut b = restore(&mut a);
+    assert_eq!(b.drive_ct(), 1);
+    assert!(b.drives[1].disk().unwrap().vhd().is_some());
+    for i in 0..512 {
+        let original = get(&mut a, HDC_DATA_REGISTER0);
+        let restored = get(&mut b, HDC_DATA_REGISTER0);
+        assert_eq!(original, (73 + i * 13) as u8, "independent slave sector byte{i}");
+        assert_eq!(restored, original, "native mounted-slave restore byte{i}");
+    }
+    native_controller(&a, &b);
+    println!("XTIDE:1 native count1 mounted-slave JSON checkpoint and independently expected sector bytes");
 }
 
 #[test]

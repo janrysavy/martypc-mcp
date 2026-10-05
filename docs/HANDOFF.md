@@ -348,15 +348,21 @@ FINISHED local XT-IDE component: ten controller fields, both ATA owners and
 complete capability descriptors have versioned state. Preparation authenticates
 both fresh disk providers before any live controller replacement; count1 permits
 native empty-slave selection1. Native algorithms unchanged apart from module
-registration. Fresh284 core tests pass:12 dual-drive partial-read and6 partial
+registration. Fresh285 core tests pass:12 dual-drive partial-read and6 partial
 low/high-write native-port checkpoints, with independently parsed written sectors;
-1 empty-slave native-port continuation and1 native-unload storage checkpoint.
+1 empty-slave and1 count1 mounted-slave native-port continuation, plus1
+native-unload storage checkpoint with restored VHD/payload absence verified.
 Six seeded error/capability vectors are storage-only. Missing/extra schema keys,
 fixed drive-array length and second-disk missing/corrupt dependency refusals pass
 without live-owner mutation. Controller restore is not a complete bus/Machine
 or process-restart proof.
-WIP: publish draft PR, actual omitted-controller controls, source-bound fresh
-run, scoped review/frontend builds and final Windows/Linux CI.
+Draft PR24 and fresh source-bound284/frontend products are retained. Four
+actual omitted-state/schema controls fail; exact source restoration passes284.
+Review-requested rejection of a count1 mounted slave is incompatible with the
+existing native set_vhd API: a fresh285 run mounts slot1 at count1 and checks
+512 independent native sector bytes across JSON restore. Native mounting
+policy is preserved; nested ATA/Disk/VHD proof and outer policy stay separate.
+WIP: source-bound285/native policy control, follow-up scoped review and final CI.
 ATA final scoped wire review passed; final CI/integration tracked by parent.
 
 NEXT: finish XT-IDE evidence/review/final gates; ATA final CI tracked by parent;
