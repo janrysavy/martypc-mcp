@@ -98,6 +98,7 @@ pub struct GamePortState {
 }
 
 mod state;
+pub(crate) use state::GamePortSnapshot;
 
 #[derive(Clone, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]

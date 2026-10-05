@@ -352,6 +352,7 @@ impl KbSerializer {
 }
 
 mod state;
+pub(crate) use state::PpiState;
 
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]

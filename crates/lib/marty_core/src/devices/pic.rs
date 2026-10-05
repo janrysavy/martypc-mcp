@@ -105,6 +105,7 @@ impl InterruptStats {
 pub type PicRequestFn = fn(&mut Pic, interrupt: u8);
 
 mod state;
+pub(crate) use state::PicState;
 
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]

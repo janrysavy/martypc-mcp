@@ -1,5 +1,15 @@
 # Fork handoff
 
+FINISHED local bus composition: fresh304 core tests pass;16 JSON checkpoints
+restore fresh motherboard, keyboard, UART/mouse, game port, CGA and XT-IDE/VHD
+owners and compare native I/O/events/RAM/VRAM and full disk bytes. Ten nested
+invalid states and wrong disk checksums are refused before mutation. Unsupported
+installed devices and attached external audio queues are explicitly refused.
+Native timing/game algorithms are unchanged. Review and omission controls are
+pending; CPU/Machine/service/audio/frontend composition and process/Pyro restart
+are NOT implemented by this slice. NEXT: controls/review, then Machine assembly.
+Bus-clock PR27 and A0 PR28 are integrated after final Windows/Linux CI.
+
 NEXT: complete restartable snapshots of the actual no-floppy VHD/CGA Pyro
 profile before further timing research. Generic floppy media/FDC is deferred.
 

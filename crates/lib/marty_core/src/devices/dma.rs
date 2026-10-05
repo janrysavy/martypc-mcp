@@ -154,6 +154,7 @@ pub struct DMAControllerStringState {
     pub dma_channel_state: Vec<DMAChannelStringState>,
 }
 mod state;
+pub(crate) use state::DmaState;
 
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]

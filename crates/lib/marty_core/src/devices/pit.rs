@@ -1425,3 +1425,4 @@ impl ProgrammableIntervalTimer {
 }
 
 mod state;
+pub(crate) use state::PitState;

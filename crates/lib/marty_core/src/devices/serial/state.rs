@@ -267,6 +267,16 @@ impl PortState {
 }
 
 impl SerialPortController {
+    pub(crate) fn preflight_snapshot_wiring(&self, saved: &SerialControllerState) -> Result<()> {
+        for (live, state) in self.port.iter().zip(&saved.port) {
+            if live.name != state.name || live.irq != state.irq
+                || live.out2_suppresses_int != state.out2_suppresses_int {
+                bail!("UART name/IRQ/OUT2 wiring mismatch");
+            }
+        }
+        Ok(())
+    }
+
     pub(crate) fn snapshot_state(&self) -> Result<SerialControllerState> {
         Ok(SerialControllerState {
             version: 1,

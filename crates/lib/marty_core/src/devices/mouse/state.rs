@@ -75,6 +75,14 @@ struct VirtualState {
 }
 
 impl Mouse {
+    pub(crate) fn preflight_snapshot_wiring(&self, saved: &MouseState) -> Result<()> {
+        match (self, &saved.body) {
+            (Self::Serial(live), BodyState::Serial(state)) if live.port == state.port => Ok(()),
+            (Self::Virtual(live), BodyState::Virtual(state)) if live.irq == state.irq => Ok(()),
+            _ => bail!("mouse kind/port/IRQ wiring mismatch"),
+        }
+    }
+
     pub(crate) fn snapshot_state(&self) -> Result<MouseState> {
         let saved = MouseState {
             version: 1,

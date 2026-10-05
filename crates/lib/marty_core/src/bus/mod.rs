@@ -38,6 +38,8 @@ mod memory;
 mod memory_state;
 mod input_state;
 mod clock_state;
+mod owner_state;
+pub(crate) use owner_state::BusState;
 pub(crate) use clock_state::BusClockState;
 pub(crate) use input_state::KeyboardBusState;
 pub mod queue;
@@ -319,6 +321,7 @@ impl MemRangeDescriptor {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum IoDeviceType {
     A0Register,
     Ppi,
@@ -344,7 +347,8 @@ pub enum IoDeviceDispatch {
     Dynamic(Box<dyn IoDevice + 'static>),
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct IoDeviceStats {
     last_read: u8,
     last_write: u8,
