@@ -1084,7 +1084,9 @@ impl BusInterface {
 
         // Create the crossbeam channel for the PIT to send sound samples to the sound output thread.
         #[cfg(feature = "sound")]
-        let pit_sample_sender = if machine_config.speaker {
+        // Host output policy must not create an uncaptured speaker receiver.
+        // PIT/PPI device clocks and channel output still run without this sink.
+        let pit_sample_sender = if machine_config.speaker && sound_config.enabled {
             // Add this sound source.
             let (s, r) = unbounded();
             installed_devices

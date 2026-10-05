@@ -226,3 +226,10 @@ machine options, PIT phase or pending native event queues are rewritten by this
 refresh. Host performance timing/pixels are derived, not captured guest state.
 Loaded factory native continuation passes; actual GPU observation and fresh GUI
 process-restart proof remain OPEN. PR34 remains draft pending those checks/review.
+
+The configured PC speaker honors disabled host output when creating its sample
+channel. Native PIT counters/gates/phase and PPI state still run. Host PCM sample
+accumulation/connection/enablement intentionally differ from enabled playback.
+The actual speaker=true factory regression and10000-cycle native comparison
+pass; this does not establish physical audible parity. Other configured audio
+owners remain explicitly subject to core snapshot preflight/refusal.
