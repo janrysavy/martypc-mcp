@@ -1,6 +1,18 @@
 # Fork handoff
 
-NEXT: complete restartable snapshots before further Pyro timing research.
+NEXT: complete restartable snapshots of the actual no-floppy VHD/CGA Pyro
+profile before further timing research. Generic floppy media/FDC is deferred.
+
+WIP bus-clock component: fresh300 core tests pass, including64 destructive
+JSON continuations through native PIT/PIC/CGA and returned bus events.
+Three native conversion/seeded storage restores plus cold lookup storage
+preserve exact binary64 bits; seven invalid restores are atomic. Device-owned
+state is deliberately retained in continuation probes, not reconstructed.
+Production timing algorithms are unchanged; only snapshot module registration
+is added to native bus code. Actual omission controls, scoped review, final
+Windows/Linux CI and integration remain pending.
+Machine metadata/A0/audio owner assembly and process/Pyro restart remain OPEN.
+Full evidence is retained in the parent; no complete restart claim.
 No complete machine snapshot or process-restart continuation proof exists.
 Contract and launch/input rules: [JSON_RPC_API.md](JSON_RPC_API.md).
 

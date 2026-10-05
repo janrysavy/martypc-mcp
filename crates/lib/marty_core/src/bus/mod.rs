@@ -37,6 +37,8 @@ mod io;
 mod memory;
 mod memory_state;
 mod input_state;
+mod clock_state;
+pub(crate) use clock_state::BusClockState;
 pub(crate) use input_state::KeyboardBusState;
 pub mod queue;
 
