@@ -5,7 +5,9 @@ restore fresh motherboard, keyboard, UART/mouse, game port, CGA and XT-IDE/VHD
 owners and compare native I/O/events/RAM/VRAM and full disk bytes. Ten nested
 invalid states and wrong disk checksums are refused before mutation. Unsupported
 installed devices and attached external audio queues are explicitly refused.
-Native timing/game algorithms are unchanged. Review and omission controls are
+Native timing/game algorithms are unchanged. The probe now clocks programmed
+PIT channels before its first checkpoint so omissions must diverge in native
+reads before storage equality. Fresh304 tests still pass. Review and controls are
 pending; CPU/Machine/service/audio/frontend composition and process/Pyro restart
 are NOT implemented by this slice. NEXT: controls/review, then Machine assembly.
 Bus-clock PR27 and A0 PR28 are integrated after final Windows/Linux CI.

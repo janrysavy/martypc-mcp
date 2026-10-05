@@ -134,6 +134,9 @@ fn whole_bus_restores_fresh_owners_and_continues_native_io_memory_and_disks() {
         reference.io_write_u8(port, byte, 0, None);
     }
     reference.refresh_enabled = true; // exercise native refresh consumer, not a Pyro startup claim
+                                      // Clock programmed timers before the first checkpoint, so losing PIT state
+                                      // changes a native port read before the broader storage comparison runs.
+    reference.run_devices(512.0 / 14.31818, 512, None, &mut VecDeque::new(), None);
     let mut disk_activity = false;
     for step in 0..16 {
         let (saved, payloads) = capture(&mut reference);
@@ -147,7 +150,7 @@ fn whole_bus_restores_fresh_owners_and_continues_native_io_memory_and_disks() {
         let (actual_state, actual_disks) = capture(&mut restored);
         // Native outputs above are checked first. This additionally catches
         // diagnostic counters, inactive storage and entire writable disk bytes.
-        assert_eq!(expected_state, actual_state, "composed storage at step {step}");
+        assert!(expected_state == actual_state, "composed storage at step {step}");
         assert_eq!(expected_disks, actual_disks, "whole disk bytes at step {step}");
     }
     assert!(disk_activity);
