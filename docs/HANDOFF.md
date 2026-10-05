@@ -335,8 +335,12 @@ direct storage checks now address the shared serializer limitation.
 Fresh source-bound279 and both repair controls pass. Follow-up review found
 consistent wire-key permutations were not checked; explicit seeded wire values
 now pass279 core tests while restore production remains unchanged.
-WIP: actual consistent-permutation control, follow-up review
-and final Windows/Linux CI. Initial Windows CI failed only CRLF inventory.
+Actual consistent lba/dma remapping passes the earlier witness and fails the
+new wire oracle. Exact source restoration and source-bound279 pass on d8ae54d9.
+WIP: final scoped review/Windows-Linux CI/integration, tracked in parent
+docs/HANDOFF.md and docs/evidence/martypc_rpc_20261004/. This final update
+changes HANDOFF only; no native product or production-code identity claim.
+Initial Windows CI failed only CRLF inventory.
 Controller selection/bus wiring, host access/path, complete Machine/process
 restart and Pyro continuation remain unproven.
 
