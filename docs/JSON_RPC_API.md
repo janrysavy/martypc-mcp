@@ -32,7 +32,8 @@ request/native boundary; one atomic request/instruction may overrun it. The
 transport channel holds at most64 queued requests. This is not a hard latency SLA.
 Neither repaint nor inspection advances paused guest time. RPC requests and
 execution in deterministic sessions (local input off) are serviced by the GUI
-logic callback even while its window is minimized or hidden. The visible UI
+logic callback while its window is minimized. Hidden/occluded windows are not
+covered by the retained live witness. The visible UI
 timestep never runs that guest a second time. Explicit manual local-input
 sessions use visible UI/input routing and require a visible window. Primary
 and secondary display pointer samples are collected/mapped before that UI

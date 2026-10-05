@@ -8,6 +8,10 @@ timestep, correcting the reviewed prior-frame sample delay. Explicit local
 input still requires a visible window. Snapshot import now
 yields the entire timestep, including later catch-up and render callbacks.
 Local59 frontend timing,31 RPC and17 GUI tests plus a source-bound UI build pass.
+Latest review accepts the bounded minimized witness and pointer/yield source.
+Its thread-event presentation regression is corrected by processing events
+ahead of rendering while retaining pointer collection ahead of execution.
+Hidden/occluded windows and live manual pointer parity remain unproved.
 The clamped GUI preserves complete paused Machine/disks and replays a minimized
 one-millisecond continuation after import with complete equality.
 
