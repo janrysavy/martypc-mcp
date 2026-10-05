@@ -22,11 +22,16 @@ head changes no compiler input after tested6e28a87f. Final-head Windows/Linux CI
 and integration remain pending.
 Machine metadata/A0/audio owner assembly and process/Pyro restart remain OPEN.
 Full evidence is retained in the parent; no complete restart claim.
-WIP A0/system-register component: fresh302 core tests pass, with768 native
+FINISHED local A0/system-register component: fresh302 core/304 serial+sound
+tests pass, with768 native
 port/JSON continuations across PCXT, PCJr and Tandy. Raw byte, cached flags and
 deferred keyboard-latch clear are preserved independently; all ten native fields
 are inventoried. Three invalid restores and required/unknown schema are refused.
-Actual omission controls, scoped review, final CI and integration remain pending.
+Two actual omissions (raw byte/deferred clear) fail native consumers; exact
+restoration precedes fresh302 positives. Scoped review finds no owned-state
+defect; other fields have positive coverage, not exhaustive omission controls.
+Machine snapshot invocation remains unimplemented. This HANDOFF-only head
+changes no compiler input after testedc72935b2. Final CI/integration are pending.
 Bus NMI edge/PPI state and Machine assembly remain separate owners.
 No complete machine snapshot or process-restart continuation proof exists.
 Contract and launch/input rules: [JSON_RPC_API.md](JSON_RPC_API.md).
