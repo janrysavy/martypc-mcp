@@ -8,10 +8,10 @@ before/after bytes, effects contain memory/I/O only, PIC dispatch is top-level.
 Word I/O wraps FFFFh to 0000h and reports either mapped byte. Any active native
 host journal refuses snapshot capture. Native queue/timing are not substituted;
 NEC observation refused. Scope and phase limits: docs/JSON_RPC_API.md.
-Fresh 41 RPC +10 config +5 headless and 321 serial/sound core tests pass,
+Rebased on tested keyboard905: 46 RPC +10 config +5 headless and322 core tests pass,
 including complete serialized Machine equality with observation enabled.
-Review corrections are implemented; original-Pyro live proof, second review and
-final-head CI/rebase integration remain WIP. Rebase after keyboard/observation
+Review followup WIP: refuse IRQ8..15 and separate journal/effect drops. Original-Pyro proof and
+final-head CI/rebase integration remain WIP. Rebase after observation
 slices. Full original-game/physical timing equivalence remains OPEN.
 
 ## Earlier handoff (historical)
