@@ -688,3 +688,18 @@ fn configured_turbo_synchronizes_machine_bus_and_cga_before_first_instruction() 
                    serde_json::to_value(capture(&mut restored)).unwrap());
     }
 }
+
+#[test]
+fn machine_snapshot_refuses_inconsistent_bus_cpu_clock_before_restore() {
+    for turbo in [false, true] {
+        let mut machine = fixture_clock_profile(None, false, turbo);
+        let saved = capture(&mut machine);
+        let original = serde_json::to_value(&saved).unwrap();
+        let mut invalid = original.clone();
+        invalid["bus"]["clock"]["cpu_factor"] = serde_json::json!({"Divisor": if turbo { 3 } else { 1 }});
+        let invalid: MachineSnapshot = serde_json::from_value(invalid).unwrap();
+        let error = machine.preflight_snapshot_meta(&invalid).unwrap_err();
+        assert!(error.to_string().contains("invalid Machine clock"));
+        assert_eq!(serde_json::to_value(capture(&mut machine)).unwrap(), original);
+    }
+}

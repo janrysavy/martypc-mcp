@@ -183,6 +183,7 @@ impl Machine {
         }
         if !saved.cpu_clock_period.is_finite()
             || saved.cpu_clock_period < 0.0
+            || !saved.bus.matches_cpu_factor(saved.cpu_factor)
             || matches!(saved.cpu_factor, ClockFactor::Divisor(0) | ClockFactor::Multiplier(0))
             || saved
                 .next_cpu_factor
