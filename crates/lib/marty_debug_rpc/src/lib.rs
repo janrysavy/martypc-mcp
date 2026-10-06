@@ -476,7 +476,15 @@ impl Agent {
         let observing=classes!=0;
         let before = observing.then(|| registers(machine, self.revision));
         if observing { machine.bus_mut().debug_begin(classes); }
-        machine.run(1, &mut self.control);
+        let executed = machine.run(1, &mut self.control);
+        if executed == 0 {
+            // A pending ROM reload (or another native refusal) is not a CPU
+            // boundary. Close the journal and complete the accepted operation
+            // without inventing an instruction, revision or trace event.
+            if observing { let _ = machine.bus_mut().debug_end(); }
+            self.stop(machine, json!({"kind":"backend_no_progress","executed_instruction_count":0}));
+            return;
+        }
         self.revision += 1;
         if observing {
             let (events, dropped, dropped_effects) = machine.bus_mut().debug_end();

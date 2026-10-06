@@ -108,6 +108,13 @@ limitations and full-machine snapshot gaps still apply.
 | `execution.pause` | Stops current operation. An already stopped machine retains its previous stop reason. Returns paused registers. |
 | `execution.step` | Paused, powered-on machine; optional `mode:"into"`. Returns accepted entry registers, `stepping:true` and `operation_id`; poll `execution.wait` for actual completed registers and stop reason. Step-over is unsupported. |
 
+If the native machine executes zero instructions (for example while a ROM reload
+is pending), the accepted execution operation completes with
+`stop_reason.kind:"backend_no_progress"` and `executed_instruction_count:0`.
+No CPU boundary, trace event or instruction revision is fabricated; completed
+registers report the actual stopped machine. Retry after resolving the native
+condition. Native housekeeping is not rolled back.
+
 Addresses accept an unsigned integer or numeric string (decimal, `0x`, `0b`,
 `0o`), or `{space:"physical"|"linear",offset:...}` or
 `{space:"segmented",segment:...,offset:...}`. Segment and offset are Words.

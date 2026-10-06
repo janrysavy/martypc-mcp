@@ -32,6 +32,13 @@ Earlier independent source-bound proofs are retained in the parent Pyro repo:
 All those owned guests are closed. Their records are bounded tooling witnesses,
 not new mechanics, protected-fire8 ->14 or whole-game/physical-timing parity.
 
+Review correction: zero-progress native runs now finish with backend_no_progress;
+no fabricated revision/CPU boundary, and the bus journal closes. The native
+ROM-reload counterexample fails on prior source; corrected step/continue controls
+and recovery pass with complete native state unchanged.59RPC +10config +5headless
+pass. Native housekeeping is not rolled back if another zero-return path changes it.
+The video selector exclusivity correction is being integrated separately.
+
 WIP final combined PR37 integrates observation36 and snapshot39 ancestor commits
 linearly onto keyboard main c82809d4. Combined58 RPC +10config +5headless passed
 before the final populated factory-error regression; core/traced-vs-untraced
