@@ -71,8 +71,8 @@ impl<'a> SnapshotHost<'a> {
         };
         let mode = match mode_name {
             "embed" | "auto" => DiskCaptureMode::Embed,
-            "reference" => DiskCaptureMode::Reference,
-            _ => return invalid("disk_mode must be embed, auto or reference"),
+            "reference" | "reference-files" => DiskCaptureMode::Reference,
+            _ => return invalid("disk_mode must be embed, auto, reference or reference-files"),
         };
         let (saved, payloads) = machine
             .snapshot_state_quiesced(mode, self.limits.total_bytes)
@@ -94,14 +94,17 @@ impl<'a> SnapshotHost<'a> {
         }
         Ok(json!({"path":path,"sha256":hex(&sha),"bytes":archive.len(),
             "format":"martypc-machine","version":1,"build_sha256":hex(&self.build),
-            "disk_mode":if matches!(mode, DiskCaptureMode::Reference) {"reference"} else {"embed"},
+            "disk_mode":if mode_name == "reference-files" {"reference-files"} else if matches!(mode, DiskCaptureMode::Reference) {"reference"} else {"embed"},
             "disk_access":"rw-file"}))
     }
 
     fn prepare(&mut self, p: &Value) -> Result<(Machine, Value)> {
         let archive_path = path(p, "path")?;
         let disk_root = path(p, "disk_root")?;
-        let expected = checksum(&p["expected_sha256"])?;
+        if p.get("expected_sha256").is_some() && p.get("sha256").is_some() {
+            return invalid("provide only expected_sha256 or legacy sha256");
+        }
+        let expected = checksum(p.get("expected_sha256").or_else(|| p.get("sha256")).unwrap_or(&Value::Null))?;
         let archive = read_bounded(&archive_path, self.limits.archive_bytes)?;
         let mut references: [Option<Vec<u8>>; 2] = [None, None];
         let mut reference_bytes = 0u64;
@@ -237,6 +240,10 @@ impl Agent {
                     result["state_revision"] = json!(self.revision);
                     return Ok(result);
                 }
+                let preserve_breakpoints = match p.get("preserve_breakpoints") {
+                    None => true,
+                    Some(value) => value.as_bool().ok_or(("preserve_breakpoints must be boolean", -32602))?,
+                };
                 let (candidate, mut result) = host.prepare(p)?;
                 // All fallible dependency checks and provider preparation are
                 // finished. A GUI caller must handle the pump restore signal before
@@ -246,7 +253,7 @@ impl Agent {
                 self.restore_generation += 1;
                 self.running = false;
                 self.control = ExecutionControl::new();
-                self.breakpoints.clear();
+                if !preserve_breakpoints { self.breakpoints.clear(); }
                 self.predicate = None;
                 self.skip_once = None;
                 self.operation = None;

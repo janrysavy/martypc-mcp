@@ -1,3 +1,11 @@
+# Shared snapshot contract slice, 2026-10-06
+
+FINISHED source and local37 RPC tests: reference-files for File VHDs, expected_sha256
+with legacy sha256 (both aliases refused), preserve_breakpoints defaulttrue.
+Preserve permanent definitions and host hit counters; always clear transient
+predicates and operations. Whole Machine and two RW VHD/partial ATA tests pass.
+WIP: review, publication, rebase/live common contract, final CI and integration.
+
 # Coherent observation slice, 2026-10-06
 
 FINISHED source: shared paused `state.observe` and native CGA `video.text`.

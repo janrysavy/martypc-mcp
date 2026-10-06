@@ -308,7 +308,7 @@ fn rpc_file_snapshot_matches_native_continuation_and_clears_old_debugger_ids() {
     a.step(&mut m);
     let revision = a.revision;
     let imported = invoke(&mut a,&mut m,&mut host,"machine.snapshot.import",
-        json!({"path":path,"disk_root":scratch.0.join("restored"),"expected_sha256":digest,"expected_state_revision":revision})).unwrap();
+        json!({"path":path,"disk_root":scratch.0.join("restored"),"expected_sha256":digest,"preserve_breakpoints":false,"expected_state_revision":revision})).unwrap();
     assert_eq!(a.revision, revision + 1);
     assert_eq!(saved(&mut m), baseline);
     assert_eq!(imported["paused"], true);
@@ -463,7 +463,7 @@ fn rw_file_disk_restore_preserves_partial_ata_and_writes_only_new_disk_copies() 
     let mut factory = || Ok(cold(true));
     let mut host = SnapshotHost::for_rw_files(&mut factory).unwrap();
     let mut a = Agent::new(2301);
-    for mode in ["embed", "reference"] {
+    for mode in ["embed", "reference", "reference-files"] {
         let path = scratch.0.join(format!("{mode}.zip"));
         let revision = a.revision;
         let export = invoke(
@@ -474,9 +474,10 @@ fn rw_file_disk_restore_preserves_partial_ata_and_writes_only_new_disk_copies() 
             json!({"path":path,"disk_mode":mode,"expected_state_revision":revision}),
         )
         .unwrap();
+        assert_eq!(export["disk_mode"], mode);
         let root = scratch.0.join(format!("restored-{mode}"));
         let mut p = json!({"path":path,"disk_root":root,"expected_sha256":export["sha256"],"expected_state_revision":a.revision});
-        if mode == "reference" {
+        if mode != "embed" {
             assert!(invoke(&mut a, &mut m, &mut host, "machine.snapshot.import", p.clone()).is_err());
             assert!(!root.exists());
             p["references"] = json!({"0":source_paths[0],"1":source_paths[1]});
@@ -535,7 +536,7 @@ fn rw_file_disk_restore_preserves_partial_ata_and_writes_only_new_disk_copies() 
         let mut controller = m.bus_mut().xtide_mut().take().unwrap();
         controller.run(&mut marty_core::devices::dma::DMAController::new(), m.bus_mut(), 0.25);
         *m.bus_mut().xtide_mut() = Some(controller);
-        let raw = fs::read(scratch.0.join(format!("restored-reference/disk-{slot}.vhd"))).unwrap();
+        let raw = fs::read(scratch.0.join(format!("restored-reference-files/disk-{slot}.vhd"))).unwrap();
         // The native creator writes FIXED VHD data at zero and its footer at
         // the end. Independently check its type/offset before using raw[..512].
         let footer = &raw[raw.len() - 512..];
@@ -617,4 +618,76 @@ fn cached_executable_identity_reports_native_gui_without_rehashing_each_pump() {
     let ordinary = SnapshotHost::for_rw_files(&mut factory).unwrap();
     assert!(matches!(ordinary.frontend, SnapshotFrontend::Headless));
     assert_eq!(ordinary.build, identity.0);
+}
+
+#[test]
+fn shared_import_policy_preserves_host_breakpoints_and_rejects_ambiguous_hashes() {
+    let scratch = Scratch::new();
+    let mut factory = || Ok(cold(false));
+    let mut host = SnapshotHost::for_rw_files(&mut factory).unwrap();
+    let mut m = cold(false);
+    let mut a = Agent::new(1);
+    let bp = a
+        .handle(
+            &mut m,
+            "breakpoints.create",
+            &json!({"kind":"execution","address":0x105}),
+        )
+        .unwrap();
+    let id = bp["breakpoint_id"].as_str().unwrap().to_string();
+    a.breakpoints.get_mut(&id).unwrap().hits = 7;
+    let definitions = a.handle(&mut m, "breakpoints.list", &json!({})).unwrap();
+    let initial = saved(&mut m);
+    let path = scratch.0.join("checkpoint.zip");
+    let export = invoke(
+        &mut a,
+        &mut m,
+        &mut host,
+        "machine.snapshot.export",
+        json!({"path":path,"expected_state_revision":0}),
+    )
+    .unwrap();
+    let digest = export["sha256"].clone();
+    let diskroot = scratch.0.join("refused");
+    for flag in [Value::Null, json!(0), json!("true")] {
+        let p = json!({"path":path,"disk_root":diskroot,"expected_state_revision":0,"expected_sha256":digest,"preserve_breakpoints":flag});
+        assert_eq!(
+            invoke(&mut a, &mut m, &mut host, "machine.snapshot.import", p)
+                .unwrap_err()
+                .1,
+            -32602
+        );
+        assert!(!diskroot.exists());
+        assert_eq!(saved(&mut m), initial);
+    }
+    let p =
+        json!({"path":path,"disk_root":diskroot,"expected_state_revision":0,"expected_sha256":digest,"sha256":digest});
+    assert_eq!(
+        invoke(&mut a, &mut m, &mut host, "machine.snapshot.import", p)
+            .unwrap_err()
+            .1,
+        -32602
+    );
+    assert!(!diskroot.exists());
+    assert_eq!(saved(&mut m), initial);
+    for (index, flag) in [None, Some(true), Some(false)].iter().enumerate() {
+        a.completed.insert("old-operation".into(), json!({}));
+        a.completed_order.push_back("old-operation".into());
+        let mut p = json!({"path":path,"disk_root":scratch.0.join(format!("restored-{index}")),"expected_state_revision":a.revision});
+        p[if index == 1 { "sha256" } else { "expected_sha256" }] = digest.clone();
+        if let Some(flag) = flag {
+            p["preserve_breakpoints"] = json!(flag);
+        }
+        invoke(&mut a, &mut m, &mut host, "machine.snapshot.import", p).unwrap();
+        assert_eq!(saved(&mut m), initial);
+        assert!(a.completed.is_empty());
+        assert!(a.completed_order.is_empty());
+        assert!(a.predicate.is_none());
+        assert!(a.operation.is_none());
+        if *flag == Some(false) {
+            assert!(a.breakpoints.is_empty());
+        } else {
+            assert_eq!(a.handle(&mut m, "breakpoints.list", &json!({})).unwrap(), definitions);
+        }
+    }
 }
