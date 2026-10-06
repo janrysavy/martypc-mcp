@@ -18,10 +18,20 @@ Two scoped read-only reviews found native-priority loss, unsupported-controller
 acceptance and overbroad scheduling/Deskpro wording; source fixes are tested and
 the final documentation states native scheduling and Deskpro inhibition limits.
 
-WIP: original-Pyro hardware-input/restart proof, PR final-head Windows/Linux CI
-and linear integration. Do not assume those gates passed. NEXT: finish the live
-fresh-disk witness using observed XT-IDE menu selection, then publish/CI/rebase.
-The earlier wrong slave-disk boot selection is retained as a failed startup.
+FINISHED original-Pyro hardware-input/restart proof: fresh DOS/ROM/game disks,
+natural raw scan-code boot and launch, all 86064 relocated original code bytes
+verified. Tutorial End make 4Fh stops at native BIOS IRQ1 F000:E987 with occupied
+PPI latch and CFh break still queued. A new process restores every captured
+Machine field and both VHDs; the exact 200ms continuation matches and consumes
+the break. Wrong archive digest leaves cold Machine/disks unchanged. Further
+bounded execution reaches World Terrorism/Secret Agent. All owned guests are
+closed. The earlier wrong slave-disk boot selection remains a failed startup.
+Source-bound gates, paired failures, reviews, live/restart receipts and producers
+are retained in the parent repository's
+`docs/evidence/martypc_keyboard_20261006/` (witness.json and inventory.json).
+
+WIP: PR38 final-head Windows/Linux CI and linear integration. Do not assume
+those gates passed. NEXT: finish CI and rebase.
 
 The prior GUI/snapshot work is integrated at 25cb6066 (PR35). Its final CI/tree
 and bounded minimized restart proofs live in the parent repository's

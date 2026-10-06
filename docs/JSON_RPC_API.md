@@ -241,7 +241,7 @@ ordinary RPC observation leaves captured light-pen state untouched. Rendering
 still reads native video buffers. Actual paused repaint/import measurements
 preserve every captured Machine field and both VHD hashes.
 
-Native GUI snapshots are now wired locally on the draft branch. They are offered
+Native GUI snapshots are integrated. They are offered
 only with RPC, local input off and no host sound player (`--nosound`). The core's
 host output configuration is explicitly disabled; guest PIT/PPI/speaker clocks
 continue. Loaded configuration/preferences/ROMs/keyboard construct a cold
@@ -259,9 +259,19 @@ Actual visible GUI process restart preserves complete captured Machine and both
 VHD hashes at23->24 Pyro startup seconds and41->42 level initialization seconds,
 including pending BIOS Enter, consumed input and matching seed changes.
 Wrong archive digest preserves cold state. Scoped follow-up review finds no
-concrete defect within this profile. PR34 remains draft pending final-head CI.
-Rendered pixel equality, hardware keyboard, whole-floor survival and physical
-audio/timing are not established by these bounded restart measurements.
+concrete defect within this profile; the GUI snapshot work is integrated through
+PR35. Rendered pixel equality, whole-floor survival and physical audio/timing
+are not established by these bounded restart measurements. Raw keyboard proof
+is separate: the headless IBM5160 original-Pyro run reaches native BIOS IRQ1
+F000:E987 for End make 4Fh while break CFh remains queued. Complete machine/disk
+continuation over a fresh-process restart matches and consumes that break;
+bounded native execution then reaches the game mode menu. This proves that
+hardware path and restart state, not physical keyboard serial timing or GUI
+manual-input parity.
+
+The source/product binding, native failure controls and live/restart receipts
+are retained in the parent pyro221_next repository under
+`docs/evidence/martypc_keyboard_20261006/` (witness.json and inventory.json).
 
 The configured PC speaker honors disabled host output when creating its sample
 channel. Native PIT counters/gates/phase and PPI state still run. Host PCM sample
