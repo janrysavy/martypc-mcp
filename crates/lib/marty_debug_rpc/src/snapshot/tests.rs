@@ -746,3 +746,17 @@ fn dependency_hash_and_size_errors_are_invalid_parameters_but_host_io_is_not() {
     assert_eq!(saved(&mut m), baseline);
     println!("RPC_SNAPSHOT_SHARED_ERRORS: archive/disk checksum and disk length refuse -32602 before live mutation/output; missing host file remains -32000; complete Machine, revision and source disk unchanged; positive reference import matches");
 }
+
+#[test]
+fn active_memory_or_io_journal_refuses_complete_snapshot_and_clears_cleanly() {
+    use marty_core::bus::debug_observation::{MEMORY,IO};
+    let mut m=cold(false);
+    let before=saved(&mut m);
+    for classes in [MEMORY,IO] {
+        m.bus_mut().debug_begin(classes);
+        assert!(m.snapshot_state_quiesced(DiskCaptureMode::Embed,0).is_err());
+        assert_eq!(m.bus_mut().debug_end().0.len(),0);
+        assert_eq!(saved(&mut m),before);
+    }
+}
+

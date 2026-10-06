@@ -85,6 +85,9 @@ impl BusInterface {
             && self.xtide.as_ref().is_none_or(|c| c.snapshot_rw_files())
     }
     fn snapshot_bus_supported(&self) -> Result<()> {
+        if self.debug_observing() {
+            bail!("active host observation journal is not restartable machine state");
+        }
         if !self.memory_expansions.is_empty()
             || self.parallel.is_some()
             || self.fdc.is_some()

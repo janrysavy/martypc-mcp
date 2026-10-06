@@ -424,8 +424,23 @@ impl Agent {
             }
         }
     }
+    fn ordered_breakpoints(&self) -> Vec<&Breakpoint> {
+        let mut entries=self.breakpoints.values().collect::<Vec<_>>();
+        entries.sort_unstable_by_key(|bp|bp.id.rsplit('-').next().unwrap().parse::<u64>().unwrap());
+        entries
+    }
+    fn ordered_breakpoints_mut(&mut self) -> Vec<&mut Breakpoint> {
+        let mut entries=self.breakpoints.values_mut().collect::<Vec<_>>();
+        entries.sort_unstable_by_key(|bp|bp.id.rsplit('-').next().unwrap().parse::<u64>().unwrap());
+        entries
+    }
     fn start(&mut self, machine: &mut Machine) -> Value {
-        self.skip_once = self.last_stop["breakpoint_id"].as_str().map(str::to_owned);
+        // Data accesses have already completed; the next matching access is new.
+        // Only an execution stop precedes the operation that triggered it. Native
+        // interrupt stops have completed dispatch too, so nested interrupts are new.
+        self.skip_once = if self.last_stop.get("access").is_none() && self.last_stop.get("event").is_none() {
+            self.last_stop["breakpoint_id"].as_str().map(str::to_owned)
+        } else { None };
         let id = self.id("op");
         self.operation = Some(id.clone());
         self.running = true;
@@ -443,7 +458,7 @@ impl Agent {
         self.control.set_state(ExecutionState::Paused);
         self.control.set_op(ExecutionOperation::Step);
         use marty_core::bus::debug_observation::{MEMORY,IO,INTERRUPT,OPCODES,OLD_VALUES,PIC};
-        let mut classes=if self.trace.active {MEMORY|IO|INTERRUPT|OPCODES|PIC} else {0};
+        let mut classes=if self.trace.active {MEMORY|IO|INTERRUPT|OPCODES|OLD_VALUES|PIC} else {0};
         if self.hardware.active {
             if self.hardware.include_io {classes|=IO;}
             if self.hardware.include_irq {classes|=PIC;}
@@ -477,8 +492,8 @@ impl Agent {
             return;
         }
         let mut hit = None;
-        for (id, bp) in &mut self.breakpoints {
-            if skip.as_ref() != Some(id) && bp.matches(machine) {
+        for bp in self.ordered_breakpoints_mut() {
+            if skip.as_deref() != Some(bp.id.as_str()) && bp.matches(machine) {
                 hit = Some(bp.clone());
                 break;
             }
@@ -546,7 +561,7 @@ impl Agent {
                     "interrupt_condition_phase":"before_dispatch","cpu_trace_unit":"native_machine_boundary",
                     "opcode_scope":"consumed_native_prefetch_bytes","irq_time_scope":"native_boundary_interval",
                     "max_effects_per_boundary":65536,"max_retained_cpu_effects":65536},
-                "breakpoint_kinds":["execution"],"step_modes":["into"],
+                "breakpoint_kinds":["execution","memory_read","memory_write","memory_access","interrupt"],"step_modes":["into"],
                 "time_base":"system crystal ticks (independent of turbo)",
                 "unsupported":["video.snapshot","video.history","vnc","serial","io","machine.snapshot",
                     "nec_cpu_observation","step_over","frontend_file_transfer",
@@ -734,7 +749,7 @@ impl Agent {
                 Ok(result)
             }
             "breakpoints.list" => {
-                Ok(json!({"breakpoints":self.breakpoints.values().map(Breakpoint::value).collect::<Vec<_>>()}))
+                Ok(json!({"breakpoints":self.ordered_breakpoints().iter().map(|bp|bp.value()).collect::<Vec<_>>()}))
             }
             "breakpoints.delete" => {
                 let id = p["breakpoint_id"].as_str().ok_or(("breakpoint id required", -32602))?;
@@ -1353,6 +1368,10 @@ mod tests {
         assert_eq!(dispatch["time_scope"],"native_boundary_interval");
         assert!(dispatch["clock_end"].as_u64().unwrap()>=dispatch["clock_start"].as_u64().unwrap());
         assert_eq!(hardware["dropped_event_count"],0);
+        let dispatched=a.trace.events.iter().find(|e| e["kind"]=="interrupt_dispatch").unwrap();
+        assert_eq!(dispatched["interrupt"],json!({"source":"pic","irq":0,"vector":8}));
+        assert!(a.trace.events.iter().flat_map(|e|e["effects"].as_array().unwrap())
+            .all(|e|matches!(e["kind"].as_str(),Some("memory_read"|"memory_write"|"io_read"|"io_write"))));
         let native_state=native.snapshot_state_quiesced(marty_core::vhd::DiskCaptureMode::Embed,0).unwrap();
         let observed_state=controlled.snapshot_state_quiesced(marty_core::vhd::DiskCaptureMode::Embed,0).unwrap();
         assert_eq!(serde_json::to_value(native_state.0).unwrap(),serde_json::to_value(observed_state.0).unwrap());

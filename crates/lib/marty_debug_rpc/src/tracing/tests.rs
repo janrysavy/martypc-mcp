@@ -164,9 +164,20 @@ fn cpu_trace_has_ordered_data_effects_and_does_not_change_native_continuation() 
         .flat_map(|e| e["effects"].as_array().unwrap());
     let writes = effects.filter(|e| e["kind"] == "memory_write").collect::<Vec<_>>();
     assert_eq!(writes.len(), 2);
-    assert_eq!(writes[0]["data_base64"], "NQ==");
-    assert_eq!(writes[1]["data_base64"], "Eg==");
+    assert_eq!(writes[0]["after_base64"], "NQ==");
+    assert_eq!(writes[1]["after_base64"], "Eg==");
+    assert_eq!(writes[0]["before_base64"], "AA==");
+    assert_eq!(writes[1]["before_base64"], "AA==");
     assert_eq!(writes[0]["instruction_address"]["offset"], 0x104);
+    assert!(data["events"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .flat_map(|e| e["effects"].as_array().unwrap())
+        .all(|e| matches!(
+            e["kind"].as_str(),
+            Some("memory_write" | "memory_read" | "io_write" | "io_read")
+        )));
     assert!(a
         .handle(&mut observed, "trace.read", &json!({"cursor":"trace-41"}))
         .is_err());
@@ -201,4 +212,78 @@ fn native_io_filters_overflow_and_expired_cursor_are_explicit() {
     let frozen = a.hardware.next;
     call(&mut a, &mut m, "execution.step", json!({}));
     assert_eq!(a.hardware.next, frozen);
+}
+
+#[test]
+fn resume_data_watchpoint_observes_immediately_following_matching_access() {
+    let mut m = machine();
+    let mut a = Agent::new(2301);
+    m.load_program(&[0xa2, 0, 2, 0xa2, 0, 2, 0xeb, 0xfe], 0, 0x100, 0, 0x100)
+        .unwrap();
+    let bp = call(
+        &mut a,
+        &mut m,
+        "breakpoints.create",
+        json!({"kind":"memory_write","address":0x200}),
+    );
+    for (hit, owner) in [(1, 0x100), (2, 0x103)] {
+        call(&mut a, &mut m, "execution.continue", json!({}));
+        finish(&mut a, &mut m);
+        assert_eq!(a.last_stop["breakpoint_id"], bp["breakpoint_id"]);
+        assert_eq!(a.last_stop["hit_count"], hit);
+        assert_eq!(a.last_stop["access"]["instruction_address"]["offset"], owner);
+    }
+}
+
+#[test]
+fn resumed_native_interrupt_stop_observes_nested_first_handler_interrupt() {
+    let mut m = machine();
+    let mut a = Agent::new(2301);
+    m.load_program(&[0xcd, 0x21], 0, 0x100, 0, 0x100).unwrap();
+    for (addr, value) in [
+        (0x84, 0x80),
+        (0x85, 1),
+        (0x86, 0),
+        (0x87, 0),
+        (0x180, 0xcd),
+        (0x181, 0x21),
+    ] {
+        m.bus_mut().write_u8(addr, value, 0).unwrap();
+    }
+    call(
+        &mut a,
+        &mut m,
+        "breakpoints.create",
+        json!({"kind":"interrupt","event":{"type":"software_interrupt","number":0x21}}),
+    );
+    for hit in 1..=2 {
+        call(&mut a, &mut m, "execution.continue", json!({}));
+        finish(&mut a, &mut m);
+        assert_eq!(a.last_stop["hit_count"], hit);
+        assert_eq!(a.last_stop["registers"]["ip"], 0x180);
+    }
+}
+
+#[test]
+fn overlapping_execution_and_data_breakpoints_keep_creation_order_after_nine_ids() {
+    for kind in ["execution", "memory_write"] {
+        let mut m = machine();
+        let mut a = Agent::new(2301);
+        m.load_program(&[0xa2, 0, 2, 0xeb, 0xfe], 0, 0x100, 0, 0x100).unwrap();
+        let target = if kind == "execution" { 0x100 } else { 0x200 };
+        for n in 1..=10 {
+            call(
+                &mut a,
+                &mut m,
+                "breakpoints.create",
+                json!({"kind":kind,"address":if n==2 || n==10 {target} else {0x500+n}}),
+            );
+        }
+        let listed = call(&mut a, &mut m, "breakpoints.list", json!({}));
+        assert_eq!(listed["breakpoints"][1]["breakpoint_id"], "bp-2");
+        assert_eq!(listed["breakpoints"][9]["breakpoint_id"], "bp-10");
+        call(&mut a, &mut m, "execution.continue", json!({}));
+        finish(&mut a, &mut m);
+        assert_eq!(a.last_stop["breakpoint_id"], "bp-2");
+    }
 }
