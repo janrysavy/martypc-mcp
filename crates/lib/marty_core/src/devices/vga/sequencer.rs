@@ -36,7 +36,7 @@ use crate::{
 };
 use modular_bitfield::{bitfield, prelude::*, Specifier};
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum SequencerRegister {
     Reset,
     ClockingMode,
@@ -265,7 +265,6 @@ impl Sequencer {
 
     pub fn update_character_maps(&mut self) {
         // Character font selection is only enabled if the two generator selections differ.
-        self.font_select_enabled = self.character_map_select.generator_a() != self.character_map_select.generator_b();
 
         self.font_offset_a = match self.character_map_select.generator_a() {
             0b00 => 0x0000,
@@ -288,6 +287,7 @@ impl Sequencer {
         if self.character_map_select.offset_a() {
             self.font_offset_a += 0x2000;
         }
+        self.font_select_enabled = self.font_offset_a != self.font_offset_b;
     }
 
     pub fn cpu_read_u8(&self, plane: usize, addr: usize, _a0: usize) -> u8 {
@@ -511,5 +511,37 @@ impl Sequencer {
         sequencer_vec.push((format!("{:?} [oe]", SequencerRegister::MemoryMode), VideoCardStateEntry::String(format!("{:?}", self.memory_mode.odd_even()))));
         sequencer_vec.push((format!("{:?} [c4]", SequencerRegister::MemoryMode), VideoCardStateEntry::String(format!("{:?}", self.memory_mode.chain_four()))));
         sequencer_vec
+    }
+}
+
+vga_state!(Sequencer, SequencerState, {}, {
+    address_byte: u8 => copy,
+    register_selected: SequencerRegister => copy,
+    reset: u8 => copy,
+    clocking_mode: u8 => (|c: &Sequencer| c.clocking_mode.into_bytes()[0], |s: &SequencerState| -> Result<SClockingModeRegister, &'static str> { Ok(SClockingModeRegister::from_bytes([s.clocking_mode])) }),
+    map_mask: u8 => copy,
+    character_map_select: u8 => (|c: &Sequencer| c.character_map_select.into_bytes()[0], |s: &SequencerState| -> Result<SCharacterMapSelect, &'static str> { Ok(SCharacterMapSelect::from_bytes([s.character_map_select])) }),
+    memory_mode: u8 => (|c: &Sequencer| c.memory_mode.into_bytes()[0], |s: &SequencerState| -> Result<SMemoryModeRegister, &'static str> { Ok(SMemoryModeRegister::from_bytes([s.memory_mode])) }),
+    clock_change_pending: bool => copy,
+    clock_divisor: u32 => copy,
+    char_clock: u32 => copy,
+    font_select_enabled: bool => copy,
+    font_offset_a: usize => copy,
+    font_offset_b: usize => copy,
+    vram: super::vram::VramState => (|c: &Sequencer| c.vram.snapshot_state(), |s: &SequencerState| -> Result<Vram, &'static str> { Ok(Vram::prepare_state(&s.vram)?) }),
+});
+
+impl Sequencer {
+    fn validate_state(s: &SequencerState) -> Result<(), &'static str> {
+        let mut derived=Self::default();
+        derived.character_map_select=SCharacterMapSelect::from_bytes([s.character_map_select]);
+        derived.update_character_maps();
+        if (s.font_offset_a,s.font_offset_b,s.font_select_enabled)
+            !=(derived.font_offset_a,derived.font_offset_b,derived.font_select_enabled) {
+            return Err("VGA font map cache mismatch");
+        }
+        if !matches!((s.clock_divisor,s.char_clock),(1,8)|(1,9)|(2,16)|(2,18)) || s.font_offset_a > 0xe000 || s.font_offset_b > 0xe000 { return Err("VGA sequencer clock/font"); }
+        Vram::prepare_state(&s.vram)?;
+        Ok(())
     }
 }

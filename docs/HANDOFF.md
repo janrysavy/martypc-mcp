@@ -1,5 +1,18 @@
 # Shared observation, snapshots and native tracing, 2026-10-06
 
+FINISHED local VGA owner and native text-path fixes: all336 core tests pass,
+including exact JSON restore/native bus continuation, injected font-plane byte
+reads, nonmutating selected/compare-mode peeks and native character-tick A/B
+selection. BIOS boot aperture underflow, palette address/select, full128KiB
+mapping and little-endian word peek are fixed. Full registers/latches/planes/
+font RAM/caches/beam/two raster buffers are composed; malformed nested state
+and active trace writers are refused. Shared snapshot calls stay unchanged.
+First native GUI boot reports VGA, original86064 relocated Pyro code bytes match,
+and Pyro detects adapter5/OwnTiming1. WIP: final-code GUI custom-font/cold-restart
+proof, corrected-code review, fork CI and integration. Do not treat component
+tests as physical VGA timing or all-mode rendering parity. Native VGA renders
+Direct; static-ROM legacy FontInfo remains unsupported.
+
 FINISHED CGA budget edge: review's zero-budget overrun reproduces one extra pixel.
 The guard preserves phase debt until clocks arrive; actual catch_up tests cover
 Dynamic/Character/Cycle,8/16-pixel characters and zero/partial/replenished budgets.

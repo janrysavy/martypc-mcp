@@ -409,9 +409,20 @@ and ordered `memory` descriptors identical to `memory.read` (address, byte count
 hex/base64, SHA256 and revision). Requested video components carry that revision.
 `video_memory` is the full16384-byte CGA backing VRAM with address `0xb8000` and
 adapter `CGA`; it is not a rendered frame/font/graphics-plane snapshot.
-RAM/ROM and native CGA VRAM are inspected through immutable native peeks.
+RAM/ROM and native CGA/VGA CPU-visible memory are inspected through immutable
+native peeks. VGA reads respect its memory-map/read-plane registers without
+changing graphics-controller latches. VGA text and full-plane video observation
+are still refused by the CGA-specific video helpers; use explicit memory windows.
 Other MMIO is explicitly refused. Inspection does not execute CPU/device work,
 flush prefetch, consume events or modify Machine state.
+
+VGA is also a composed snapshot owner: all registers/effective state, DAC,
+graphics latches/pipelines, four VRAM planes (including font RAM), linear caches,
+CRTC/beam counters and both raster buffers are preserved. Exact float bits are
+encoded. Malformed nested storage/index/clock state and active VGA tracing are
+refused before live replacement. This extends the supported card inventory;
+snapshot RPC names and parameters remain the shared PyPC contract. It does not
+establish hardware timing or rendering parity for every VGA mode.
 
 `video.text` returns the shared PyPC text schema: adapter, columns/rows,
 page size/count, selected/active page, byte display address, mode/control byte,

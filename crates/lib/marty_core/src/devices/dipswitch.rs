@@ -32,13 +32,14 @@
 
 */
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum DipSwitchSize {
     Dip4,
     Dip8,
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct DipSwitch {
     size: DipSwitchSize,
     physical_state: u8,

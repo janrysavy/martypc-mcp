@@ -24,3 +24,13 @@ pub(crate) mod f64_bits {
         Ok(value)
     }
 }
+
+pub(crate) mod f32_bits {
+    pub fn serialize<S: serde::Serializer>(value: &f32, s: S) -> Result<S::Ok, S::Error> { s.serialize_u32(value.to_bits()) }
+    pub fn deserialize<'de, D: serde::Deserializer<'de>>(d: D) -> Result<f32, D::Error> {
+        let bits: u32=serde::Deserialize::deserialize(d)?;
+        let value=f32::from_bits(bits);
+        if !value.is_finite() { return Err(serde::de::Error::custom("nonfinite snapshot clock")); }
+        Ok(value)
+    }
+}

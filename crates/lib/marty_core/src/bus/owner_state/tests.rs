@@ -329,3 +329,40 @@ fn composed_disk_requirements_match_native_bytes_modes_read_only_and_unload() {
     assert!(data.iter().all(Option::is_none));
     println!("DISK_REQUIREMENTS:actual mounted bytes/hash, both controller slots, embed/reference policy, readonly and native unload; no archive/process proof");
 }
+
+#[cfg(feature = "vga")]
+#[test]
+fn vga_bus_json_restore_continues_registers_font_planes_and_raster() {
+    fn fixture() -> BusInterface {
+        let mut bus=BusInterface::default();
+        let typ=MachineType::Ibm5160;
+        bus.install_devices(crate::machine_config::get_machine_descriptor(typ).unwrap(),
+            &crate::machine_config::MachineConfiguration {machine_type:typ,..Default::default()},
+            #[cfg(feature="sound")] &crate::sound::SoundOutputConfig::default(),None,false).unwrap();
+        let id=VideoCardId {idx:0,vtype:VideoType::VGA};
+        let card=crate::devices::vga::VGACard::new(TraceLogger::None,ClockingMode::Cycle,false,None);
+        add_io_device!(bus,card,IoDeviceType::Video(id));
+        add_mmio_device!(bus,card,MmioDeviceType::Video(id));
+        bus.videocards.insert(id,VideoCardDispatch::Vga(Box::new(card)));
+        bus.videocard_ids.push(id);bus.keyboard=Some(Keyboard::new(bus.keyboard_type,false));
+        bus
+    }
+    let mut original=fixture();
+    // Enable RAM, map A0000, select font plane 2, write glyph and latch state.
+    for (port,value) in [(0x3c2,3),(0x3c4,2),(0x3c5,4),(0x3c4,4),(0x3c5,6),
+        (0x3ce,6),(0x3cf,4),(0x3ce,8),(0x3cf,255),(0x3ce,4),(0x3cf,2)] {
+        original.io_write_u8(port,value,0,None);
+    }
+    original.write_u8(0xa0000+123,0xa5,0).unwrap();
+    let _=original.read_u8(0xa0000+123,0).unwrap();
+    assert_eq!(original.peek_u8(0xa0000+123).unwrap(),0xa5);
+    assert!(original.is_observable_memory(0xa0000+123));
+    for step in 0..4 {
+        let (saved,disks)=capture(&mut original);
+        let mut restored=fixture().prepare_bus_restore(&saved,providers(disks)).unwrap();
+        assert_eq!(original.peek_u8(0xa0000+123).unwrap(),restored.peek_u8(0xa0000+123).unwrap());
+        assert_eq!(advance(&mut original,step),advance(&mut restored,step));
+        let (a,_)=capture(&mut original);let (b,_)=capture(&mut restored);
+        assert_eq!(a,b,"all VGA registers, latches, planes and rasters");
+    }
+}

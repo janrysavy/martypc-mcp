@@ -31,7 +31,7 @@
 
 use super::*;
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum GraphicsRegister {
     SetReset,
     EnableSetReset,
@@ -93,7 +93,7 @@ pub enum MemoryMap {
     B8000_32K,
 }
 
-#[derive(Copy, Clone, Debug, Specifier)]
+#[derive(Copy, Clone, Debug, Specifier, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum LogicFunction {
     Unmodified,
     And,
@@ -128,7 +128,8 @@ pub enum NibbleFlopFlop {
     Low,
 }
 
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct GraphicsControllerStats {
     pub mode_0_writes: u32,
     pub mode_1_writes: u32,
@@ -412,11 +413,25 @@ impl GraphicsController {
             }
         };
 
-        if let OddEvenModeComplement::OddEven = self.graphics_mode.odd_even() {
-            //offset >>= 1;
+        match self.graphics_mode.read_mode() {
+            ReadMode::ReadSelectedPlane => {
+                let plane = match self.graphics_mode.odd_even() {
+                    OddEvenModeComplement::Sequential => self.graphics_read_map_select as usize,
+                    OddEvenModeComplement::OddEven => (self.graphics_read_map_select as usize & !1) | a0,
+                };
+                seq.cpu_read_u8(plane, offset, a0)
+            }
+            ReadMode::ReadComparedPlanes => {
+                let mut comparison = 0xff;
+                for plane in 0..4 {
+                    if self.graphics_color_dont_care & (1 << plane) != 0 {
+                        let value = seq.cpu_read_u8(plane, offset, a0);
+                        comparison &= if self.graphics_color_compare & (1 << plane) != 0 {value} else {!value};
+                    }
+                }
+                comparison
+            }
         }
-
-        seq.cpu_read_u8(0, offset, a0)
     }
 
     pub fn cpu_write_u8(&mut self, seq: &mut Sequencer, address: usize, page_select: PageSelect, byte: u8) {
@@ -672,5 +687,34 @@ impl GraphicsController {
         gc_stats_vec.push(("Mode 1 Reads".into(), VideoCardStateEntry::Value32(self.stats.mode_1_reads)));
 
         gc_stats_vec
+    }
+}
+
+vga_state!(GraphicsController, GraphicsState, {}, {
+    graphics_register_select_byte: u8 => copy,
+    graphics_register_selected: GraphicsRegister => copy,
+    graphics_set_reset: u8 => copy,
+    graphics_enable_set_reset: u8 => copy,
+    graphics_color_compare: u8 => copy,
+    graphics_data_rotate: u8 => (|c: &GraphicsController| c.graphics_data_rotate.into_bytes()[0], |s: &GraphicsState| -> Result<GDataRotateRegister, &'static str> { Ok(GDataRotateRegister::from_bytes([s.graphics_data_rotate])) }),
+    graphics_data_rotate_function: LogicFunction => copy,
+    graphics_read_map_select: u8 => copy,
+    graphics_mode: u8 => (|c: &GraphicsController| c.graphics_mode.into_bytes()[0], |s: &GraphicsState| -> Result<GModeRegister, &'static str> { Ok(GModeRegister::from_bytes([s.graphics_mode])) }),
+    graphics_micellaneous: u8 => (|c: &GraphicsController| c.graphics_micellaneous.into_bytes()[0], |s: &GraphicsState| -> Result<GMiscellaneousRegister, &'static str> { Ok(GMiscellaneousRegister::from_bytes([s.graphics_micellaneous])) }),
+    graphics_color_dont_care: u8 => copy,
+    graphics_bitmask: u8 => copy,
+    latches: [u8; 4] => copy,
+    pixel_buf: [u8; 8] => copy,
+    pipeline_buf: [u8; 4] => copy,
+    serialize_buf: [u8; 8] => copy,
+    debug_ctr: u8 => copy,
+    c4_flipflop: bool => copy,
+    stats: GraphicsControllerStats => copy,
+});
+
+impl GraphicsController {
+    fn validate_state(s: &GraphicsState) -> Result<(), &'static str> {
+        if s.graphics_read_map_select > 3 { return Err("VGA read plane"); }
+        Ok(())
     }
 }

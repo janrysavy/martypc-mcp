@@ -134,3 +134,29 @@ impl Vram {
         self.deplane(offset);
     }
 }
+
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct VramState {
+    planes: [Vec<u8>;4],
+    linear_buf: Vec<u8>,
+    linear_cga_buf: Vec<u8>,
+}
+impl Vram {
+    pub(crate) fn snapshot_state(&self) -> VramState {
+        VramState { planes: std::array::from_fn(|p| self.planes[p].to_vec()),
+            linear_buf: self.linear_buf.to_vec(), linear_cga_buf: self.linear_cga_buf.to_vec() }
+    }
+    pub(crate) fn prepare_state(s: &VramState) -> Result<Self, &'static str> {
+        if s.planes.iter().any(|p| p.len()!=EGA_GFX_PLANE_SIZE)
+            || s.linear_buf.len()!=EGA_GFX_PLANE_SIZE*8
+            || s.linear_cga_buf.len()!=EGA_GFX_PLANE_SIZE*4 {
+            return Err("VGA plane/cache length");
+        }
+        let mut result=Self::new();
+        for p in 0..4 { result.planes[p].copy_from_slice(&s.planes[p]); }
+        result.linear_buf.copy_from_slice(&s.linear_buf);
+        result.linear_cga_buf.copy_from_slice(&s.linear_cga_buf);
+        Ok(result)
+    }
+}
