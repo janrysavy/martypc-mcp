@@ -11,8 +11,9 @@ preserved complete state. Its shared reset-vector correction passes both backend
 Initial review mapping defects/off-aperture panic are corrected and tested;
 CP437127 preserves the Python byte decoder's control character through cells.
 Evidence: https://github.com/janrysavy/pyro221_next/tree/master/docs/evidence/emulator_rpc_portability_20261006
-Owned headless guest is closed. WIP: actual-main rebase, final-head CI and PR36
-integration; do not assume these gates passed. See JSON_RPC_API.md.
+Owned headless guest is closed. Actual-main rebase onto c82809d4 is complete.
+WIP: final-head CI and PR36 integration; do not assume these gates passed.
+See JSON_RPC_API.md.
 
 # Raw XT keyboard RPC, 2026-10-06
 
@@ -46,8 +47,9 @@ Source-bound gates, paired failures, reviews, live/restart receipts and producer
 are retained in the parent repository's
 `docs/evidence/martypc_keyboard_20261006/` (witness.json and inventory.json).
 
-WIP: PR38 final-head Windows/Linux CI and linear integration. Do not assume
-those gates passed. NEXT: finish CI and rebase.
+FINISHED PR38: exact9059a86f Windows/Linux CI37400543552 passed; rebase
+merged main c82809d4 has the identical tested tree. Keyboard proof remains
+source-bound; observation/snapshot follow-up integration is still pending.
 
 The prior GUI/snapshot work is integrated at 25cb6066 (PR35). Its final CI/tree
 and bounded minimized restart proofs live in the parent repository's
