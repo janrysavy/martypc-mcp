@@ -2,13 +2,17 @@
 
 FINISHED source: shared paused `state.observe` and native CGA `video.text`.
 Whole-request preflight, revision guards and immutable peeks avoid mixed captures.
-FINISHED local37 RPC tests, including complete Machine equality and actual JSON
-dispatch. Initial review mapping defects were corrected; CP437127 claim disproved.
-Follow-up review found an off-aperture CGA mapping panic; it is now refused.
-Final review accepts mapping fix; local37 tests pass on committed source.
-CP437127 now also passes through actual video.text cell/row output.
-Draft PR36 is published. WIP: common parent live contract, final-head CI; do not
-assume integration passed. See JSON_RPC_API.md.
+After the keyboard rebase, local42 RPC +10 config +5 headless and319 serial/sound
+core tests pass. A fresh headless executable binds604 build-source inputs.
+Original-Pyro86064 relocated code bytes match at startup. The shared CP437 and
+observation contract preserves complete native Machine state and both disks.
+The first live checker exposed an unbacked F0000 ROM-hole fixture: refusal also
+preserved complete state. Its shared reset-vector correction passes both backends.
+Initial review mapping defects/off-aperture panic are corrected and tested;
+CP437127 preserves the Python byte decoder's control character through cells.
+Evidence: https://github.com/janrysavy/pyro221_next/tree/master/docs/evidence/emulator_rpc_portability_20261006
+Owned headless guest is closed. WIP: actual-main rebase, final-head CI and PR36
+integration; do not assume these gates passed. See JSON_RPC_API.md.
 
 # Raw XT keyboard RPC, 2026-10-06
 
