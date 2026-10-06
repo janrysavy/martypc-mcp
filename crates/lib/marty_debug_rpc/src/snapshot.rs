@@ -215,13 +215,17 @@ fn host_error(error: impl std::fmt::Display) -> (&'static str, i32) {
     eprintln!("Snapshot refused: {error}");
     ("snapshot host/dependency validation failed; see emulator log", -32000)
 }
+fn host_read_error(error: std::io::Error) -> (&'static str, i32) {
+    eprintln!("Snapshot host read refused: {error}");
+    ("snapshot archive/reference host read failed; see emulator log", -32603)
+}
 fn read_bounded(path: &Path, limit: u64) -> Result<Vec<u8>> {
-    let file = File::open(path).map_err(host_error)?;
-    if !file.metadata().map_err(host_error)?.is_file() {
+    let file = File::open(path).map_err(host_read_error)?;
+    if !file.metadata().map_err(host_read_error)?.is_file() {
         return invalid("snapshot input must be a regular file");
     }
     let mut bytes = Vec::new();
-    file.take(limit + 1).read_to_end(&mut bytes).map_err(host_error)?;
+    file.take(limit + 1).read_to_end(&mut bytes).map_err(host_read_error)?;
     if bytes.len() as u64 > limit {
         return invalid("snapshot input byte budget exceeded");
     }
