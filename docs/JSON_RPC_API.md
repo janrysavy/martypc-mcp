@@ -313,3 +313,22 @@ raw cells preserve codes. Rows are25, columns40 or80 from actual CGA mode contro
 Only CGA text is supported; graphics and other adapters are refused rather than
 being decoded as text. These are memory interpretations, not raster/font evidence.
 The optional VGA cursor object that PyPC provides is absent for CGA on both backends.
+
+## Shared snapshot request policy
+
+`machine.snapshot.import` accepts canonical `expected_sha256`, or legacy `sha256`
+alone. Both fields together are refused with -32602, even if equal. A retained
+64-hex-character digest is required before archive/dependency validation.
+`preserve_breakpoints` is a boolean defaulting to true. It preserves permanent
+debugger breakpoint definitions and their host hit counters across restore; false
+clears them. Private run-until predicates, in-flight/completed operations and
+stop/resume exclusions are always cleared. Debugger configuration is host state,
+not a machine checkpoint. All request-policy fields are checked before live swap.
+
+`machine.snapshot.export` adds `disk_mode: "reference-files"`: flat File VHD
+providers become checksum-verified references. This frontend supports only
+constructor-enforced RW File VHD providers, so its policy maps to native Reference
+without changing the archive format. PyPC uses the same name for flat-file
+references plus embedded complete host-mapped filesystem state. MartyPC's missing
+host-mapped filesystem backend remains an explicit limitation. Referenced import
+still creates fresh writable disk copies; it never aliases the reference/live disk.
