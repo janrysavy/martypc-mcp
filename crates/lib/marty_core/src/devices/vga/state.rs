@@ -72,7 +72,8 @@ impl VGACard {
             || s.extents.apertures.len()!=VGA_APERTURES[0].len()
             || s.extents.field_w==0 || s.extents.field_h==0
             || s.extents.row_stride != s.extents.field_w as usize
-            || s.extents.field_w as usize * s.extents.field_h as usize > VGA_MAX_CLOCK28
+            || (s.extents.field_w as usize).checked_mul(s.extents.field_h as usize)
+                .map_or(true, |area| area > VGA_MAX_CLOCK28)
             || s.rba > VGA_MAX_CLOCK28
             || s.raster_x > s.extents.field_w || s.raster_y > s.extents.field_h
             || s.extents.apertures.iter().any(|a|
@@ -127,7 +128,7 @@ mod tests {
             let mut bad=wire.clone();bad.as_object_mut().unwrap().remove(name);
             assert!(serde_json::from_value::<VgaState>(bad).is_err(),"required {name}");
         }
-        for mutant in 0..9 {
+        for mutant in 0..10 {
             let mut bad=saved.clone();
             match mutant {
                 0=>bad.buf[0].pop().map(|_| ()).unwrap(),
@@ -138,7 +139,8 @@ mod tests {
                 5=>bad.raster_y=u32::MAX,
                 6=>bad.extents.apertures[0].x=u32::MAX,
                 7=>bad.ac.overscan_color.six=64,
-                _=>bad.sequencer.font_offset_a=0x2000,
+                8=>bad.sequencer.font_offset_a=0x2000,
+                _=>{bad.extents.field_w=65536;bad.extents.field_h=65536;bad.extents.row_stride=65536;},
             }
             assert!(card.restore_state(&bad).is_err());
             assert_eq!(saved,card.capture_state().unwrap(),"mutation was atomic");
