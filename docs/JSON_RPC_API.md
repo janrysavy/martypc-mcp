@@ -207,6 +207,8 @@ A stop has `access.kind`, normalized linear `address`, `byte_count`, integer
 Reads report identical old/new values; unavailable side-effect-free old bytes
 are omitted. A word on the8088 produces two actual byte transfers. A bus write
 reports the transfer value, not a guarantee that ROM/MMIO retained that value.
+An explicit memory `phase` must be `after_native_boundary`; other phases are
+refused before installing a predicate.
 Execution stops **after the completed native machine boundary**, with actual
 stop registers and `phase:"after_native_boundary"`; later transfers belonging
 to that boundary have already happened. A one-shot/private predicate stops on
@@ -237,7 +239,9 @@ nullable `trace-N` cursors and limit1..256. Stop preserves retained events.
 Read/stop before start and start while active are errors.
 
 Hardware trace accepts capacity1..65536 (default4096), boolean `include_io`
-and `include_irq`, port ranges `{first,last}` and IRQ-line filters. At least
+and `include_irq`, port ranges `{first,last}` and primary-PIC IRQ-line
+filters 0..7; secondary lines 8..15 are refused and are not
+observed. Capabilities enumerate `observation.irq_lines`. At least
 one class is required; empty filters mean all. Native port transfers report
 kind, address, port, byte_count, value, device `handled` (at least one byte
 port has a native mapping, including word transfers), CPU-cycle
@@ -253,6 +257,9 @@ first_available_sequence and dropped_event_count. Stop preserves the ring.
 
 One native boundary retains at most65536 observations. Overflow stops with
 `observation_overflow` rather than falsely claiming an unmatched watchpoint.
+`dropped_event_count` counts every missing journal entry; `dropped_effect_count`
+counts only missing memory/I/O effects, separately from opcode/PIC loss. A CPU
+trace with missing journal entries stops recording.
 A CPU trace retains at most65536 effects in total, reports dropped effects and
 stops recording at that capacity; emulation can continue. Snapshot import
 clears retained host traces and pending step operations. Core snapshot preflight

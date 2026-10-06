@@ -212,6 +212,9 @@ impl Breakpoint {
         if kind.starts_with("memory_") && p.get("condition").is_some_and(|v| !v.is_null()) {
             return invalid("memory predicates do not accept register conditions");
         }
+        if kind.starts_with("memory_") && p.get("phase").is_some_and(|v|v!="after_native_boundary") {
+            return invalid("native memory stop requires after_native_boundary phase");
+        }
         let mut event = Value::Null;
         if kind == "interrupt" {
             if p["event"]["type"] != "software_interrupt" { return invalid("only software interrupt predicates supported"); }
@@ -309,7 +312,10 @@ impl Breakpoint {
             value["event"]=self.event.clone();
             value["phase"]=json!("after_dispatch_before_handler");
             value["condition_phase"]=json!("before_dispatch");
-        } else {value["address"]=self.address_value.clone(); value["length"]=json!(self.length);}
+        } else {
+            value["address"]=self.address_value.clone(); value["length"]=json!(self.length);
+            if self.kind.starts_with("memory_") {value["phase"]=json!("after_native_boundary");}
+        }
         if let Some((name,op,number))=&self.condition {
             value["condition"]=json!({"register":name,"operator":op,"value":number});
         }
@@ -473,8 +479,8 @@ impl Agent {
         machine.run(1, &mut self.control);
         self.revision += 1;
         if observing {
-            let (events, dropped) = machine.bus_mut().debug_end();
-            self.record_boundary(machine, before, &events, dropped, skip);
+            let (events, dropped, dropped_effects) = machine.bus_mut().debug_end();
+            self.record_boundary(machine, before, &events, dropped, dropped_effects, skip);
         }
     }
     fn advance(&mut self, machine: &mut Machine) {
@@ -559,7 +565,7 @@ impl Agent {
                 "observation":{"cpu_models":["Intel8088","Intel8086"],
                     "memory_stop_phase":"after_native_boundary","interrupt_stop_phase":"after_dispatch_before_handler",
                     "interrupt_condition_phase":"before_dispatch","cpu_trace_unit":"native_machine_boundary",
-                    "opcode_scope":"consumed_native_prefetch_bytes","irq_time_scope":"native_boundary_interval",
+                    "opcode_scope":"consumed_native_prefetch_bytes","irq_time_scope":"native_boundary_interval","irq_lines":[0,1,2,3,4,5,6,7],
                     "max_effects_per_boundary":65536,"max_retained_cpu_effects":65536},
                 "breakpoint_kinds":["execution","memory_read","memory_write","memory_access","interrupt"],"step_modes":["into"],
                 "time_base":"system crystal ticks (independent of turbo)",

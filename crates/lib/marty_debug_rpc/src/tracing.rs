@@ -170,6 +170,7 @@ impl Agent {
         before: Option<Value>,
         events: &[Event],
         dropped: usize,
+        dropped_effects: usize,
         skip: Option<&str>,
     ) {
         let before = before.unwrap();
@@ -202,7 +203,7 @@ impl Agent {
                 "opcode_scope":"consumed_native_prefetch_bytes",
                 "clock_before":before["clock"],"clock_after":after["clock"],
                 "clock_delta":after["clock"].as_u64().unwrap()-before["clock"].as_u64().unwrap(),
-                "effects":effects[..retained].iter().map(|e|effect(e)).collect::<Vec<_>>(),"dropped_effect_count":dropped+effects.len()-retained});
+                "effects":effects[..retained].iter().map(|e|effect(e)).collect::<Vec<_>>(),"dropped_effect_count":dropped_effects+effects.len()-retained,"dropped_event_count":dropped});
             if let Some(dispatch) = events.iter().find(|e| e.kind == "irq_dispatch") {
                 event["interrupt"] = json!({"source":"pic","irq":dispatch.irq,"vector":dispatch.address});
             } else if let Some(dispatch) = events.iter().find(|e| e.interrupt_kind.as_deref() == Some("Hardware")) {
@@ -218,7 +219,7 @@ impl Agent {
             }
             self.trace.events.push(event);
             self.trace.remaining -= 1;
-            self.trace.active = self.trace.remaining > 0 && retained == effects.len();
+            self.trace.active = self.trace.remaining > 0 && retained == effects.len() && dropped == 0;
         }
         if self.hardware.active {
             for event in events {
@@ -228,7 +229,7 @@ impl Agent {
         if dropped > 0 {
             self.stop(
                 machine,
-                json!({"kind":"observation_overflow","dropped_effect_count":dropped}),
+                json!({"kind":"observation_overflow","dropped_event_count":dropped,"dropped_effect_count":dropped_effects}),
             );
             return;
         }
@@ -344,8 +345,8 @@ impl Agent {
                 if let Some(value) = p.get("irqs") {
                     for irq in value.as_array().ok_or(("irqs array required", -32602))? {
                         let irq = number(irq)?;
-                        if irq > 15 {
-                            return invalid("IRQ outside 0..15");
+                        if irq > 7 {
+                            return invalid("native primary PIC supports IRQ0..7 only");
                         }
                         irqs.push(irq as u8);
                     }

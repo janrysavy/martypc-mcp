@@ -287,3 +287,48 @@ fn overlapping_execution_and_data_breakpoints_keep_creation_order_after_nine_ids
         assert_eq!(a.last_stop["breakpoint_id"], "bp-2");
     }
 }
+
+#[test]
+fn unsupported_secondary_irq_and_unavailable_memory_phase_are_refused() {
+    let mut m = machine();
+    let mut a = Agent::new(2301);
+    assert!(a.handle(&mut m, "hardware.trace.start", &json!({"irqs":[8]})).is_err());
+    assert!(!a.hardware.active);
+    assert!(a
+        .handle(
+            &mut m,
+            "breakpoints.create",
+            &json!({"kind":"memory_write","address":0x200,"phase":"before_access"})
+        )
+        .is_err());
+    assert!(a.breakpoints.is_empty());
+    let bp = call(
+        &mut a,
+        &mut m,
+        "breakpoints.create",
+        json!({"kind":"memory_write","address":0x200,"phase":"after_native_boundary"}),
+    );
+    assert_eq!(bp["phase"], "after_native_boundary");
+    let caps = call(&mut a, &mut m, "agent.capabilities", json!({}));
+    assert_eq!(caps["observation"]["irq_lines"], json!([0, 1, 2, 3, 4, 5, 6, 7]));
+    for kind in ["memory_read", "memory_write", "memory_access", "interrupt"] {
+        assert!(caps["breakpoint_kinds"].as_array().unwrap().contains(&json!(kind)));
+    }
+}
+#[test]
+fn synthetic_overflow_distinguishes_lost_effects_and_stops_incomplete_cpu_trace() {
+    // Loss accounting control, not evidence of an executed instruction or guest timing.
+    let mut m = machine();
+    let mut a = Agent::new(2301);
+    call(&mut a, &mut m, "trace.start", json!({"instruction_count":2}));
+    a.start(&mut m);
+    let before = registers(&mut m, a.revision);
+    a.record_boundary(&mut m, Some(before), &[], 4, 2, None);
+    assert_eq!(a.last_stop["kind"], "observation_overflow");
+    assert_eq!(a.last_stop["dropped_event_count"], 4);
+    assert_eq!(a.last_stop["dropped_effect_count"], 2);
+    let data = call(&mut a, &mut m, "trace.read", json!({}));
+    assert_eq!(data["active"], false);
+    assert_eq!(data["events"][0]["dropped_event_count"], 4);
+    assert_eq!(data["events"][0]["dropped_effect_count"], 2);
+}
