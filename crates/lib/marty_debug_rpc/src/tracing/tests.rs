@@ -387,3 +387,57 @@ fn pending_rom_reload_stops_without_a_fabricated_native_boundary() {
         assert!(!m.bus().debug_observing());
     }
 }
+
+#[test]
+fn native_stop_sentinels_do_not_count_as_executed_boundaries() {
+    use marty_core::{breakpoints::BreakPointType, cpu_common::CpuAddress};
+    fn arm(m: &mut Machine, kind: &str) {
+        match kind {
+            "native_breakpoint" => {
+                m.cpu_mut().set_breakpoints(vec![BreakPointType::ExecuteFlat(0x100)]);
+                let mut control = ExecutionControl::new();
+                control.set_state(ExecutionState::Running);
+                assert_eq!(m.run(1, &mut control), 1);
+                assert!(matches!(control.state, ExecutionState::BreakpointHit));
+            }
+            "native_step_over" => m.cpu_mut().set_step_over_breakpoint(CpuAddress::Flat(0x100)),
+            "cpu_halt" => m.cpu_mut().set_end_address(CpuAddress::Flat(0x100)),
+            _ => unreachable!(),
+        }
+    }
+    for kind in ["native_breakpoint", "native_step_over", "cpu_halt"] {
+        for method in ["execution.step", "execution.continue"] {
+            let mut m = machine(); let mut reference = machine();
+            arm(&mut m, kind); arm(&mut reference, kind);
+            let clocks = (m.cpu_cycles(), m.system_ticks());
+            let mut native = ExecutionControl::new();
+            native.set_op(ExecutionOperation::Step);
+            assert_eq!(reference.run(1, &mut native), 1, "native sentinel witness");
+            assert_eq!(clocks, (reference.cpu_cycles(), reference.system_ticks()));
+            let mut a = Agent::new(2301);
+            call(&mut a, &mut m, "trace.start", json!({"instruction_count":4}));
+            call(&mut a, &mut m, "hardware.trace.start", json!({"capacity":16}));
+            let revision = a.revision;
+            let op = a.handle(&mut m, method, &json!({})).unwrap();
+            a.advance(&mut m);
+            let done = call(&mut a, &mut m, "execution.wait", json!({"operation_id":op["operation_id"]}));
+            assert_eq!(done["stop_reason"]["kind"], kind, "{method} must preserve native stop scope");
+            assert_eq!(done["stop_reason"]["executed_instruction_count"], 0);
+            assert_eq!(a.revision, revision);
+            assert_eq!(clocks, (m.cpu_cycles(), m.system_ticks()));
+            assert!(a.trace.events.is_empty() && a.hardware.events.is_empty());
+            assert!(!m.bus().debug_observing());
+            let actual = serde_json::to_value(m.snapshot_state_quiesced(marty_core::vhd::DiskCaptureMode::Embed,0).unwrap().0).unwrap();
+            let expected = serde_json::to_value(reference.snapshot_state_quiesced(marty_core::vhd::DiskCaptureMode::Embed,0).unwrap().0).unwrap();
+            assert_eq!(actual, expected, "RPC must preserve actual native stop bookkeeping");
+            m.cpu_mut().set_end_address(CpuAddress::Flat(0));
+            m.cpu_mut().clear_breakpoint_flag();
+            let op = a.handle(&mut m, "execution.step", &json!({})).unwrap();
+            a.advance(&mut m);
+            let done = call(&mut a, &mut m, "execution.wait", json!({"operation_id":op["operation_id"]}));
+            assert_eq!(done["stop_reason"]["kind"], "step");
+            assert_eq!(a.revision, revision+1);
+            assert_eq!(a.trace.events.len(), 1);
+        }
+    }
+}

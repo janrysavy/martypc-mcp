@@ -476,13 +476,21 @@ impl Agent {
         let observing=classes!=0;
         let before = observing.then(|| registers(machine, self.revision));
         if observing { machine.bus_mut().debug_begin(classes); }
-        let executed = machine.run(1, &mut self.control);
-        if executed == 0 {
-            // A pending ROM reload (or another native refusal) is not a CPU
-            // boundary. Close the journal and complete the accepted operation
-            // without inventing an instruction, revision or trace event.
+        let before_cycles = machine.cpu_cycles();
+        let before_ticks = machine.system_ticks();
+        let _ = machine.run(1, &mut self.control);
+        if machine.cpu_cycles() == before_cycles && machine.system_ticks() == before_ticks {
+            // run() also returns sentinel1 for native debugger/program stops.
+            // Only actual CPU/device clock progress establishes a native boundary;
+            // keep legitimate halted-device advancement on its native path.
             if observing { let _ = machine.bus_mut().debug_end(); }
-            self.stop(machine, json!({"kind":"backend_no_progress","executed_instruction_count":0}));
+            let kind = match self.control.state {
+                ExecutionState::BreakpointHit => "native_breakpoint",
+                ExecutionState::StepOverHit => "native_step_over",
+                ExecutionState::Halted => "cpu_halt",
+                _ => "backend_no_progress",
+            };
+            self.stop(machine, json!({"kind":kind,"executed_instruction_count":0}));
             return;
         }
         self.revision += 1;
