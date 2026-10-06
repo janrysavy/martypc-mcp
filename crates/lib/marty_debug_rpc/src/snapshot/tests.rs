@@ -760,3 +760,39 @@ fn active_memory_or_io_journal_refuses_complete_snapshot_and_clears_cleanly() {
     }
 }
 
+#[test]
+fn import_discards_populated_native_traces_and_preserves_complete_machine() {
+    let scratch = Scratch::new();
+    let mut factory = || Ok(cold(false));
+    let mut host = SnapshotHost::for_rw_files(&mut factory).unwrap();
+    let mut m = cold(false);
+    m.load_program(&[0xba,0x43,0,0xb0,0x12,0xee,0xb8,0x34,0x12,0x40,0xa3,0,2,0xeb,0xfe],0,0x100,0,0x100).unwrap();
+    let mut a = Agent::new(2301);
+    let path = scratch.0.join("trace-checkpoint.zip");
+    let initial = saved(&mut m);
+    let export = invoke(&mut a,&mut m,&mut host,"machine.snapshot.export",
+        json!({"path":path,"expected_state_revision":0})).unwrap();
+    a.handle(&mut m,"trace.start",&json!({"instruction_count":32})).unwrap();
+    a.handle(&mut m,"hardware.trace.start",&json!({"capacity":32})).unwrap();
+    a.handle(&mut m,"execution.run_until",&json!({"predicate":{"kind":"execution","address":0x10d}})).unwrap();
+    for _ in 0..100 {
+        a.advance(&mut m);
+        if !a.running {break;}
+    }
+    assert!(!a.running);
+    assert_eq!(a.last_stop["kind"],"run_until");
+    let cpu=a.handle(&mut m,"trace.read",&json!({})).unwrap();
+    let io=a.handle(&mut m,"hardware.trace.read",&json!({})).unwrap();
+    assert!(cpu["events"].as_array().unwrap().iter().any(|event|
+        event["effects"].as_array().unwrap().iter().any(|effect|effect["kind"]=="memory_write")));
+    assert!(io["events"].as_array().unwrap().iter().any(|event|event["kind"]=="io_write"));
+    assert_eq!(cpu["active"],true);
+    assert_eq!(io["active"],true);
+    let params=json!({"path":path,"expected_sha256":export["sha256"],"disk_root":scratch.0.join("restored"),"expected_state_revision":a.revision});
+    invoke(&mut a,&mut m,&mut host,"machine.snapshot.import",params).unwrap();
+    assert_eq!(saved(&mut m),initial);
+    assert_eq!(a.handle(&mut m,"trace.read",&json!({})).unwrap_err().1,-32602);
+    assert_eq!(a.handle(&mut m,"hardware.trace.read",&json!({})).unwrap_err().1,-32602);
+    assert!(!a.trace.active && !a.hardware.active);
+    assert!(a.trace.events.is_empty());
+}
