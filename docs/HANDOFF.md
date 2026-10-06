@@ -5,7 +5,9 @@ Whole-request preflight, revision guards and immutable peeks avoid mixed capture
 FINISHED local37 RPC tests, including complete Machine equality and actual JSON
 dispatch. Initial review mapping defects were corrected; CP437127 claim disproved.
 Follow-up review found an off-aperture CGA mapping panic; it is now refused.
-WIP: final scoped review, common parent live contract, publication and CI; do not
+Final review accepts mapping fix; local37 tests pass on committed source.
+CP437127 now also passes through actual video.text cell/row output.
+Draft PR36 is published. WIP: common parent live contract, final-head CI; do not
 assume integration passed. See JSON_RPC_API.md.
 
 # Raw XT keyboard RPC, 2026-10-06

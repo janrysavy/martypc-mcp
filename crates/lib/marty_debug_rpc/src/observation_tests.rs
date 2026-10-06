@@ -51,13 +51,14 @@ fn coherent_observation_preserves_complete_machine_and_wraps_native_text() {
     m.bus_mut().write_u8(0xbbfff, 0x9e, 0).unwrap();
     m.bus_mut().write_u8(0xb8000, 0xe1, 0).unwrap();
     m.bus_mut().write_u8(0xb8001, 0x21, 0).unwrap();
+    m.bus_mut().write_u8(0xb8002, 127, 0).unwrap();
     let before = saved(&mut m);
     let q=observe(&a,&mut m,&json!({"expected_state_revision":a.revision,
         "memory":[{"address":0x100,"length":32},{"address":{"space":"segmented","segment":0xb800,"offset":0},"length":8}],
         "video_text":{},"video_memory":true})).unwrap();
     assert_eq!(q["state_revision"], a.revision);
     assert_eq!(q["registers"]["state_revision"], a.revision);
-    assert_eq!(q["memory"][1]["data_hex"], "e121000000000000");
+    assert_eq!(q["memory"][1]["data_hex"], "e1217f0000000000");
     assert_eq!(q["video_memory"]["byte_count"], 16384);
     assert_eq!(q["video_text"]["display_address"], 16382);
     assert_eq!(q["video_text"]["cells"][0][0]["code"], 65);
@@ -65,7 +66,8 @@ fn coherent_observation_preserves_complete_machine_and_wraps_native_text() {
     assert_eq!(q["video_text"]["cells"][0][0]["background"], 1);
     assert_eq!(q["video_text"]["cells"][0][0]["blink"], true);
     assert_eq!(q["video_text"]["cells"][0][1]["char"], "ß");
-    assert!(q["video_text"]["text"][0].as_str().unwrap().starts_with("Aß"));
+    assert_eq!(q["video_text"]["cells"][0][2]["char"], "\u{7f}");
+    assert!(q["video_text"]["text"][0].as_str().unwrap().starts_with("Aß\u{7f}"));
     assert!(before == saved(&mut m), "observation changed complete machine");
     let page = text(&m, &json!({"page":0}), a.revision).unwrap();
     assert_eq!(page["cells"][0][0]["code"], 225);

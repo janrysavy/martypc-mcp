@@ -90,6 +90,8 @@ limitations and full-machine snapshot gaps still apply.
 | `agent.capabilities`, `emulator.info` | Exact aliases; methods, limits, unsupported features, CPU cycle frequency and time-base description. |
 | `session.status` | Session state, revision, CPU clock, CPU/video metadata and retained `last_stop`. Optional `session_id` must be `martypc` (discover it; do not hardcode PyPC's backend identity). |
 | `state.get`, `state.get_registers` | Exact aliases; `general`, `segments`, architectural `ip`, `flags`, `flags_text`, CPU `clock`, `emulated_time_ns`, `in_hlt`, `state_revision`. |
+| `state.observe` | Paused, required exact revision; one coherent registers/RAM/optional CGA text/VRAM capture. See coherent observation below. |
+| `video.text` | Native CGA Text40/Text80 cells and CP437 text; optional page or byte display_address. Other adapters/graphics refused. |
 | `state.set_registers` | Paused only. Requires `expected_state_revision`, `expected` values and nonempty `set`. AX/BX/CX/DX/SP/BP/SI/DI/CS/DS/ES/SS/IP/FLAGS, lowercase. All guards and Word ranges checked before any write. Returns `before`/`after`. |
 | `memory.read` | `address`, optional `length` (default 1, maximum 65536). Returns physical address, byte count, hex, base64, SHA-256 and revision. Uses native bus peeks. |
 | `memory.write` | Paused only. `address`, `data_base64`, optional `expected_sha256` (case insensitive). Preflights the entire range; only installed writable RAM is writable (base RAM or configured conventional RAM expansion). ROM, video, EMS and other MMIO devices remain refused. Returns before/after hashes and revision. |
@@ -165,7 +167,7 @@ are refused rather than silently losing pending input. Complete machine imports
 still require the exact executable/configuration/ROM/disk identities.
 
 **Unsupported:** instruction/hardware tracing, memory/interrupt watchpoints,
-step-over, video/VNC, serial channels,
+step-over, video snapshots/history/VNC, serial channels,
 frontend file-transfer services and frontend speed/cursor controls. Unsupported
 PPI software-turbo configurations are refused before the listener starts:
 their native `frame_update` housekeeping is not scheduled by this frontend.
