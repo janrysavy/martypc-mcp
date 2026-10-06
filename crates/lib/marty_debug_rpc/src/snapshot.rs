@@ -4,7 +4,7 @@
 //! attach its disks. GUI consumers must be rebound before using this API there.
 use super::*;
 use marty_core::{
-    machine::storage::{decode_snapshot_archive, encode_snapshot_archive, SnapshotArchiveLimits},
+    machine::storage::{decode_snapshot_archive, encode_snapshot_archive, SnapshotArchiveLimits, SnapshotDependencyMismatch},
     vhd::{DiskCaptureMode, SnapshotRwFile, VhdIO},
 };
 use std::{
@@ -128,7 +128,14 @@ impl<'a> SnapshotHost<'a> {
             }
         }
         let decoded =
-            decode_snapshot_archive(&archive, expected, self.build, references, self.limits).map_err(host_error)?;
+            decode_snapshot_archive(&archive, expected, self.build, references, self.limits).map_err(|error| {
+                if error.is::<SnapshotDependencyMismatch>() {
+                    eprintln!("Snapshot refused: {error}");
+                    ("snapshot dependency size/checksum mismatch", -32602)
+                } else {
+                    host_error(error)
+                }
+            })?;
         let candidate = (self.factory)().map_err(host_error)?;
         // Both disk modes restore into separate writable copies, never alias a
         // reference or currently mounted file. Require a NEW directory, even
