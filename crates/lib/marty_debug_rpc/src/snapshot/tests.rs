@@ -744,5 +744,18 @@ fn dependency_hash_and_size_errors_are_invalid_parameters_but_host_io_is_not() {
         json!({"path":path,"expected_sha256":export["sha256"],"references":{"0":source},
             "disk_root":scratch.0.join("positive"),"expected_state_revision":0})).unwrap();
     assert_eq!(saved(&mut m), baseline);
-    println!("RPC_SNAPSHOT_SHARED_ERRORS: archive/disk checksum and disk length refuse -32602 before live mutation/output; missing host file remains -32000; complete Machine, revision and source disk unchanged; positive reference import matches");
+    drop(host);
+    let mut failing_factory = || Err("DELIBERATE backend factory refusal".to_string());
+    let mut failed_host = SnapshotHost::for_rw_files(&mut failing_factory).unwrap();
+    let revision = a.revision;
+    let output = scratch.0.join("backend-failure");
+    let error = invoke(&mut a, &mut m, &mut failed_host, "machine.snapshot.import",
+        json!({"path":path,"expected_sha256":export["sha256"],"references":{"0":source},
+            "disk_root":output,"expected_state_revision":revision})).unwrap_err();
+    assert_eq!(error.1, -32000, "backend factory refusal");
+    assert!(!output.exists());
+    assert_eq!(saved(&mut m), baseline);
+    assert_eq!(a.revision, revision);
+    assert_eq!(fs::read(&source).unwrap(), source_bytes);
+    println!("RPC_SNAPSHOT_SHARED_ERRORS: archive/disk checksum and disk length refuse -32602 before live mutation/output; missing host file and candidate factory refusal remain -32000; complete Machine, revision and source disk unchanged; positive reference import matches");
 }
