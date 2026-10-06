@@ -109,7 +109,7 @@ fn raw_xt_bytes_reach_native_irq1_and_complete_cold_restart() {
     let mut prior_ns = emulated_ns(&m, m.system_ticks());
     let mut first_delivery = None;
     for _ in 0..10000 {
-        a.step(&mut m);
+        a.step(&mut m, None);
         if m.bus_mut().keyboard_mut().unwrap().pending_rpc_scancodes() == 3 {
             reached = true;
             first_delivery = Some((prior_ns, emulated_ns(&m, m.system_ticks())));
@@ -141,7 +141,7 @@ fn raw_xt_bytes_reach_native_irq1_and_complete_cold_restart() {
     let mut native = ExecutionControl::new();
     let mut consumed = false;
     for _ in 0..40000 {
-        a.step(&mut m);
+        a.step(&mut m, None);
         native.set_op(ExecutionOperation::Step);
         restored.run(1, &mut native);
         if peek(&m, 0x280, 2).unwrap() == [4, 0] {
