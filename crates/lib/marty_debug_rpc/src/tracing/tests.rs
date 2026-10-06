@@ -332,3 +332,24 @@ fn synthetic_overflow_distinguishes_lost_effects_and_stops_incomplete_cpu_trace(
     assert_eq!(data["events"][0]["dropped_event_count"], 4);
     assert_eq!(data["events"][0]["dropped_effect_count"], 2);
 }
+
+#[test]
+fn exact_effect_capacity_stops_recording_without_a_later_boundary() {
+    // Capacity edge control. The native instruction supplies its actual two-byte store.
+    let mut m = machine();
+    let mut a = Agent::new(2301);
+    call(&mut a, &mut m, "trace.start", json!({"instruction_count":8}));
+    a.trace.effect_count = 65534;
+    call(&mut a, &mut m, "execution.continue", json!({}));
+    while a.trace.active {
+        a.advance(&mut m);
+    }
+    assert_eq!(a.trace.effect_count, 65536);
+    assert!(a.running);
+    let before = a.trace.events.len();
+    a.advance(&mut m);
+    assert_eq!(a.trace.events.len(), before);
+    let data = call(&mut a, &mut m, "trace.read", json!({}));
+    assert_eq!(data["active"], false);
+    assert_eq!(data["events"].as_array().unwrap().last().unwrap()["dropped_effect_count"], 0);
+}
