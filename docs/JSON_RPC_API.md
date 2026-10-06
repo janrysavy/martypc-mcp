@@ -161,9 +161,10 @@ uses `machine_snapshot_restored`. Do not infer an execution operation from
 that session reason.
 
 JSON errors use -32700 (parse), -32600 (envelope), -32601 (unsupported method),
--32602 (invalid parameters/guards), -32603 (bus failure), and -32000 (snapshot
-host I/O/backend failure). See shared snapshot request policy below for the
-checksum/length refusal distinction; callers must not classify by message text.
+-32602 (invalid parameters/guards), -32603 (bus or snapshot archive/reference
+host-read failure), and -32000 (other snapshot I/O/backend failure). See shared
+snapshot request policy below for checksum/length refusals. Classify by code,
+not message text.
 
 Joystick axes use -1 for left/up, +1 for right/down, zero for center. Positions
 set the native game-port resistance; port201h one-shot timing and active-low
@@ -442,7 +443,9 @@ host-mapped filesystem backend remains an explicit limitation. Referenced import
 still creates fresh writable disk copies; it never aliases the reference/live disk.
 
 Invalid snapshot archive/dependency checksum or length is an input refusal
-(-32602), before candidate creation or output files. Actual host I/O or backend
-failures remain -32000; callers must not identify these categories by message text.
+(-32602), before candidate creation or output files. Archive/reference host-file
+open, metadata and read failures return -32603, matching PyPC. Other snapshot
+I/O and backend failures remain -32000; export/output I/O normalization is still
+open. Callers must not identify these categories by message text.
 video.text and state.observe.video_text refuse both page and display_address
 keys together with -32602, even for equal values. Supply at most one selector.

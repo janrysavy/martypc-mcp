@@ -1,5 +1,11 @@
 # Shared observation, snapshots and native tracing, 2026-10-06
 
+FINISHED source: snapshot archive/reference host reads use typed I/O errors
+(-32603), preserving validation -32602 and backend -32000. Broader export/output
+I/O compatibility remains OPEN. All 61 native RPC tests and the named omitted-map
+failure/restored-source control pass. WIP: final TCP post-change proof and CI;
+do not assume they passed. Continue the scoped live refusal gate.
+
 FINISHED source: coherent paused state.observe/native CGA video.text; shared
 snapshot hash aliases, preserve_breakpoints defaulttrue, reference-files and
 atomic typed dependency refusals; Intel8088/8086 native data/interrupt watchpoints

@@ -724,15 +724,16 @@ fn dependency_hash_and_size_errors_are_invalid_parameters_but_host_io_is_not() {
     fs::write(&wrong_hash, &mutant).unwrap();
     let wrong_size = scratch.0.join("wrong-size.vhd");
     fs::write(&wrong_size, &source_bytes[..source_bytes.len()-1]).unwrap();
-    for (label, reference, digest, expected_code) in [
-        ("archive-digest", source.clone(), json!("00".repeat(32)), -32602),
-        ("disk-digest", wrong_hash, export["sha256"].clone(), -32602),
-        ("disk-size", wrong_size, export["sha256"].clone(), -32602),
-        ("host-io", scratch.0.join("absent.vhd"), export["sha256"].clone(), -32000),
+    for (label, archive, reference, digest, expected_code) in [
+        ("archive-digest", path.clone(), source.clone(), json!("00".repeat(32)), -32602),
+        ("disk-digest", path.clone(), wrong_hash, export["sha256"].clone(), -32602),
+        ("disk-size", path.clone(), wrong_size, export["sha256"].clone(), -32602),
+        ("archive-read", scratch.0.join("absent.zip"), source.clone(), export["sha256"].clone(), -32603),
+        ("reference-read", path.clone(), scratch.0.join("absent.vhd"), export["sha256"].clone(), -32603),
     ] {
         let disk_root = scratch.0.join(label);
         let result = invoke(&mut a, &mut m, &mut host, "machine.snapshot.import",
-            json!({"path":path,"expected_sha256":digest,"references":{"0":reference},
+            json!({"path":archive,"expected_sha256":digest,"references":{"0":reference},
                 "disk_root":disk_root,"expected_state_revision":0}));
         assert_eq!(result.unwrap_err().1, expected_code, "{label}");
         assert!(!disk_root.exists(), "{label} created disk output");
@@ -757,7 +758,7 @@ fn dependency_hash_and_size_errors_are_invalid_parameters_but_host_io_is_not() {
     assert_eq!(saved(&mut m), baseline);
     assert_eq!(a.revision, revision);
     assert_eq!(fs::read(&source).unwrap(), source_bytes);
-    println!("RPC_SNAPSHOT_SHARED_ERRORS: archive/disk checksum and disk length refuse -32602 before live mutation/output; missing host file and candidate factory refusal remain -32000; complete Machine, revision and source disk unchanged; positive reference import matches");
+    println!("RPC_SNAPSHOT_SHARED_ERRORS: checksum/length -32602; missing archive/reference host reads -32603; candidate factory refusal -32000; complete Machine, revision and source disk unchanged; positive reference import matches");
 }
 
 #[test]
