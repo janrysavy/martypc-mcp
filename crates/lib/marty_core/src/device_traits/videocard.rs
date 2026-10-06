@@ -419,6 +419,11 @@ pub trait VideoCard {
     /// Get the current calculated video start address from the CRTC
     fn start_address(&self) -> u16;
 
+    /// Raw CGA mode-control register, for side-effect-free debugger inspection.
+    fn cga_mode_control(&self) -> Option<u8> {
+        None
+    }
+
     /// Returns whether the current Display Mode has 40 col text
     fn is_40_columns(&self) -> bool;
 

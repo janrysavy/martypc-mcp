@@ -1,3 +1,12 @@
+# Coherent observation slice, 2026-10-06
+
+FINISHED source: shared paused `state.observe` and native CGA `video.text`.
+Whole-request preflight, revision guards and immutable peeks avoid mixed captures.
+FINISHED local36 RPC tests, including complete Machine equality and actual JSON
+dispatch. Initial review mapping defects were corrected; CP437127 claim disproved.
+WIP: follow-up review, common parent live contract, publication and CI; do not
+assume integration passed. See JSON_RPC_API.md.
+
 # Raw XT keyboard RPC, 2026-10-06
 
 FINISHED local source and native regression proof: paused `input.keyboard` and
