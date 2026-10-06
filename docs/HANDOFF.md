@@ -32,23 +32,28 @@ Earlier independent source-bound proofs are retained in the parent Pyro repo:
 All those owned guests are closed. Their records are bounded tooling witnesses,
 not new mechanics, protected-fire8 ->14 or whole-game/physical-timing parity.
 
-Review correction: native CPU/device clock progress determines boundaries;
-zero/sentinel run returns cannot fabricate progress. Native debugger/program
-stops retain their actual stop scope; other refusals finish backend_no_progress;
-no fabricated revision/CPU boundary, and the bus journal closes. The native
-ROM-reload counterexample fails on prior source; corrected step/continue controls
-and recovery pass with complete native state unchanged.59RPC +10config +5headless
-pass. Native housekeeping is not rolled back if another zero-return path changes it.
-video.text/state.observe.video_text reject simultaneous page/display_address
-selectors before inspection, including equal/null values; native whole-state
-negative and single-selector positive controls pass in the observer slice.
-Combined final gates and source-bound proofs remain pending after the native
-breakpoint/step-over/program-end sentinel correction.
+FINISHED corrections: simultaneous text selectors refuse before inspection.
+Native CPU/device clock progress establishes execution boundaries; zero/sentinel
+returns cannot fabricate a revision or trace. Native breakpoint/step-over/end
+stops retain their scope, other refusals report backend_no_progress; journals
+close and recovery advances a real boundary. Named old-source counterexamples
+and paired native whole-state controls pass. 61 RPC, 10 config, 60 frontend
+and 5 headless gates pass, including populated import reset and traced/untraced
+complete native continuation. Focused frozen correction review found no defect;
+its omitted runtime gates are separately observed, not review-derived claims.
 
-WIP final combined PR37 integrates observation36 and snapshot39 ancestor commits
-linearly onto keyboard main c82809d4. Combined58 RPC +10config +5headless passed
-before the final populated factory-error regression; core/traced-vs-untraced
-complete native continuation is also required. Next: finish exact combined local
-gates, frozen review, fresh source-bound shared/live/cold proofs, then final
-Windows/Linux CI before rebase integration. Do not assume final checks passed.
-PR36/39 will be closed as integrated by PR37, not claimed independently CI-tested.
+Fresh product a3aa3ddc binds clean source 806905fa and 607 compiler/source inputs.
+The known original action replay preserves every earlier RAM/BDA/VRAM read and
+actual 0FC6:7DDE byte7 ->6; trace/wait completed registers agree. Shared PyPC-client
+and current common selector/policy controls pass. Both reference-files and
+default-embedded cold proofs preserve full Machine/two disks and 200ms
+continuation, with typed digest/reference refusal controls. All owned guests
+are closed. These are bounded tooling proofs, not additional game mechanics.
+
+WIP final combined PR37 integrates observation PR36 and snapshot PR39 ancestors
+linearly onto keyboard main c82809d4. Only documentation follows source 806905fa;
+verify all 607 source inputs against its fresh-product binding. Next: final
+Windows/Linux CI on this exact combined head, then rebase integration. Do not
+assume CI/integration passed. PR36/39 close as integrated by PR37, not claimed
+independently CI-tested. Root retains the final packets in the existing parent
+evidence directories above and owns the parent submodule pin.
