@@ -108,9 +108,13 @@ limitations and full-machine snapshot gaps still apply.
 | `execution.pause` | Stops current operation. An already stopped machine retains its previous stop reason. Returns paused registers. |
 | `execution.step` | Paused, powered-on machine; optional `mode:"into"`. Returns accepted entry registers, `stepping:true` and `operation_id`; poll `execution.wait` for actual completed registers and stop reason. Step-over is unsupported. |
 
-If the native machine executes zero instructions (for example while a ROM reload
-is pending), the accepted execution operation completes with
-`stop_reason.kind:"backend_no_progress"` and `executed_instruction_count:0`.
+If native CPU cycles and device system ticks do not advance, the accepted
+operation completes without an executed boundary. Native breakpoint, step-over
+and program-end stops retain `native_breakpoint`, `native_step_over` or
+`cpu_halt`; other no-progress conditions (such as pending ROM reload) report
+`backend_no_progress`. All have `executed_instruction_count:0`.
+The native run return value contains stop sentinels and is not used as proof of
+progress; native halted-device clock advancement still follows its real path.
 No CPU boundary, trace event or instruction revision is fabricated; completed
 registers report the actual stopped machine. Retry after resolving the native
 condition. Native housekeeping is not rolled back.
