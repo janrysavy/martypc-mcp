@@ -476,7 +476,11 @@ impl MmioMapEntry {
 // on the machine type.
 // But this allows us to 'disassociate' devices from the bus on io writes to allow
 // us to call them with bus as an argument.
+pub mod debug_observation;
+
 pub struct BusInterface {
+    debug_observation: Option<debug_observation::Journal>,
+    debug_classes:u8,
     cpu_factor: ClockFactor,
     timing_table: Box<[TimingTableEntry; TIMING_TABLE_LEN]>,
     machine_desc: Option<MachineDescriptor>,
@@ -568,6 +572,8 @@ macro_rules! add_mmio_device {
 impl Default for BusInterface {
     fn default() -> Self {
         BusInterface {
+            debug_observation: Default::default(),
+            debug_classes:0,
             cpu_factor: ClockFactor::Divisor(3),
             timing_table: Box::new([TimingTableEntry { sys_ticks: 0, us: 0.0 }; TIMING_TABLE_LEN]),
             machine_desc: None,

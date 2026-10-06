@@ -185,6 +185,19 @@ impl Intel808x {
     /// skip_first is used to skip the first microcode instruction, such as when entering from
     /// INT1 or INT2.
     pub fn intr_routine(&mut self, vector: u8, itype: InterruptType, skip_first: bool) {
+        if self.bus.debug_class(crate::bus::debug_observation::INTERRUPT) { self.bus.debug_record(crate::bus::debug_observation::Event {
+            kind: "interrupt", clock: self.cycle_num, cs: self.cs, ip: self.instruction_ip,
+            address: vector as u32, width: 0, value: 0, old: None,
+            interrupt_kind: Some(format!("{:?}", itype)), ah: self.a.h(), al: self.a.l(), irq: None, handled:None,
+            registers:Some([
+                self.get_register16(Register16::AX),self.get_register16(Register16::BX),
+                self.get_register16(Register16::CX),self.get_register16(Register16::DX),
+                self.get_register16(Register16::SP),self.get_register16(Register16::BP),
+                self.get_register16(Register16::SI),self.get_register16(Register16::DI),
+                self.cs,self.get_register16(Register16::DS),self.get_register16(Register16::ES),
+                self.get_register16(Register16::SS),self.ip(),self.get_flags(),
+            ]),
+        }); }
         // Check for interrupt breakpoint.
         if self.int_flags[vector as usize] & INTERRUPT_BREAKPOINT != 0 {
             self.set_breakpoint_flag();

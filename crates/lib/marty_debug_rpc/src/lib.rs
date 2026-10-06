@@ -23,6 +23,7 @@ use std::{
 
 pub mod snapshot;
 mod observation;
+mod tracing;
 
 #[cfg(test)]
 mod keyboard_tests;
@@ -51,6 +52,8 @@ const METHODS: &[&str] = &[
     "execution.run_until",
     "execution.wait",
     "execution.step",
+    "trace.start", "trace.read", "trace.stop",
+    "hardware.trace.start", "hardware.trace.read", "hardware.trace.stop",
 ];
 const MAX_LINE: usize = 1024 * 1024;
 type Result<T> = std::result::Result<T, (&'static str, i32)>;
@@ -188,6 +191,8 @@ fn joystick_state(machine: &Machine, revision: u64) -> Value {
 #[derive(Clone)]
 struct Breakpoint {
     id: String,
+    kind: String,
+    event: Value,
     address: usize,
     address_value: Value,
     segment_offset: Option<(u16, u16)>,
@@ -200,8 +205,29 @@ struct Breakpoint {
 }
 impl Breakpoint {
     fn parse(id: String, p: &Value) -> Result<Self> {
-        if p.get("kind").is_some_and(|v| v != "execution") {
-            return invalid("only execution breakpoints supported");
+        let kind = p.get("kind").map(|v|v.as_str().ok_or(("breakpoint kind string required",-32602))).transpose()?.unwrap_or("execution");
+        if !["execution", "memory_read", "memory_write", "memory_access", "interrupt"].contains(&kind) {
+            return invalid("unsupported breakpoint kind");
+        }
+        if kind.starts_with("memory_") && p.get("condition").is_some_and(|v| !v.is_null()) {
+            return invalid("memory predicates do not accept register conditions");
+        }
+        let mut event = Value::Null;
+        if kind == "interrupt" {
+            if p["event"]["type"] != "software_interrupt" { return invalid("only software interrupt predicates supported"); }
+            let vector = number(&p["event"]["number"])?;
+            if vector > 255 { return invalid("interrupt number outside Byte"); }
+            event = json!({"type":"software_interrupt", "number":vector});
+            for name in ["ah","al"] {
+                if let Some(value) = p["event"].get(name) {
+                    let byte=number(value)?;
+                    if byte>255 {return invalid("interrupt selector outside Byte");}
+                    event[name]=json!(byte);
+                }
+            }
+            if p.get("phase").is_some_and(|v| v != "after_dispatch_before_handler") {
+                return invalid("native interrupt stop requires after_dispatch_before_handler phase");
+            }
         }
         let condition = if p.get("condition").is_some_and(|v| !v.is_null()) {
             let c = &p["condition"];
@@ -239,7 +265,7 @@ impl Breakpoint {
             .map(|v| v.as_bool().ok_or(("once must be boolean", -32602)))
             .transpose()?
             .unwrap_or(false);
-        let physical = address(&p["address"])?;
+        let physical = if kind == "interrupt" { 0 } else { address(&p["address"])? };
         let segment_offset = if p["address"]["space"] == "segmented" {
             Some((
                 number(&p["address"]["segment"])? as u16,
@@ -263,6 +289,8 @@ impl Breakpoint {
         }
         Ok(Self {
             id,
+            kind: kind.to_owned(),
+            event,
             address: physical,
             address_value,
             segment_offset,
@@ -275,12 +303,21 @@ impl Breakpoint {
         })
     }
     fn value(&self) -> Value {
-        json!({"breakpoint_id":self.id,"kind":"execution",
-        "address":self.address_value,"length":self.length,"once":self.once,"hit_count":self.hits,
-        "condition":self.condition.as_ref().map(|(name,op,value)|json!({"register":name,"operator":op,"value":value})),
-        "hit_filter":{"skip":self.skip,"every":self.every}})
+        let mut value=json!({"breakpoint_id":self.id,"kind":self.kind,"once":self.once,"hit_count":self.hits,
+            "hit_filter":{"skip":self.skip,"every":self.every}});
+        if self.kind=="interrupt" {
+            value["event"]=self.event.clone();
+            value["phase"]=json!("after_dispatch_before_handler");
+            value["condition_phase"]=json!("before_dispatch");
+        } else {value["address"]=self.address_value.clone(); value["length"]=json!(self.length);}
+        if let Some((name,op,number))=&self.condition {
+            value["condition"]=json!({"register":name,"operator":op,"value":number});
+        }
+        value
     }
+
     fn matches(&mut self, machine: &mut Machine) -> bool {
+        if self.kind != "execution" { return false; }
         let flat = machine.cpu().flat_ip_disassembly();
         if let Some((segment, offset)) = self.segment_offset {
             let cs = machine.cpu().get_register16(Register16::CS);
@@ -291,6 +328,9 @@ impl Breakpoint {
         } else if (flat & 0xfffff) as usize != self.address {
             return false;
         }
+        self.condition_matches(machine)
+    }
+    fn condition_matches(&mut self, machine: &mut Machine) -> bool {
         if let Some((name, op, value)) = &self.condition {
             let actual = register_value(machine, name).unwrap();
             if !match op.as_str() {
@@ -304,6 +344,9 @@ impl Breakpoint {
                 return false;
             }
         }
+        self.selected_hit()
+    }
+    fn selected_hit(&mut self)->bool {
         self.hits += 1;
         self.hits > self.skip && (self.hits - self.skip - 1) % self.every == 0
     }
@@ -313,6 +356,7 @@ struct Agent {
     revision: u64,
     restore_generation: u64,
     running: bool,
+    step_pending: bool,
     control: ExecutionControl,
     next: u64,
     breakpoints: BTreeMap<String, Breakpoint>,
@@ -324,6 +368,8 @@ struct Agent {
     last_stop: Value,
     deadline: Option<(u64, u64, u64)>,
     port: u16,
+    trace: tracing::CpuTrace,
+    hardware: tracing::HardwareTrace,
 }
 impl Agent {
     fn new(port: u16) -> Self {
@@ -331,6 +377,7 @@ impl Agent {
             revision: 0,
             restore_generation: 0,
             running: false,
+            step_pending: false,
             control: ExecutionControl::new(),
             next: 0,
             breakpoints: BTreeMap::new(),
@@ -342,6 +389,8 @@ impl Agent {
             last_stop: Value::Null,
             deadline: None,
             port,
+            trace: Default::default(),
+            hardware: Default::default(),
         }
     }
     fn id(&mut self, prefix: &str) -> String {
@@ -358,6 +407,7 @@ impl Agent {
     fn stop(&mut self, machine: &mut Machine, mut reason: Value) {
         reason["registers"] = registers(machine, self.revision);
         self.running = false;
+        self.step_pending = false;
         self.control.set_state(ExecutionState::Paused);
         self.predicate = None;
         self.deadline = None;
@@ -379,6 +429,7 @@ impl Agent {
         let id = self.id("op");
         self.operation = Some(id.clone());
         self.running = true;
+        self.step_pending = false;
         self.last_stop = Value::Null;
         {
             let mut result = registers(machine, self.revision);
@@ -388,17 +439,43 @@ impl Agent {
             result
         }
     }
-    fn step(&mut self, machine: &mut Machine) {
+    fn step(&mut self, machine: &mut Machine, skip: Option<&str>) {
         self.control.set_state(ExecutionState::Paused);
         self.control.set_op(ExecutionOperation::Step);
+        use marty_core::bus::debug_observation::{MEMORY,IO,INTERRUPT,OPCODES,OLD_VALUES,PIC};
+        let mut classes=if self.trace.active {MEMORY|IO|INTERRUPT|OPCODES|PIC} else {0};
+        if self.hardware.active {
+            if self.hardware.include_io {classes|=IO;}
+            if self.hardware.include_irq {classes|=PIC;}
+        }
+        for bp in self.breakpoints.values().chain(self.predicate.iter()) {
+            if bp.kind.starts_with("memory_") {classes|=MEMORY|OLD_VALUES;}
+            if bp.kind=="interrupt" {classes|=INTERRUPT;}
+        }
+        let observing=classes!=0;
+        let before = observing.then(|| registers(machine, self.revision));
+        if observing { machine.bus_mut().debug_begin(classes); }
         machine.run(1, &mut self.control);
         self.revision += 1;
+        if observing {
+            let (events, dropped) = machine.bus_mut().debug_end();
+            self.record_boundary(machine, before, &events, dropped, skip);
+        }
     }
     fn advance(&mut self, machine: &mut Machine) {
         if !self.running {
             return;
         }
         let skip = self.skip_once.take();
+        if self.step_pending {
+            self.step_pending = false;
+            self.step(machine, skip.as_deref());
+            if self.running {
+                let kind = if matches!(self.control.state,ExecutionState::Halted) {"cpu_halt"} else {"step"};
+                self.stop(machine,json!({"kind":kind}));
+            }
+            return;
+        }
         let mut hit = None;
         for (id, bp) in &mut self.breakpoints {
             if skip.as_ref() != Some(id) && bp.matches(machine) {
@@ -424,7 +501,8 @@ impl Agent {
                 return;
             }
         }
-        self.step(machine);
+        self.step(machine, skip.as_deref());
+        if !self.running { return; }
         if matches!(self.control.state, ExecutionState::Halted) {
             self.stop(machine, json!({"kind":"cpu_halt"}));
             return;
@@ -443,6 +521,13 @@ impl Agent {
     }
     fn handle(&mut self, machine: &mut Machine, method: &str, p: &Value) -> Result<Value> {
         match method {
+            "trace.start" | "trace.read" | "trace.stop" |
+            "hardware.trace.start" | "hardware.trace.read" | "hardware.trace.stop" => {
+                if !format!("{:?}",machine.cpu().get_type()).starts_with("Intel") {
+                    return invalid("native observation currently supports Intel8088/8086 only");
+                }
+                self.trace_request(machine, method, p)
+            }
             "agent.capabilities" | "emulator.info" => {
                 let cpu = format!("{:?}", machine.cpu().get_type());
                 Ok(
@@ -456,11 +541,15 @@ impl Agent {
                     "max_observation_windows":16,"max_observation_memory_bytes":65536},
                 "clock":{"unit":"cpu_cycle","frequency_hz":machine.get_cpu_mhz()*1_000_000.0},
                 "execution_step_unit":"native machine boundary (including device/interrupt work)",
+                "observation":{"cpu_models":["Intel8088","Intel8086"],
+                    "memory_stop_phase":"after_native_boundary","interrupt_stop_phase":"after_dispatch_before_handler",
+                    "interrupt_condition_phase":"before_dispatch","cpu_trace_unit":"native_machine_boundary",
+                    "opcode_scope":"consumed_native_prefetch_bytes","irq_time_scope":"native_boundary_interval",
+                    "max_effects_per_boundary":65536,"max_retained_cpu_effects":65536},
                 "breakpoint_kinds":["execution"],"step_modes":["into"],
                 "time_base":"system crystal ticks (independent of turbo)",
-                "unsupported":["trace","hardware.trace","video.snapshot","video.history","vnc","serial","io","machine.snapshot",
-                    "memory_read_breakpoints","memory_write_breakpoints","memory_access_breakpoints",
-                    "interrupt_breakpoints","step_over","frontend_file_transfer",
+                "unsupported":["video.snapshot","video.history","vnc","serial","io","machine.snapshot",
+                    "nec_cpu_observation","step_over","frontend_file_transfer",
                     "frontend_speed_control","frontend_cursor_control","ppi_software_turbo"]}),
                 )
             }
@@ -639,6 +728,7 @@ impl Agent {
                 }
                 let id = self.id("bp");
                 let bp = Breakpoint::parse(id.clone(), p)?;
+                self.require_observation_cpu(machine, &bp)?;
                 let result = bp.value();
                 self.breakpoints.insert(id, bp);
                 Ok(result)
@@ -677,6 +767,7 @@ impl Agent {
                 }
                 let id = self.id("predicate");
                 let mut bp = Breakpoint::parse(id.clone(), &p["predicate"])?;
+                self.require_observation_cpu(machine, &bp)?;
                 bp.once = true;
                 let deadline = if let Some(value) = p.get("max_emulated_ns") {
                     let ns = number(value)?;
@@ -721,14 +812,10 @@ impl Agent {
                 if p.get("mode").is_some_and(|v| v != "into") {
                     return invalid("only step-into supported");
                 }
-                self.step(machine);
-                let kind = if matches!(self.control.state, ExecutionState::Halted) {
-                    "cpu_halt"
-                } else {
-                    "step"
-                };
-                self.stop(machine, json!({"kind":kind}));
-                let mut r = registers(machine, self.revision);
+                self.predicate = None;
+                self.deadline = None;
+                let mut r = self.start(machine);
+                self.step_pending = true;
                 r["stepping"] = json!(true);
                 Ok(r)
             }
@@ -1025,8 +1112,13 @@ mod tests {
             .unwrap();
         machine
     }
-    fn call(a: &mut Agent, m: &mut Machine, method: &str, params: Value) -> Value {
-        a.handle(m, method, &params).unwrap()
+    pub(super) fn call(a: &mut Agent, m: &mut Machine, method: &str, params: Value) -> Value {
+        let result = a.handle(m, method, &params).unwrap();
+        if method == "execution.step" {
+            a.advance(m);
+            return a.handle(m,"execution.wait",&json!({"operation_id":result["operation_id"]})).unwrap();
+        }
+        result
     }
     #[test]
     fn gui_pump_preserves_paused_state_and_native_boundary_execution() {
@@ -1222,6 +1314,8 @@ mod tests {
         let mut a = Agent::new(2301);
         let mut control = ExecutionControl::new();
         control.set_op(ExecutionOperation::Run);
+        call(&mut a,&mut controlled,"trace.start",json!({"instruction_count":65536,"detail":"csip"}));
+        call(&mut a,&mut controlled,"hardware.trace.start",json!({"capacity":65536}));
         call(&mut a, &mut controlled, "execution.continue", json!({}));
         for _ in 0..12 {
             native.run(25_000, &mut control);
@@ -1249,6 +1343,19 @@ mod tests {
             );
             assert_eq!(peek(&native, 0, 32768).unwrap(), peek(&controlled, 0, 32768).unwrap());
         }
+        let hardware=call(&mut a,&mut controlled,"hardware.trace.read",json!({"limit":65536}));
+        let events=hardware["events"].as_array().unwrap();
+        for kind in ["irq_raise","irq_lower","irq_dispatch","io_write"] {
+            assert!(events.iter().any(|event|event["kind"]==kind),"missing native {kind} witness");
+        }
+        let dispatch=events.iter().find(|event|event["kind"]=="irq_dispatch").unwrap();
+        assert_eq!(dispatch["irq"],0); assert_eq!(dispatch["vector"],8);
+        assert_eq!(dispatch["time_scope"],"native_boundary_interval");
+        assert!(dispatch["clock_end"].as_u64().unwrap()>=dispatch["clock_start"].as_u64().unwrap());
+        assert_eq!(hardware["dropped_event_count"],0);
+        let native_state=native.snapshot_state_quiesced(marty_core::vhd::DiskCaptureMode::Embed,0).unwrap();
+        let observed_state=controlled.snapshot_state_quiesced(marty_core::vhd::DiskCaptureMode::Embed,0).unwrap();
+        assert_eq!(serde_json::to_value(native_state.0).unwrap(),serde_json::to_value(observed_state.0).unwrap());
         let memory = peek(&controlled, 0x280, 4).unwrap();
         assert!(
             u16::from_le_bytes([memory[0], memory[1]]) > 0,

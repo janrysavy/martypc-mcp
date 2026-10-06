@@ -1,3 +1,18 @@
+# Native observation slice, 2026-10-06
+
+FINISHED local Intel8088/8086 data watchpoints and bounded CPU/I/O/PIC traces.
+Actual BIU accesses identify owner/value; native PIC edges/accepted lines are
+ordered. Async execution.step returns entry+operation_id; execution.wait owns
+completed-state inspection. Docs state native boundary/interrupt-phase and PIC
+clock-interval limits, actual consumed prefetch bytes, overflow and snapshot
+journal clearing. No prefetch/timing substitution; NEC observation refused.
+Fresh37 RPC +10 config +5 headless checks pass. Native serial/sound suite,
+independent review, original-Pyro live witness, final-head CI/rebase integration
+are WIP: do not assume they passed. Integration must rebase after keyboard and
+observation/snapshot slices. Full original-game/physical timing remains OPEN.
+
+## Earlier handoff (historical)
+
 # Shared snapshot dependency refusals, 2026-10-06
 
 FINISHED source: typed archive/member size or checksum mismatch maps to -32602;
@@ -44,6 +59,7 @@ Evidence: https://github.com/janrysavy/pyro221_next/tree/master/docs/evidence/em
 Owned headless guest is closed. Actual-main rebase onto c82809d4 is complete.
 WIP: final-head CI and PR36 integration; do not assume these gates passed.
 See JSON_RPC_API.md.
+
 
 # Raw XT keyboard RPC, 2026-10-06
 

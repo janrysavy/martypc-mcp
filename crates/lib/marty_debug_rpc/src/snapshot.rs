@@ -259,8 +259,11 @@ impl Agent {
                 self.revision += 1;
                 self.restore_generation += 1;
                 self.running = false;
+                self.step_pending = false;
                 self.control = ExecutionControl::new();
                 if !preserve_breakpoints { self.breakpoints.clear(); }
+                self.trace = Default::default();
+                self.hardware = Default::default();
                 self.predicate = None;
                 self.skip_once = None;
                 self.operation = None;

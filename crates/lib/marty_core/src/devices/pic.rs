@@ -110,6 +110,8 @@ pub(crate) use state::PicState;
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Pic {
+    #[serde(skip)]
+    pub(crate) debug_journal: Option<crate::bus::debug_observation::Journal>,
     init_state: InitializationState, // Initialization state for expecting various ICWs
     int_offset: u8,                  // Interrupt Vector Offset (Always 8 on IBM PC)
     imr: u8,                         // Interrupt Mask Register
@@ -136,9 +138,21 @@ pub struct Pic {
     intr_timer: u32,
 }
 
+impl Pic {
+    fn debug_irq(&self, kind: &'static str, irq: u8, vector: Option<u8>) {
+        if let Some(journal) = &self.debug_journal {
+            crate::bus::debug_observation::record(journal,crate::bus::debug_observation::Event {
+                kind, clock:0, cs:0, ip:0, address:vector.unwrap_or(0) as u32,
+                width:0, value:0, old:None, interrupt_kind:None, ah:0,al:0,irq:Some(irq),handled:None,registers:None,
+            });
+        }
+    }
+}
+
 impl Default for Pic {
     fn default() -> Self {
         Self {
+            debug_journal: None,
             init_state: InitializationState::Normal,
             int_offset: 0,
             imr: 0xFF, // All IRQs initially masked
@@ -432,6 +446,7 @@ impl Pic {
     /// Called by a device to request interrupt service.
     /// Simulates a low-to-high transition of the corresponding IR line.
     pub fn request_interrupt(&mut self, interrupt: u8) {
+        if interrupt < 8 && self.ir & (1<<interrupt) == 0 { self.debug_irq("irq_raise",interrupt,None); }
         if interrupt > 7 {
             panic!("PIC: Received interrupt out of range: {}", interrupt);
         }
@@ -463,6 +478,7 @@ impl Pic {
     /// Called by a device that pulses the IR line to request service (like the keyboard)
     /// Simulates a low-to-high-to-low transition of the corresponding IR line.
     pub fn pulse_interrupt(&mut self, interrupt: u8) {
+        if interrupt < 8 { self.debug_irq("irq_raise",interrupt,None); self.debug_irq("irq_lower",interrupt,None); }
         if interrupt > 7 {
             panic!("PIC: Received interrupt out of range: {}", interrupt);
         }
@@ -498,6 +514,7 @@ impl Pic {
     /// Called by device to withdraw interrupt service request
     /// Simulates a high-to-low transition of the corresponding IR line.
     pub fn clear_interrupt(&mut self, interrupt: u8) {
+        if interrupt < 8 && self.ir & (1<<interrupt) != 0 { self.debug_irq("irq_lower",interrupt,None); }
         if interrupt > 7 {
             panic!("PIC: Received interrupt out of range: {}", interrupt);
         }
@@ -556,6 +573,7 @@ impl Pic {
                 // Finally, set INTR line low
                 self.intr = false;
 
+                self.debug_irq("irq_dispatch", irq, Some(irq | self.int_offset));
                 return Some(irq | self.int_offset);
             }
             ir_bit <<= 1;
@@ -565,6 +583,7 @@ impl Pic {
         // Note that in the event of a spurious interrupt, no bit in the ISR is set to indicate an interrupt is being
         // serviced. This provides a method of determining whether an IR7 is spurious or real.
         self.spurious_irqs += 1;
+        self.debug_irq("irq_dispatch",7,Some(SPURIOUS_INTERRUPT));
         Some(SPURIOUS_INTERRUPT)
     }
 
