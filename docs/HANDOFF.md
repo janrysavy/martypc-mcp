@@ -1,5 +1,13 @@
 # Shared observation, snapshots and native tracing, 2026-10-06
 
+FINISHED CGA budget edge: review's zero-budget overrun reproduces one extra pixel.
+The guard preserves phase debt until clocks arrive; actual catch_up tests cover
+Dynamic/Character/Cycle,8/16-pixel characters and zero/partial/replenished budgets.
+All326 core tests pass. Final native boot, correction review and CI remain WIP.
+First combined timer/phase product27116ae1 verifies original Pyro code normal/turbo,
+calibration99/308, refresh period72/216; turbo reaches tutorial/menu. Guests closed.
+DMA POST0400 still needs acknowledgement and investigation. PR42 is now merged.
+
 FINISHED local CGA phase correction: an integral16-tick access can still end at
 pixel phase3. The old-source native regression reproduces the turbo BIOS panic;
 owed pixels now use the actual clock's LCLOCK phase, preserving all clock ticks.

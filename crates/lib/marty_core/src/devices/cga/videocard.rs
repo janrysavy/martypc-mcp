@@ -431,6 +431,13 @@ impl VideoCard for CGACard {
         // Clock by pixel clock to catch up with character clock.
         let mut tick_count = 0;
 
+        // The access may already have consumed this run's entire budget.
+        // Preserve outstanding phase debt until another run supplies clocks.
+        if self.pixel_clocks_owed > 0 && self.clocks_accum == 0 {
+            self.slot_idx = 0;
+            return;
+        }
+
         while self.pixel_clocks_owed > 0 {
             self.tick();
             tick_count += 1;
