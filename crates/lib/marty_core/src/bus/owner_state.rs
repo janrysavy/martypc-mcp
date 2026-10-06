@@ -49,6 +49,10 @@ pub(crate) struct BusState {
 }
 
 impl BusState {
+    pub(crate) fn matches_cpu_factor(&self, factor: ClockFactor) -> bool {
+        self.clock.matches_cpu_factor(factor)
+    }
+
     pub(crate) fn disk_requirements(&self) -> [Option<crate::vhd::DiskSnapshotRequirement>; 2] {
         self.xtide.as_ref().map(XtIdeState::disk_requirements).unwrap_or([None, None])
     }

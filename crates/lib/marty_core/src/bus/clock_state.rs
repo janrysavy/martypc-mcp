@@ -62,6 +62,12 @@ pub(crate) struct BusClockState {
     refresh_active: bool,
 }
 
+impl BusClockState {
+    pub(crate) fn matches_cpu_factor(&self, factor: ClockFactor) -> bool {
+        self.cpu_factor.native().is_ok_and(|saved| saved == factor)
+    }
+}
+
 impl BusInterface {
     fn clock_config(&self) -> Option<ClockConfig> {
         self.machine_desc.map(|desc| ClockConfig {

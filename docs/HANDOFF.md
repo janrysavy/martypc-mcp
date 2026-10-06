@@ -2,10 +2,14 @@
 
 FINISHED local turbo initialization fix: Machine CPU clock changes now synchronize
 the bus factor/CGA write lookup table, including construction. The original
-configured XT turbo/CGA boot panicked (ticks_advanced30 > clocks15); all321 core
+configured XT turbo/CGA boot panicked (ticks_advanced30 > clocks15); all322 core
 tests now pass, including normal/turbo PIT/VRAM and complete snapshot continuation.
-XT turbo is14.32MHz; the old7.16MHz config comment was stale. Native Pyro normal/
-turbo startup comparison and final-head CI/review remain WIP; no parity claim yet.
+XT turbo is14.32MHz; the old7.16MHz config comment was stale. Normal startup now
+initializes the previously zero CGA write timing lookup; historical timing stays
+bound to its recorded product. Snapshot preflight refuses mismatched Machine/bus
+clock factors, preserving consistent historical tables verbatim. Fresh original
+Pyro code identity passes normal/turbo, calibration99/297 observed at source0e816.
+Final-head native continuation, CI and correction review remain WIP.
 
 FINISHED local gates: snapshot archive/reference host-read I/O maps to -32603;
 validation stays -32602 and other backend/export errors stay -32000. All 61 RPC
