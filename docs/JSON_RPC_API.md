@@ -432,3 +432,5 @@ still creates fresh writable disk copies; it never aliases the reference/live di
 Invalid snapshot archive/dependency checksum or length is an input refusal
 (-32602), before candidate creation or output files. Actual host I/O or backend
 failures remain -32000; callers must not identify these categories by message text.
+video.text and state.observe.video_text refuse both page and display_address
+keys together with -32602, even for equal values. Supply at most one selector.
