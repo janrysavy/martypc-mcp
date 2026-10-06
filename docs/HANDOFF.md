@@ -1,12 +1,21 @@
 # Shared snapshot contract slice, 2026-10-06
 
-FINISHED source and local38 RPC tests after rebase: reference-files for File VHDs, expected_sha256
-with legacy sha256 (both aliases refused), preserve_breakpoints defaulttrue.
-Preserve permanent definitions and host hit counters; always clear transient
-predicates and operations. Whole Machine and two RW VHD/partial ATA tests pass.
-Review found no functional defect; seeded transient-state test replaces its
-vacuous assertions. Omitting predicate reset deliberately fails that test; exact
-source restored and all38 tests pass. WIP: live common contract, final CI/integration.
+FINISHED source: reference-files for File VHDs, expected_sha256 with legacy
+sha256 (both aliases refused), preserve_breakpoints defaulttrue. Preserve
+permanent definitions/hit counters; always clear transient predicates/operations.
+Local43 RPC +10 config +5 headless and319 serial/sound core tests pass on a fresh
+604-input executable. Review's vacuous reset assertions are now populated;
+omitting predicate reset fails, exact source restored and positive tests pass.
+Original-Pyro startup passes shared import policies and atomic negative controls:
+full native Machine and both disk hashes match for canonical/legacy imports,
+with default/true/false breakpoint policies. reference-files shrinks the archive
+12,390,893 ->206,980 bytes using independently authenticated cached copies.
+A separate embedded snapshot cold restart matches every Machine field and both
+VHDs immediately and after200ms; wrong digest leaves cold state unchanged.
+Evidence: https://github.com/janrysavy/pyro221_next/tree/master/docs/evidence/emulator_rpc_portability_20261006
+Owned native guests are closed. WIP: actual-main rebase, final-head CI and PR39
+integration. Reference-files cold restart and whole-game/timing parity remain
+unproved; the reference-policy witness is same-process. See JSON_RPC_API.md.
 
 # Coherent observation slice, 2026-10-06
 
