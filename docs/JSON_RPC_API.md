@@ -313,3 +313,6 @@ raw cells preserve codes. Rows are25, columns40 or80 from actual CGA mode contro
 Only CGA text is supported; graphics and other adapters are refused rather than
 being decoded as text. These are memory interpretations, not raster/font evidence.
 The optional VGA cursor object that PyPC provides is absent for CGA on both backends.
+
+video.text and state.observe.video_text refuse both page and display_address
+keys together with -32602, even for equal values. Supply at most one selector.

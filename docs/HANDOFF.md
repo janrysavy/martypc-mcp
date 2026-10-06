@@ -1,3 +1,13 @@
+# Exclusive coherent-text selectors, 2026-10-06
+
+FINISHED: video.text and nested state.observe.video_text reject both page and
+display_address keys with -32602 before copying, including equal/null values.
+The new native test fails on the prior silent preference, passes after the guard,
+and preserves complete Machine/revision after five actual native boundaries.
+Single-selector positive controls and43 RPC +10 config +5 headless tests pass.
+WIP: cherry-pick into combined PR37, fresh combined-source proof and final CI.
+No live guest was started for this correction.
+
 # Coherent observation slice, 2026-10-06
 
 FINISHED source: shared paused `state.observe` and native CGA `video.text`.

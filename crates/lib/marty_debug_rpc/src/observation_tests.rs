@@ -216,3 +216,34 @@ fn remapped_cga_outside_native_aperture_is_refused_without_underflow() {
     assert_eq!(registers(&mut m, 0), before);
     assert_eq!(m.system_ticks(), ticks);
 }
+
+#[test]
+fn ambiguous_text_selectors_refuse_both_shared_methods_without_state_changes() {
+    let mut m = fixture();
+    let mut a = Agent::new(1);
+    a.handle(&mut m, "execution.continue", &json!({})).unwrap();
+    for _ in 0..5 { a.advance(&mut m); }
+    a.handle(&mut m, "execution.pause", &json!({})).unwrap();
+    let revision = a.revision;
+    let before = saved(&mut m);
+    for selectors in [json!({"page":0,"display_address":0}),
+        json!({"page":0,"display_address":2}), json!({"page":null,"display_address":0})] {
+        for method in ["video.text", "state.observe"] {
+            let params = if method == "video.text" { selectors.clone() } else {
+                json!({"expected_state_revision":revision,"memory":[{"address":0x100,"length":16}],
+                    "video_text":selectors,"video_memory":true})
+            };
+            let result = a.handle(&mut m, method, &params);
+            assert_eq!(result.err().map(|error| error.1), Some(-32602), "{method}: {selectors}");
+            assert_eq!(a.revision, revision);
+            assert!(before == saved(&mut m), "{method} changed complete Machine");
+        }
+    }
+    for selectors in [json!({"page":0}), json!({"display_address":0})] {
+        let result = a.handle(&mut m, "video.text", &selectors).unwrap();
+        assert_eq!(result["display_address"], 0);
+        assert_eq!(a.revision, revision);
+        assert!(before == saved(&mut m));
+    }
+    println!("RPC_VIDEO_EXCLUSIVE_SELECTORS: both page/display_address keys refuse -32602 for video.text and state.observe, including equal/null values; full native Machine/revision unchanged; each single selector passes");
+}
