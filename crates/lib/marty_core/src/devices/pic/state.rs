@@ -13,6 +13,7 @@ pub(crate) struct PicState {
 
 impl Pic {
     pub(crate) fn snapshot_state(&self) -> Result<PicState, &'static str> {
+        if self.debug_journal.is_some() { return Err("active host observation cannot be snapshotted"); }
         let saved = PicState {
             version: 1,
             pic: self.clone(),
@@ -34,8 +35,9 @@ impl Pic {
 
     pub(crate) fn restore_state(&mut self, saved: &PicState) -> Result<(), &'static str> {
         self.preflight_state(saved)?;
-        // No external handles or callbacks are stored by Pic. Keep every field,
-        // including diagnostic counters and native partially supported modes.
+        // Host observation handles are refused by capture and omitted from the
+        // wire schema. Keep all native fields, including diagnostic counters
+        // and native partially supported modes.
         *self = saved.pic.clone();
         Ok(())
     }

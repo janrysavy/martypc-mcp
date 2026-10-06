@@ -99,14 +99,14 @@ limitations and full-machine snapshot gaps still apply.
 | `keyboard.scancode` | Single-event alias: `scan_code` and `pressed` at the parameter root. Same hardware queue and guards. |
 | `input.joystick.state` | Configured `joysticks` with index `joystick`, normalized `x`/`y`, boolean `buttons`, and revision. An absent game port reports an empty array. |
 | `input.joystick` | Paused only. Complete `joystick`, finite `x`/`y` in -1..1 and `buttons` matching the configured layout (two buttons per stick, or four on a single stick). Entire request preflighted before native potentiometer/button mutation; guest clock does not advance. Returns the same state schema. |
-| `breakpoints.create` | Optional `kind:"execution"` (default), `address`, optional boolean `once`, `condition`, `hit_filter`, bounded `length` (default 1). Returns `breakpoint_id` and descriptor. Maximum 256 persistent breakpoints. |
+| `breakpoints.create` | Optional `kind:"execution"` (default), `memory_read`, `memory_write`, `memory_access`, or `interrupt`; `address` for execution/memory, `event` for interrupt; optional boolean `once`, `condition`, `hit_filter`, bounded `length` (default 1). Returns `breakpoint_id` and descriptor. Maximum 256 persistent breakpoints. |
 | `breakpoints.list` | Returns `breakpoints` array. |
 | `breakpoints.delete` | `breakpoint_id`; unknown IDs are errors. |
 | `execution.continue`, `execution.go` | Paused, powered-on machine required. Exact aliases; registers, `operation_id`, `state:"running"`, `paused:false`. |
-| `execution.run_until` | Same precondition; private one-shot execution `predicate`, optional positive `max_emulated_ns` (at most 60 seconds). Returns operation and predicate IDs. |
+| `execution.run_until` | Same precondition; private one-shot execution, memory or software-interrupt `predicate`, optional positive `max_emulated_ns` (at most 60 seconds). Returns operation and predicate IDs. |
 | `execution.wait` | `operation_id`, optional `timeout_ms` in 0..60000. Nonblocking poll, as in PyPC. Returns `running:true` or stopped registers and `stop_reason`. Last 64 completed operations retained in completion order. |
 | `execution.pause` | Stops current operation. An already stopped machine retains its previous stop reason. Returns paused registers. |
-| `execution.step` | Paused, powered-on machine; optional `mode:"into"`. Returns registers with `stepping:true`. Step-over is unsupported. |
+| `execution.step` | Paused, powered-on machine; optional `mode:"into"`. Returns accepted entry registers, `stepping:true` and `operation_id`; poll `execution.wait` for actual completed registers and stop reason. Step-over is unsupported. |
 
 Addresses accept an unsigned integer or numeric string (decimal, `0x`, `0b`,
 `0o`), or `{space:"physical"|"linear",offset:...}` or
@@ -166,8 +166,7 @@ The FIFO is mandatory in keyboard snapshot version2; earlier component snapshots
 are refused rather than silently losing pending input. Complete machine imports
 still require the exact executable/configuration/ROM/disk identities.
 
-**Unsupported:** instruction/hardware tracing, memory/interrupt watchpoints,
-step-over, video snapshots/history/VNC, serial channels,
+**Unsupported:** NEC CPU tracing/watchpoints, step-over, video snapshots/history/VNC, serial channels,
 frontend file-transfer services and frontend speed/cursor controls. Unsupported
 PPI software-turbo configurations are refused before the listener starts:
 their native `frame_update` housekeeping is not scheduled by this frontend.
@@ -186,6 +185,78 @@ uses the pinned unchanged PyPC Python client, and closes its owned process.
 It does not boot DOS or execute Pyro. Automatic fork CI tests and builds this
 frontend on Windows/Linux without uploading artifacts or caching build trees.
 The inherited macOS and WASM workflows are available only by manual dispatch.
+
+## Native observations
+
+Intel8088/8086 RPC supports the PyPC method names `trace.start/read/stop` and
+`hardware.trace.start/read/stop`. Query `agent.capabilities.observation` for
+exact scope. NEC CPUs reject these methods and non-execution watchpoints.
+No observations substitute instruction timing or flush the prefetch queue.
+Only requested event classes are collected; an I/O-only trace does not journal
+all memory traffic. Native transient journals are disabled outside execution.
+
+Memory predicates use `kind`, `address` and optional contiguous `length`,
+`once` and `hit_filter`. Register conditions are refused. The actual completed
+BIU transfer is recorded, excluding instruction fetches and host inspection.
+A stop has `access.kind`, normalized linear `address`, `byte_count`, integer
+`new_value`, optional integer `old_value`, and segmented `instruction_address`.
+Reads report identical old/new values; unavailable side-effect-free old bytes
+are omitted. A word on the8088 produces two actual byte transfers. A bus write
+reports the transfer value, not a guarantee that ROM/MMIO retained that value.
+Execution stops **after the completed native machine boundary**, with actual
+stop registers and `phase:"after_native_boundary"`; later transfers belonging
+to that boundary have already happened. A one-shot/private predicate stops on
+its first selected recorded access. Continuing skips that persistent breakpoint
+for one boundary, matching the shared resume convention.
+
+Software-interrupt selectors use `event:{type:"software_interrupt",number:N}`
+and optional Byte `ah`/`al`. Conditions are evaluated on native registers at
+interrupt entry, before dispatch. Native dispatch remains atomic: the stop is
+`event.phase:"after_dispatch_before_handler"`, before the first handler opcode
+but after stack/vector/flag effects. A request for a different explicit `phase`
+is refused. This differs from PyPC's before-dispatch stop; no fictitious
+pre-dispatch register state is returned as the current stopped machine.
+
+CPU trace starts while paused, with `instruction_count`1..65536 (default256)
+and `detail` csip/short/normal/long. The budget counts native machine boundaries,
+including REP continuations, HLT and interrupt work. Events have `sequence`,
+`kind`, segmented `address`, `physical`, `opcode_hex`, native CPU
+`clock_before/after/delta`, and ordered `effects`. Opcode bytes are **actual
+consumed prefetch bytes**, not a RAM peek that can differ from a stale queue.
+`opcode_scope` identifies this; REP continuation boundaries may have no new
+opcode bytes and are marked `native_boundary`. Normal/long include actual
+`registers_before/after`; short includes before; csip omits both. Read uses
+nullable `trace-N` cursors and limit1..256. Stop preserves retained events.
+Read/stop before start and start while active are errors.
+
+Hardware trace accepts capacity1..65536 (default4096), boolean `include_io`
+and `include_irq`, port ranges `{first,last}` and IRQ-line filters. At least
+one class is required; empty filters mean all. Native port transfers report
+kind, address, port, byte_count, value, device `handled`, CPU-cycle
+`emulated_time` and sequence. Native PIC hooks report exact ordered
+`irq_raise`, `irq_lower` and accepted `irq_dispatch` with actual line/vector.
+A pulse records both edges. Duplicate high requests are not new line edges.
+The PIC has no independent absolute CPU-cycle timestamp: these events explicitly
+carry `time_scope:"native_boundary_interval"` and actual clock_start/clock_end,
+with the boundary's guest context. No precise transition time is invented.
+Read uses nullable `hardware-N` cursors (last returned sequence), preserving
+PyPC cursor semantics; overwritten cursors fail. The ring reports capacity,
+first_available_sequence and dropped_event_count. Stop preserves the ring.
+
+One native boundary retains at most65536 observations. Overflow stops with
+`observation_overflow` rather than falsely claiming an unmatched watchpoint.
+A CPU trace retains at most65536 effects in total, reports dropped effects and
+stops recording at that capacity; emulation can continue. Snapshot import
+clears retained host traces and pending step operations. Core snapshot preflight
+refuses an active native PIC observation, rather than copying host handles.
+
+Local regressions cover actual reads/writes and excluded prefetch/host reads,
+software INT dispatch, asynchronous step completion, ordered I/O, bounded trace
+cursors/overflow and inspection without advancement. The batched native
+PIT/IRQ0+REP witness now enables CPU/hardware tracing and compares complete
+serialized Machine state at its final boundary, plus twelve CPU/prefetch/
+RAM/PIT/PIC checkpoints. These are bounded native probes, not full physical
+XT timing, original-game gameplay or audio proof.
 
 ## Persistent snapshots
 

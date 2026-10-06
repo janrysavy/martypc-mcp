@@ -1,3 +1,4 @@
+use crate::bus::debug_observation;
 /*
     MartyPC
     https://github.com/dbalsom/martypc
@@ -205,6 +206,7 @@ impl Intel808x {
             self.nx = false;
 
             self.biu_fetch_on_queue_read();
+            self.debug_queue_byte(preload_byte);
             return preload_byte;
         }
 
@@ -251,7 +253,18 @@ impl Intel808x {
             self.nx = false;
             self.mc_pc += 1;
         }
+        self.debug_queue_byte(byte);
         byte
+    }
+
+    fn debug_queue_byte(&mut self,byte:u8) {
+        if self.bus.debug_class(debug_observation::OPCODES) {
+            self.bus.debug_record(debug_observation::Event {
+                kind:"instruction_byte",clock:self.cycle_num,cs:self.cs,ip:self.instruction_ip,
+                address:0,width:1,value:byte as u16,old:None,interrupt_kind:None,
+                ah:0,al:0,irq:None,handled:None,registers:None,
+            });
+        }
     }
 
     #[inline]
@@ -1150,6 +1163,16 @@ impl Intel808x {
 
     pub fn biu_do_bus_transfer(&mut self) {
         let byte;
+        let observing = match self.bus_status_latch {
+            BusStatus::MemRead|BusStatus::MemWrite=>self.bus.debug_class(debug_observation::MEMORY),
+            BusStatus::IoRead|BusStatus::IoWrite=>self.bus.debug_class(debug_observation::IO),
+            _=>false,
+        };
+        let old = if observing && self.bus.debug_class(debug_observation::OLD_VALUES) && self.bus_status_latch == BusStatus::MemWrite {
+            let count = if self.transfer_size == TransferSize::Word { 2 } else { 1 };
+            (0..count).map(|n| self.bus.peek_u8((self.address_latch as usize + n) & 0xfffff).ok())
+                .collect::<Option<Vec<_>>>()
+        } else { None };
 
         match (self.bus_status_latch, self.transfer_size) {
             (BusStatus::CodeFetch, TransferSize::Byte) => {
@@ -1288,5 +1311,28 @@ impl Intel808x {
 
         self.bus_status = BusStatus::Passive;
         self.address_bus = (self.address_bus & !0xFF) | (self.data_bus as u32);
+        if observing {
+            let kind = match self.bus_status_latch {
+                BusStatus::MemRead => Some("memory_read"),
+                BusStatus::MemWrite => Some("memory_write"),
+                BusStatus::IoRead => Some("io_read"),
+                BusStatus::IoWrite => Some("io_write"),
+                _ => None,
+            };
+            if let Some(kind) = kind {
+                let width = if self.transfer_size == TransferSize::Word { 2 } else { 1 };
+                let value = if width == 1 && self.bhe && self.bus_status_latch != BusStatus::IoRead {
+                    self.data_bus >> 8
+                } else { self.data_bus };
+                self.bus.debug_record(debug_observation::Event {
+                    kind, clock: self.cycle_num, cs: self.cs, ip: self.instruction_ip,
+                    address: self.address_latch, width,
+                    value, old, interrupt_kind: None, ah: self.a.h(), al: self.a.l(), irq: None,
+                    handled: if kind.starts_with("io_") {Some(self.bus.debug_port_handled(self.address_latch as u16))} else {None},
+                    registers:None,
+                });
+            }
+        }
+
     }
 }

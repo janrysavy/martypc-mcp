@@ -100,7 +100,7 @@ fn ui_snapshot_pump_yields_after_import_before_queued_continue() {
         listener_thread: None,
     };
     for _ in 0..20 {
-        rpc.agent.step(&mut m);
+        rpc.agent.step(&mut m, None);
     }
     assert_ne!(saved(&mut m), initial);
     let (reply, imported) = mpsc::channel();
@@ -281,7 +281,7 @@ fn rpc_file_snapshot_matches_native_continuation_and_clears_old_debugger_ids() {
     m.pit_adjust(2);
     m.set_cpu_option(marty_core::cpu_common::CpuOption::EnableWaitStates(false));
     m.set_cpu_option(marty_core::cpu_common::CpuOption::OffRailsDetection(true));
-    a.step(&mut m);
+    a.step(&mut m, None);
     a.next = 99;
     a.completed.insert("op-3".into(), json!({"old":true}));
     a.completed_order.push_back("op-3".into());
@@ -305,7 +305,7 @@ fn rpc_file_snapshot_matches_native_continuation_and_clears_old_debugger_ids() {
     let digest = export["sha256"].clone();
     assert_eq!(digest, json!(super::super::digest(&fs::read(&path).unwrap())));
     assert_eq!(export["build_sha256"], json!(super::super::digest(&actual_exe)));
-    a.step(&mut m);
+    a.step(&mut m, None);
     let revision = a.revision;
     let imported = invoke(&mut a,&mut m,&mut host,"machine.snapshot.import",
         json!({"path":path,"disk_root":scratch.0.join("restored"),"expected_sha256":digest,"preserve_breakpoints":false,"expected_state_revision":revision})).unwrap();
@@ -321,7 +321,7 @@ fn rpc_file_snapshot_matches_native_continuation_and_clears_old_debugger_ids() {
     let mut reference = cold(false).prepare_snapshot_restore(&baseline.0, [None, None]).unwrap();
     let mut control = ExecutionControl::new();
     for _ in 0..40 {
-        a.step(&mut m);
+        a.step(&mut m, None);
         control.set_op(ExecutionOperation::Step);
         reference.run(1, &mut control);
         assert_eq!(saved(&mut m), saved(&mut reference));
