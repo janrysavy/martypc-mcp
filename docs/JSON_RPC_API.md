@@ -133,8 +133,8 @@ not widen exact-address matching, matching PyPC's `matches_address` behavior.
 String separators such as
 underscores are unsupported. Conditions use `register`, `operator` (`eq`, `ne`,
 `lt`, `le`, `gt`, `ge`) and a Word `value`; comparisons are unsigned. Hit filters
-use `skip` and positive `every`, counted after condition matches. A persistent
-breakpoint is skipped for exactly one boundary when resuming from its stop.
+use `skip` and positive `every`, counted after condition matches. Only an
+execution breakpoint gets the one-boundary resume exemption described above.
 
 Execution uses native `Machine::run(1, Step)` including CPU prefetch, bus, device
 advancement and interrupt completion. This is a machine boundary, not a promise
@@ -152,10 +152,18 @@ reached and overshoot nanoseconds. This is modeled emulated time, not a new clai
 of measured physical XT accuracy. The initial CPU reset cycles and accumulated
 device ticks need not have identical epochs.
 
-Stop kinds are `breakpoint`, `run_until`, `pause`, `step`, `cpu_halt`, and
-`emulated_time_limit`. Every completed operation retains its reason and stop
-registers. JSON errors use -32700 (parse), -32600 (envelope), -32601 (unsupported
-method), -32602 (invalid parameters/guards), -32603 (bus failure).
+Operation stop kinds include `breakpoint`, `run_until`, `pause`, `step`,
+`cpu_halt`, `emulated_time_limit`, `native_breakpoint`, `native_step_over`,
+`backend_no_progress` and `observation_overflow`. Every completed operation
+retains its reason and actual `stop_reason.registers`. Snapshot import clears
+operations and sets the session stop to `snapshot_restored`; PyPC instead
+uses `machine_snapshot_restored`. Do not infer an execution operation from
+that session reason.
+
+JSON errors use -32700 (parse), -32600 (envelope), -32601 (unsupported method),
+-32602 (invalid parameters/guards), -32603 (bus failure), and -32000 (snapshot
+host I/O/backend failure). See shared snapshot request policy below for the
+checksum/length refusal distinction; callers must not classify by message text.
 
 Joystick axes use -1 for left/up, +1 for right/down, zero for center. Positions
 set the native game-port resistance; port201h one-shot timing and active-low
