@@ -44,6 +44,10 @@ use crate::tracelogger::TraceLogger;
 
 use crate::device_traits::videocard::*;
 
+#[macro_use]
+mod state_macros;
+mod state;
+pub(crate) use state::VgaState;
 mod attribute_controller;
 mod crtc;
 mod draw;
@@ -1167,10 +1171,10 @@ impl VGACard {
                         self.ac.load(
                             AttributeInput::Parallel64(
                                 self.sequencer
-                                    .get_glyph_span(self.cur_char, self.current_font, self.crtc.vlc()),
+                                    .get_glyph_span(self.cur_char, (self.cur_attr >> 3) & 1, self.crtc.vlc()),
                                 //self.sequencer.test_glyph_span(self.crtc.vlc()),
                                 self.cur_char,
-                                self.cur_attr,
+                                if self.sequencer.font_select_enabled() { self.cur_attr & !8 } else { self.cur_attr },
                                 self.crtc.status.cursor,
                             ),
                             clock_select,
@@ -1293,10 +1297,10 @@ impl VGACard {
                         self.ac.load(
                             AttributeInput::Parallel64(
                                 self.sequencer
-                                    .get_glyph_span(self.cur_char, self.current_font, self.crtc.vlc()),
+                                    .get_glyph_span(self.cur_char, (self.cur_attr >> 3) & 1, self.crtc.vlc()),
                                 //self.sequencer.test_glyph_span(self.crtc.vlc()),
                                 self.cur_char,
-                                self.cur_attr,
+                                if self.sequencer.font_select_enabled() { self.cur_attr & !8 } else { self.cur_attr },
                                 self.crtc.status.cursor,
                             ),
                             clock_select,

@@ -85,7 +85,9 @@ impl VideoCard for VGACard {
         let width = (self.crtc_horizontal_display_end as u32 + 1) * font_w as u32;
         let height = self.crtc_vertical_display_end as u32 + 1;
         (width, height)*/
-        (320, 200)
+        ((self.crtc.horizontal_display_end() as u32 + 1)
+            * (self.sequencer.char_clock / self.sequencer.clock_divisor),
+         self.crtc.vertical_display_end() as u32 + 1)
     }
 
     /// Unimplemented for indirect rendering.
@@ -204,6 +206,8 @@ impl VideoCard for VGACard {
     }
 
     fn current_font(&self) -> Option<FontInfo> {
+        // VGA uses Direct rendering from mutable plane-2 font RAM. The legacy
+        // FontInfo interface only represents static ROM fonts, so it is refused.
         None
     }
 

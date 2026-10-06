@@ -45,7 +45,16 @@ pub(crate) struct BusState {
     game_port: Option<GamePortSnapshot>,
     #[serde(deserialize_with = "crate::snapshot_codec::required_option")]
     xtide: Option<XtIdeState>,
-    video: Vec<(VideoCardId, CgaState)>,
+    video: Vec<(VideoCardId, VideoState)>,
+}
+
+// Keep the version-1 CGA wire encoding. Match each strict owner to its card.
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(untagged)]
+enum VideoState {
+    Cga(CgaState),
+    #[cfg(feature = "vga")]
+    Vga(crate::devices::vga::VgaState),
 }
 
 impl BusState {
@@ -131,6 +140,11 @@ impl BusInterface {
                     Some(VideoCardDispatch::Cga(card)) => owns_port(card.port_list()),
                     _ => false,
                 },
+                #[cfg(feature = "vga")]
+                IoDeviceType::Video(id) if id.vtype == VideoType::VGA => match self.videocards.get(id) {
+                    Some(VideoCardDispatch::Vga(card)) => owns_port(card.port_list()),
+                    _ => false,
+                },
                 // Native Mouse has no I/O port list or bus I/O dispatch arm.
                 // Its scheduled/serial state is captured separately below.
                 _ => false,
@@ -150,6 +164,9 @@ impl BusInterface {
                 MmioDeviceType::Video(id)
                     if id.vtype == VideoType::CGA
                         && matches!(self.videocards.get(&id), Some(VideoCardDispatch::Cga(_))) => {}
+                #[cfg(feature = "vga")]
+                MmioDeviceType::Video(id) if id.vtype == VideoType::VGA
+                    && matches!(self.videocards.get(&id), Some(VideoCardDispatch::Vga(_))) => {}
                 _ => bail!("MMIO route has no supported installed snapshot owner"),
             }
         }
@@ -158,9 +175,13 @@ impl BusInterface {
         let mut ids = std::collections::HashSet::new();
         if self.videocard_ids.len() != self.videocards.len()
             || self.videocard_ids.iter().any(|id| {
-                id.vtype != VideoType::CGA
-                    || !ids.insert(*id)
-                    || !matches!(self.videocards.get(id), Some(VideoCardDispatch::Cga(_)))
+                let supported = match self.videocards.get(id) {
+                    Some(VideoCardDispatch::Cga(_)) => id.vtype == VideoType::CGA,
+                    #[cfg(feature = "vga")]
+                    Some(VideoCardDispatch::Vga(_)) => id.vtype == VideoType::VGA,
+                    _ => false,
+                };
+                !ids.insert(*id) || !supported
             })
         {
             bail!("unsupported video owner or inconsistent video traversal");
@@ -178,10 +199,13 @@ impl BusInterface {
             .videocard_ids
             .iter()
             .map(|id| {
-                let Some(VideoCardDispatch::Cga(card)) = self.videocards.get(id) else {
-                    unreachable!()
+                let state = match self.videocards.get(id) {
+                    Some(VideoCardDispatch::Cga(card)) => VideoState::Cga(card.snapshot_state().map_err(anyhow::Error::msg)?),
+                    #[cfg(feature = "vga")]
+                    Some(VideoCardDispatch::Vga(card)) => VideoState::Vga(card.capture_state().map_err(anyhow::Error::msg)?),
+                    _ => unreachable!(),
                 };
-                Ok((*id, card.snapshot_state().map_err(anyhow::Error::msg)?))
+                Ok((*id, state))
             })
             .collect::<Result<Vec<_>>>()?;
         let (xtide, payloads) = match &mut self.xtide {
@@ -251,10 +275,12 @@ impl BusInterface {
         for (id, state) in &saved.video {
             // Native set_clocking_mode changes this at runtime; restore the
             // saved mode rather than imposing the candidate's initial mode.
-            let Some(VideoCardDispatch::Cga(card)) = self.videocards.get(id) else {
-                unreachable!()
-            };
-            card.preflight_state(state).map_err(anyhow::Error::msg)?;
+            match (self.videocards.get(id), state) {
+                (Some(VideoCardDispatch::Cga(card)), VideoState::Cga(s)) => card.preflight_state(s).map_err(anyhow::Error::msg)?,
+                #[cfg(feature = "vga")]
+                (Some(VideoCardDispatch::Vga(card)), VideoState::Vga(s)) => card.preflight_state(s).map_err(anyhow::Error::msg)?,
+                _ => bail!("video owner type mismatch"),
+            }
         }
         let serial = match (&self.serial, &saved.serial) {
             (Some(owner), Some(state)) => {
@@ -305,10 +331,12 @@ impl BusInterface {
         restore!(self, saved, pic2);
         restore!(self, saved, game_port);
         for (id, state) in &saved.video {
-            let Some(VideoCardDispatch::Cga(card)) = self.videocards.get_mut(id) else {
-                unreachable!()
-            };
-            card.restore_state(state).map_err(anyhow::Error::msg)?;
+            match (self.videocards.get_mut(id), state) {
+                (Some(VideoCardDispatch::Cga(card)), VideoState::Cga(s)) => card.restore_state(s).map_err(anyhow::Error::msg)?,
+                #[cfg(feature = "vga")]
+                (Some(VideoCardDispatch::Vga(card)), VideoState::Vga(s)) => card.restore_state(s).map_err(anyhow::Error::msg)?,
+                _ => bail!("video owner type mismatch"),
+            }
         }
         self.serial = serial;
         self.mouse = mouse;

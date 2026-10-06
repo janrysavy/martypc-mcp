@@ -33,6 +33,8 @@ jobs:
         run: cargo test -p marty_frontend_common --no-default-features --lib --locked
       - name: Test core snapshot component and service paths
         run: cargo test -p marty_core --no-default-features --lib --locked
+      - name: Test VGA text rendering and complete video snapshots
+        run: cargo test -p marty_core --no-default-features --features vga,ega --lib --locked
       - name: Test serial bridge and configured speaker snapshot paths
         run: cargo test -p marty_core --no-default-features --features serial,sound --lib --locked
       - name: Build native observation UI

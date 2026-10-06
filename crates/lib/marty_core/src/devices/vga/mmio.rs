@@ -77,7 +77,7 @@ impl MemoryMappedDevice for VGACard {
         }
 
         //(self.sequencer.peek_u8(0, offset, address & 0x01) as u16) << 8 | self.sequencer.peek_u8(0, offset + 1) as u16
-        (self.mmio_peek_u8(address, cpumem) as u16) << 8 | self.mmio_peek_u8(address + 1, cpumem) as u16
+        self.mmio_peek_u8(address, cpumem) as u16 | (self.mmio_peek_u8(address + 1, cpumem) as u16) << 8
     }
 
     fn get_write_wait(&mut self, _address: usize, _cycles: u32) -> u32 {
@@ -111,7 +111,7 @@ impl MemoryMappedDevice for VGACard {
             },
             MemRangeDescriptor {
                 address: 0xA0000,
-                size: EGA_GFX_PLANE_SIZE,
+                size: EGA_MEM_WINDOW_128,
                 cycle_cost: 0,
                 read_only: false,
                 priority: 1,

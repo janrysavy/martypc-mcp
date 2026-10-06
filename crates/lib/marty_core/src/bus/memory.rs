@@ -315,7 +315,7 @@ impl BusInterface {
         }
     }
 
-    /// Observation supports backing RAM/ROM and native CGA VRAM, never an
+    /// Observation supports backing RAM/ROM and native CGA/VGA peeks, never an
     /// arbitrary MMIO device (whose guest read may latch or consume state).
     pub fn is_observable_memory(&self, address: usize) -> bool {
         if address >= self.memory.len() {
@@ -325,8 +325,12 @@ impl BusInterface {
             return address < self.conventional_size || self.memory_mask[address] & MEM_ROM_BIT != 0;
         }
         match self.mmio_map_fast[address >> MMIO_MAP_SHIFT].device {
-            MmioDeviceType::Video(id) => (0xb8000..0xc0000).contains(&address) && self.videocards.get(&id)
-                .is_some_and(|card| matches!(card, crate::device_traits::videocard::VideoCardDispatch::Cga(_))),
+            MmioDeviceType::Video(id) => match self.videocards.get(&id) {
+                Some(crate::device_traits::videocard::VideoCardDispatch::Cga(_)) => (0xb8000..0xc0000).contains(&address),
+                #[cfg(feature = "vga")]
+                Some(crate::device_traits::videocard::VideoCardDispatch::Vga(_)) => (0xa0000..0xc0000).contains(&address),
+                _ => false,
+            },
             _ => self.is_writable_ram(address),
         }
     }

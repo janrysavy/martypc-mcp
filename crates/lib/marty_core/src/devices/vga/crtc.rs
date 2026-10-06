@@ -66,7 +66,7 @@ macro_rules! push_reg_str {
     };
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum CRTCRegister {
     HorizontalTotal,
     HorizontalDisplayEnd,
@@ -221,7 +221,8 @@ pub struct CModeControl {
     pub hardware_reset: B1,
 }
 
-#[derive(Copy, Clone, Default, Debug)]
+#[derive(Copy, Clone, Default, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct CrtcAperture {
     pub top:    u32,
     pub left:   u32,
@@ -240,18 +241,10 @@ impl CrtcAperture {
     }
 
     pub fn is_compatible_with(&self, extents: (u32, u32)) -> bool {
-        if self.left + self.width() > extents.0 {
-            false
-        }
-        else if self.top + self.height() > extents.1 {
-            false
-        }
-        else if self.left > extents.0 {
-            false
-        }
-        else {
-            self.top <= extents.1
-        }
+        // BIOS register programming can temporarily reverse the boundaries.
+        // Reject that incomplete aperture before doing unsigned subtraction.
+        self.left <= self.right && self.top <= self.bottom
+            && self.right <= extents.0 && self.bottom <= extents.1
     }
 
     pub fn adjust(&mut self, char_clock: u32, mode: ShiftMode) {
@@ -267,7 +260,8 @@ impl CrtcAperture {
     }
 }
 
-#[derive(Copy, Clone, Default, Debug)]
+#[derive(Copy, Clone, Default, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct CrtcStatus {
     pub begin_hsync: bool,
     pub begin_vsync: bool,
@@ -1430,5 +1424,82 @@ impl VgaCrtc {
         internal_vec.push(("hborder:".to_string(), VideoCardStateEntry::String(format!("{}", self.status.hborder))));
         internal_vec.push(("vborder:".to_string(), VideoCardStateEntry::String(format!("{}", self.status.vborder))));
         internal_vec
+    }
+}
+
+vga_state!(VgaCrtc, VgaCrtcState, {}, {
+    register_select_byte: u8 => copy,
+    register_selected: CRTCRegister => copy,
+    crtc_horizontal_total: u8 => copy,
+    crtc_horizontal_display_end: u8 => copy,
+    crtc_start_horizontal_blank: u8 => copy,
+    crtc_end_horizontal_blank: u8 => (|c: &VgaCrtc| c.crtc_end_horizontal_blank.into_bytes()[0], |s: &VgaCrtcState| -> Result<CEndHorizontalBlank, &'static str> { Ok(CEndHorizontalBlank::from_bytes([s.crtc_end_horizontal_blank])) }),
+    crtc_end_horizontal_blank_norm: u16 => copy,
+    crtc_start_horizontal_retrace: u8 => copy,
+    crtc_end_horizontal_retrace: u8 => (|c: &VgaCrtc| c.crtc_end_horizontal_retrace.into_bytes()[0], |s: &VgaCrtcState| -> Result<CEndHorizontalRetrace, &'static str> { Ok(CEndHorizontalRetrace::from_bytes([s.crtc_end_horizontal_retrace])) }),
+    crtc_end_horizontal_retrace_norm: u16 => copy,
+    crtc_retrace_width: u16 => copy,
+    crtc_vertical_total: u16 => copy,
+    crtc_overflow: u8 => (|c: &VgaCrtc| c.crtc_overflow.into_bytes()[0], |s: &VgaCrtcState| -> Result<COverflow, &'static str> { Ok(COverflow::from_bytes([s.crtc_overflow])) }),
+    crtc_preset_row_scan: u8 => (|c: &VgaCrtc| c.crtc_preset_row_scan.into_bytes()[0], |s: &VgaCrtcState| -> Result<CPresetRowScan, &'static str> { Ok(CPresetRowScan::from_bytes([s.crtc_preset_row_scan])) }),
+    crtc_maximum_scanline: u8 => (|c: &VgaCrtc| c.crtc_maximum_scanline.into_bytes()[0], |s: &VgaCrtcState| -> Result<CMaximumScanline, &'static str> { Ok(CMaximumScanline::from_bytes([s.crtc_maximum_scanline])) }),
+    crtc_cursor_start: u8 => (|c: &VgaCrtc| c.crtc_cursor_start.into_bytes()[0], |s: &VgaCrtcState| -> Result<CCursorStart, &'static str> { Ok(CCursorStart::from_bytes([s.crtc_cursor_start])) }),
+    crtc_cursor_enabled: bool => copy,
+    crtc_cursor_end: u8 => (|c: &VgaCrtc| c.crtc_cursor_end.into_bytes()[0], |s: &VgaCrtcState| -> Result<CCursorEnd, &'static str> { Ok(CCursorEnd::from_bytes([s.crtc_cursor_end])) }),
+    crtc_cursor_skew: u8 => copy,
+    crtc_start_address_ho: u8 => copy,
+    crtc_start_address_lo: u8 => copy,
+    crtc_start_address: u16 => copy,
+    start_address_latch: u16 => copy,
+    crtc_cursor_address_lo: u8 => copy,
+    crtc_cursor_address_ho: u8 => copy,
+    crtc_cursor_address: u16 => copy,
+    crtc_vertical_retrace_start: u16 => copy,
+    crtc_vertical_retrace_end: u8 => (|c: &VgaCrtc| c.crtc_vertical_retrace_end.into_bytes()[0], |s: &VgaCrtcState| -> Result<CVerticalRetraceEnd, &'static str> { Ok(CVerticalRetraceEnd::from_bytes([s.crtc_vertical_retrace_end])) }),
+    crtc_vertical_retrace_end_norm: u16 => copy,
+    crtc_vertical_display_end: u16 => copy,
+    crtc_offset: u8 => copy,
+    crtc_underline_location: u8 => (|c: &VgaCrtc| c.crtc_underline_location.into_bytes()[0], |s: &VgaCrtcState| -> Result<CUnderlineLocation, &'static str> { Ok(CUnderlineLocation::from_bytes([s.crtc_underline_location])) }),
+    crtc_start_vertical_blank: u16 => copy,
+    crtc_end_vertical_blank: u8 => (|c: &VgaCrtc| c.crtc_end_vertical_blank.into_bytes()[0], |s: &VgaCrtcState| -> Result<CEndVerticalBlank, &'static str> { Ok(CEndVerticalBlank::from_bytes([s.crtc_end_vertical_blank])) }),
+    crtc_end_vertical_blank_norm: u16 => copy,
+    crtc_mode_control: u8 => (|c: &VgaCrtc| c.crtc_mode_control.into_bytes()[0], |s: &VgaCrtcState| -> Result<CModeControl, &'static str> { Ok(CModeControl::from_bytes([s.crtc_mode_control])) }),
+    crtc_line_compare: u16 => copy,
+    hcc: u8 => copy,
+    vlc: u8 => copy,
+    vcc: u8 => copy,
+    slc: u16 => copy,
+    hsc: u8 => copy,
+    vsc: u8 => copy,
+    vtac_c5: u8 => copy,
+    in_vta: bool => copy,
+    in_hrd: bool => copy,
+    hrdc: u8 => copy,
+    effective_vta: u8 => copy,
+    vma: u16 => copy,
+    vma_sl: u16 => copy,
+    vma_t: u16 => copy,
+    vmws: usize => copy,
+    den_skew_front: bool => copy,
+    den_skew_back: bool => copy,
+    dsc: u8 => copy,
+    status: CrtcStatus => copy,
+    blink_state: bool => copy,
+    monitor_hsync: bool => copy,
+    monitor_vsync: bool => copy,
+    in_last_vblank_line: bool => copy,
+    cursor_data: [bool; VGA_CURSOR_MAX] => copy,
+    frame: u64 => copy,
+});
+
+impl VgaCrtc {
+    fn validate_state(s: &VgaCrtcState) -> Result<(), &'static str> {
+        if ![1, 2, 4].contains(&s.vmws)
+            || [s.status.dynamic_aperture.left,s.status.dynamic_aperture.right,
+                s.status.dynamic_aperture.top,s.status.dynamic_aperture.bottom]
+                .iter().any(|v| *v>u32::MAX-128) {
+            return Err("VGA CRTC word size/aperture overflow");
+        }
+        Ok(())
     }
 }

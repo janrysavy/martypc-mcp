@@ -33,7 +33,7 @@ use std::cmp::PartialEq;
 pub const DAC_STATE_READ: u8 = 0;
 pub const DAC_STATE_WRITE: u8 = 0x03;
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum AttributeRegister {
     Palette0,
     Palette1,
@@ -58,7 +58,7 @@ pub enum AttributeRegister {
     ColorSelect,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum AttributeRegisterFlipFlop {
     Address,
     Data,
@@ -169,7 +169,8 @@ pub enum AttributeInput<'a> {
     Parallel64(u64, u8, u8, bool),
 }
 
-#[derive(Copy, Clone, Debug, Default)]
+#[derive(Copy, Clone, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct AttributePaletteEntry {
     pub six: u8,
     pub four: u8,
@@ -309,8 +310,8 @@ impl AttributeController {
     pub fn write_attribute_register(&mut self, byte: u8) {
         match self.register_flipflop {
             AttributeRegisterFlipFlop::Address => {
-                if byte <= 0x0F {
-                    self.palette_index = byte as usize;
+                if byte & 0x1F <= 0x0F {
+                    self.palette_index = (byte & 0x0F) as usize;
                 }
                 self.register_selected = match byte & 0x1F {
                     0x00 => AttributeRegister::Palette0,
@@ -333,6 +334,7 @@ impl AttributeController {
                     0x11 => AttributeRegister::OverscanColor,
                     0x12 => AttributeRegister::ColorPlaneEnable,
                     0x13 => AttributeRegister::HorizontalPelPanning,
+                    0x14 => AttributeRegister::ColorSelect,
                     _ => {
                         log::warn!("Invalid attribute register selected: {:02X}", byte);
                         self.register_selected
@@ -896,5 +898,46 @@ impl AttributeController {
         attribute_vec.push((format!("{:?}", AttributeRegister::HorizontalPelPanning), VideoCardStateEntry::String(format!("{}", self.pel_panning))));
 
         attribute_vec
+    }
+}
+
+vga_state!(AttributeController, AttributeState, {}, {
+    register_flipflop: AttributeRegisterFlipFlop => copy,
+    register_select_byte: u8 => copy,
+    register_selected: AttributeRegister => copy,
+    palette_registers: [AttributePaletteEntry; 16] => copy,
+    palette_index: usize => copy,
+    mode_control: u8 => (|c: &AttributeController| c.mode_control.into_bytes()[0], |s: &AttributeState| -> Result<AModeControl, &'static str> { Ok(AModeControl::from_bytes([s.mode_control])) }),
+    overscan_color: AttributePaletteEntry => copy,
+    overscan_color64: u64 => copy,
+    color_plane_enable: u8 => (|c: &AttributeController| c.color_plane_enable.into_bytes()[0], |s: &AttributeState| -> Result<AColorPlaneEnable, &'static str> { Ok(AColorPlaneEnable::from_bytes([s.color_plane_enable])) }),
+    color_plane_enable64: u64 => copy,
+    color_select: u8 => (|c: &AttributeController| c.color_select.into_bytes()[0], |s: &AttributeState| -> Result<AColorSelectRegister, &'static str> { Ok(AColorSelectRegister::from_bytes([s.color_select])) }),
+    pel_panning: u8 => copy,
+    blink_state: bool => copy,
+    last_den: bool => copy,
+    shift_reg: [u8; 16] => (|c: &AttributeController| c.shift_reg.to_le_bytes(), |s: &AttributeState| -> Result<u128, &'static str> { Ok(u128::from_le_bytes(s.shift_reg)) }),
+    shift_reg9: u64 => copy,
+    shift_buf: [u8; 8] => copy,
+    shift_flipflop: bool => copy,
+    color_registers: Vec<[u8; 3]> => (|c: &AttributeController| c.color_registers.to_vec(), |s: &AttributeState| -> Result<[[u8; 3]; 256], &'static str> { Ok(s.color_registers.clone().try_into().map_err(|_| "VGA DAC length")?) }),
+    color_registers_rgba: Vec<[u8; 4]> => (|c: &AttributeController| c.color_registers_rgba.to_vec(), |s: &AttributeState| -> Result<[[u8; 4]; 256], &'static str> { Ok(s.color_registers_rgba.clone().try_into().map_err(|_| "VGA DAC length")?) }),
+    color_registers_u32: Vec<u32> => (|c: &AttributeController| c.color_registers_u32.to_vec(), |s: &AttributeState| -> Result<[u32; 256], &'static str> { Ok(s.color_registers_u32.clone().try_into().map_err(|_| "VGA DAC length")?) }),
+    color_pel_write_address: u8 => copy,
+    color_pel_write_address_color: u8 => copy,
+    color_pel_read_address: u8 => copy,
+    color_pel_read_address_color: u8 => copy,
+    color_pel_mask: u8 => copy,
+    color_dac_state: u8 => copy,
+});
+
+impl AttributeController {
+    fn validate_state(s: &AttributeState) -> Result<(), &'static str> {
+        if s.palette_registers.iter().chain(std::iter::once(&s.overscan_color))
+            .any(|p| p.six>63 || p.four>15 || p.four_to_six>63) {
+            return Err("VGA palette table index");
+        }
+        if s.palette_index >= 16 || s.color_pel_read_address_color >= 3 || s.color_pel_write_address_color >= 3 || s.color_registers.len()!=256 || s.color_registers_rgba.len()!=256 || s.color_registers_u32.len()!=256 { return Err("VGA DAC/palette index or length"); }
+        Ok(())
     }
 }
