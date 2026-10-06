@@ -1,3 +1,15 @@
+# Combined observation integration, 2026-10-06
+
+WIP combined PR37 stacks coherent observation PR36 and shared snapshot PR39
+on integrated keyboard main c82809d4, then native watchpoint/trace commits.
+Rebase preserves permanent breakpoint policy and clears populated CPU/hardware
+recorders; its actual native MOV/OUT/store import regression checks complete
+Machine restoration. Combined58 RPC +10 config +5 headless tests pass.
+Earlier exact-source gates/proofs below remain historical.
+Next: complete combined local gates, fresh source-bound shared/live/cold proofs,
+frozen review, and exact final Windows/Linux CI before linear rebase integration.
+Do not assume this combined product or those final checks exist yet.
+
 # Native observation slice, 2026-10-06
 
 FINISHED Intel8088/8086 BIU data watchpoints and bounded CPU/I/O/PIC traces.
