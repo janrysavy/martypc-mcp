@@ -194,9 +194,11 @@ with their loaded ROM/config/keyboard factories. Query capabilities: unsupported
 frontend settings leave the methods unavailable or fail core preflight explicitly.
 
 Both methods require pause and `expected_state_revision`. Export accepts a NEW
-`path` and `disk_mode` (`embed`, `auto`=embed, or `reference`), flushes the archive,
+`path` and `disk_mode` (`embed`, `auto`=embed, `reference` or `reference-files`),
+flushes the archive,
 and returns its SHA-256 and the actual running executable SHA-256. Retain the
-archive digest independently. Import requires `path`, that `expected_sha256`,
+archive digest independently. Import requires `path`, one `expected_sha256` or
+legacy `sha256`,
 and a NEW `disk_root` whose parent already exists. Optional `references` maps
 string slots `0`/`1` to exact matching reference disk files. All checks precede
 the live swap. Both modes create separate RW/non-append File copies; references
@@ -207,7 +209,8 @@ including Cursor, arbitrary/read-only/append Files. Cached VHD read_only remains
 metadata; native emulation behavior is unchanged. Existing output paths/roots
 are refused. Cleanup failures name retained paths in stderr; successful cleanup
 cannot be guaranteed against host I/O failures. Import leaves the guest paused,
-increments the revision, resets breakpoints/predicates/completed operations and
+increments the revision, resets predicates/completed operations and preserves
+permanent breakpoints/hit counters unless `preserve_breakpoints:false`, and
 retains monotonic ID allocation. Old operation IDs cannot identify new work.
 
 The separate strict `martypc-machine` ZIP format requires an exact executable
