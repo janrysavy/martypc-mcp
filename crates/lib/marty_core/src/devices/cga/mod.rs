@@ -1956,4 +1956,40 @@ mod snapshot_phase_tests {
         }
     }
 
+    #[test]
+    fn cga_catchup_preserves_zero_and_partial_run_budgets() {
+        use crate::device_traits::videocard::VideoCard;
+        for mode in [ClockingMode::Dynamic, ClockingMode::Character, ClockingMode::Cycle] {
+            for divisor in [1, 2] {
+                let mut card = CGACard::new(TraceLogger::None, mode, false);
+                card.clock_divisor = divisor;
+                card.char_clock = 8 * u32::from(divisor);
+                card.char_clock_mask = u64::from(card.char_clock - 1);
+                card.cycles = 5623723;
+                let before = card.cycles;
+                card.catch_up(DeviceRunTimeUnit::SystemTicks(16), false);
+                assert_eq!(card.cycles, before + 16);
+                assert_eq!(card.pixel_clocks_owed, 5);
+                let caught_up = card.cycles;
+                let mut available = 0;
+                // First run has no clocks left after the access. Subsequent runs
+                // must retain phase debt until their actual budget can pay it.
+                for clocks in [16, 1, 4, 8, 32] {
+                    let remaining = clocks - card.ticks_advanced;
+                    available += u64::from(remaining);
+                    let owed = card.pixel_clocks_owed;
+                    VideoCard::run(&mut card, DeviceRunTimeUnit::SystemTicks(clocks), &mut None, None);
+                    assert_eq!(card.cycles + u64::from(card.clocks_accum), caught_up + available);
+                    if remaining == 0 {
+                        assert_eq!(card.pixel_clocks_owed, owed);
+                    }
+                }
+                assert_eq!(card.pixel_clocks_owed, 0);
+                if !matches!(mode, ClockingMode::Cycle) {
+                    assert_eq!(card.cycles & card.char_clock_mask, 0);
+                }
+            }
+        }
+    }
+
 }
