@@ -1305,6 +1305,8 @@ impl Machine {
 
     fn set_cpu_factor(&mut self, new_factor: ClockFactor) {
         self.cpu_factor = new_factor;
+        // Mid-instruction device I/O must use the same clock as Machine dispatch.
+        self.bus_mut().set_cpu_factor(new_factor);
         let mhz = match self.cpu_factor {
             ClockFactor::Divisor(n) => self.machine_desc.system_crystal / (n as f64),
             ClockFactor::Multiplier(n) => self.machine_desc.system_crystal * (n as f64),
@@ -1357,7 +1359,6 @@ impl Machine {
         // Update cpu factor.
         if let Some(new_factor) = self.next_cpu_factor {
             self.set_cpu_factor(new_factor);
-            self.bus_mut().set_cpu_factor(new_factor);
         }
 
         // Don't run this iteration if we're pending a ROM reload
