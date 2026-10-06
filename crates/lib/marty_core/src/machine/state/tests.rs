@@ -9,7 +9,7 @@ use crate::{
 };
 use marty_common::types::joystick::ControllerLayout;
 use std::io::{Cursor, Write};
-struct NoRoms(MachineType);
+struct NoRoms(MachineType, bool);
 impl CoreConfig for NoRoms {
     fn get_base_dir(&self) -> PathBuf {
         PathBuf::new()
@@ -24,7 +24,7 @@ impl CoreConfig for NoRoms {
         false
     }
     fn get_machine_turbo(&self) -> bool {
-        false
+        self.1
     }
     fn get_service_interrupt(&self) -> Option<u8> {
         Some(0xFA)
@@ -85,7 +85,11 @@ fn fixture_with_manifest(override_manifest: Option<MachineRomManifest>) -> Machi
 }
 
 fn fixture_profile(override_manifest: Option<MachineRomManifest>, disks: bool) -> Machine {
-    let core = NoRoms(MachineType::Ibm5160);
+    fixture_clock_profile(override_manifest, disks, false)
+}
+
+fn fixture_clock_profile(override_manifest: Option<MachineRomManifest>, disks: bool, turbo: bool) -> Machine {
+    let core = NoRoms(MachineType::Ibm5160, turbo);
     let config = MachineConfiguration {
         machine_type: MachineType::Ibm5160,
         hdc: disks.then_some(crate::machine_config::HardDriveControllerConfig {
@@ -610,7 +614,7 @@ fn archive_refuses_corrupt_metadata_wrong_build_duplicate_paths_and_byte_budgets
 fn disabled_host_speaker_queue_preserves_native_timer_and_ppi_execution() {
     use crate::sound::SoundOutputConfig;
     let build = |enabled| {
-        let core = NoRoms(MachineType::Ibm5160);
+        let core = NoRoms(MachineType::Ibm5160, false);
         let config = MachineConfiguration {
             machine_type: MachineType::Ibm5160,
             speaker: true,
@@ -659,4 +663,28 @@ fn disabled_host_speaker_queue_preserves_native_timer_and_ppi_execution() {
     assert!(disabled.snapshot_state_quiesced(DiskCaptureMode::Embed, 0).is_ok());
     assert!(enabled.snapshot_state_quiesced(DiskCaptureMode::Embed, 0).is_err());
     println!("SPEAKER_OUTPUT_POLICY: configured speaker, disabled host queue; native CPU/PPI/PIT clocks and channels equal to audible branch after10000 cycles; PCM accumulation/sink intentionally differ; enabled output refused by snapshot preflight");
+}
+
+#[test]
+fn configured_turbo_synchronizes_machine_bus_and_cga_before_first_instruction() {
+    for turbo in [false, true] {
+        let mut machine = fixture_clock_profile(None, false, turbo);
+        let divisor = if turbo { 1 } else { 3 };
+        assert_eq!(machine.cpu_cycles_to_system_ticks(10), 10 * divisor);
+        assert_eq!(machine.cpu.bus().cpu_cycles_to_system_ticks(10), 10 * divisor);
+        let mut control = ExecutionControl::new();
+        control.set_state(ExecutionState::Running);
+        // This program performs PIT I/O and REP STOSW into CGA VRAM.
+        // Startup turbo previously used inconsistent clocks for dispatch and device I/O.
+        assert!(machine.run(8192, &mut control) > 0);
+        assert_eq!(machine.cpu.bus_mut().read_u8(0xB8000, 0).unwrap().0, 0x41);
+        let saved = capture(&mut machine);
+        let mut restored = fixture_clock_profile(None, false, turbo)
+            .prepare_snapshot_restore(&saved, [None, None]).unwrap();
+        let mut peer = ExecutionControl::new();
+        peer.set_state(ExecutionState::Running);
+        assert_eq!(machine.run(4096, &mut control), restored.run(4096, &mut peer));
+        assert_eq!(serde_json::to_value(capture(&mut machine)).unwrap(),
+                   serde_json::to_value(capture(&mut restored)).unwrap());
+    }
 }

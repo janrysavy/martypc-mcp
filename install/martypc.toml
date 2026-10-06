@@ -92,7 +92,7 @@ disassembly_file = "disassembly.lst"
 # Change the clock divisor/multiplier for the CPU to run the CPU faster than 
 # normal. Other devices like the timer will continue to run at the same rate.
 #
-# On IBM PC/XT, turbo increases CPU clock from 4.77Mhz to 7.16Mhz.
+# On IBM PC/XT, turbo increases CPU clock from 4.77Mhz to 14.32Mhz.
 turbo = false
 
 # Emulate phase offset of PIT vs CPU. Don't change this if you don't know why 
