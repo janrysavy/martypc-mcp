@@ -20,6 +20,9 @@ fn text_layout(machine: &Machine, p: &Value) -> Result<(usize, usize, u8)> {
         &["page", "display_address"],
         "video_text must be an object with page or display_address",
     )?;
+    if p.get("page").is_some() && p.get("display_address").is_some() {
+        return invalid("page and display_address are mutually exclusive");
+    }
     let card = machine
         .bus()
         .primary_video()

@@ -37,7 +37,10 @@ no fabricated revision/CPU boundary, and the bus journal closes. The native
 ROM-reload counterexample fails on prior source; corrected step/continue controls
 and recovery pass with complete native state unchanged.59RPC +10config +5headless
 pass. Native housekeeping is not rolled back if another zero-return path changes it.
-The video selector exclusivity correction is being integrated separately.
+video.text/state.observe.video_text reject simultaneous page/display_address
+selectors before inspection, including equal/null values; native whole-state
+negative and single-selector positive controls pass in the observer slice.
+Combined final gates and source-bound proofs remain pending.
 
 WIP final combined PR37 integrates observation36 and snapshot39 ancestor commits
 linearly onto keyboard main c82809d4. Combined58 RPC +10config +5headless passed
