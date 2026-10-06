@@ -671,6 +671,10 @@ fn shared_import_policy_preserves_host_breakpoints_and_rejects_ambiguous_hashes(
     assert!(!diskroot.exists());
     assert_eq!(saved(&mut m), initial);
     for (index, flag) in [None, Some(true), Some(false)].iter().enumerate() {
+        a.predicate = Some(Breakpoint::parse("old-predicate".into(), &json!({"address":0x109})).unwrap());
+        a.operation = Some("old-pending".into());
+        a.skip_once = Some(id.clone());
+        a.deadline = Some((0, 123, 128));
         a.completed.insert("old-operation".into(), json!({}));
         a.completed_order.push_back("old-operation".into());
         let mut p = json!({"path":path,"disk_root":scratch.0.join(format!("restored-{index}")),"expected_state_revision":a.revision});
@@ -684,6 +688,8 @@ fn shared_import_policy_preserves_host_breakpoints_and_rejects_ambiguous_hashes(
         assert!(a.completed_order.is_empty());
         assert!(a.predicate.is_none());
         assert!(a.operation.is_none());
+        assert!(a.skip_once.is_none());
+        assert!(a.deadline.is_none());
         if *flag == Some(false) {
             assert!(a.breakpoints.is_empty());
         } else {

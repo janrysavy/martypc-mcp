@@ -4,7 +4,9 @@ FINISHED source and local38 RPC tests after rebase: reference-files for File VHD
 with legacy sha256 (both aliases refused), preserve_breakpoints defaulttrue.
 Preserve permanent definitions and host hit counters; always clear transient
 predicates and operations. Whole Machine and two RW VHD/partial ATA tests pass.
-WIP: review, publication, rebase/live common contract, final CI and integration.
+Review found no functional defect; seeded transient-state test replaces its
+vacuous assertions. Omitting predicate reset deliberately fails that test; exact
+source restored and all38 tests pass. WIP: live common contract, final CI/integration.
 
 # Coherent observation slice, 2026-10-06
 
