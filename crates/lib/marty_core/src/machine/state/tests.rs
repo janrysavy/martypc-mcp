@@ -9,7 +9,7 @@ use crate::{
 };
 use marty_common::types::joystick::ControllerLayout;
 use std::io::{Cursor, Write};
-struct NoRoms(MachineType, bool);
+struct NoRoms(MachineType, bool, bool);
 impl CoreConfig for NoRoms {
     fn get_base_dir(&self) -> PathBuf {
         PathBuf::new()
@@ -51,7 +51,7 @@ impl CoreConfig for NoRoms {
         None
     }
     fn get_cpu_dram_refresh_simulation(&self) -> bool {
-        false
+        self.2
     }
     fn get_cpu_trace_on(&self) -> bool {
         false
@@ -89,7 +89,11 @@ fn fixture_profile(override_manifest: Option<MachineRomManifest>, disks: bool) -
 }
 
 fn fixture_clock_profile(override_manifest: Option<MachineRomManifest>, disks: bool, turbo: bool) -> Machine {
-    let core = NoRoms(MachineType::Ibm5160, turbo);
+    fixture_timing_profile(override_manifest, disks, turbo, false)
+}
+
+fn fixture_timing_profile(override_manifest: Option<MachineRomManifest>, disks: bool, turbo: bool, refresh: bool) -> Machine {
+    let core = NoRoms(MachineType::Ibm5160, turbo, refresh);
     let config = MachineConfiguration {
         machine_type: MachineType::Ibm5160,
         hdc: disks.then_some(crate::machine_config::HardDriveControllerConfig {
@@ -614,7 +618,7 @@ fn archive_refuses_corrupt_metadata_wrong_build_duplicate_paths_and_byte_budgets
 fn disabled_host_speaker_queue_preserves_native_timer_and_ppi_execution() {
     use crate::sound::SoundOutputConfig;
     let build = |enabled| {
-        let core = NoRoms(MachineType::Ibm5160, false);
+        let core = NoRoms(MachineType::Ibm5160, false, false);
         let config = MachineConfiguration {
             machine_type: MachineType::Ibm5160,
             speaker: true,
@@ -701,5 +705,50 @@ fn machine_snapshot_refuses_inconsistent_bus_cpu_clock_before_restore() {
         let error = machine.preflight_snapshot_meta(&invalid).unwrap_err();
         assert!(error.to_string().contains("invalid Machine clock"));
         assert_eq!(serde_json::to_value(capture(&mut machine)).unwrap(), original);
+    }
+}
+
+#[test]
+fn native_pit_refresh_period_uses_selected_cpu_clock() {
+    for turbo in [false, true] {
+        let mut machine = fixture_timing_profile(None, false, turbo, true);
+        // CLI; PIT1 rate generator, 16-bit reload18; bounded INC AX loop.
+        machine.load_program(&[0xfa, 0xb0, 0x74, 0xe6, 0x43, 0xb0, 18,
+            0xe6, 0x41, 0xb0, 0, 0xe6, 0x41, 0x40, 0xeb, 0xfd],
+            0, 0x100, 0, 0x100).unwrap();
+        let mut control = ExecutionControl::new();
+        control.set_state(ExecutionState::Running);
+        machine.run(8192, &mut control);
+        let wire = serde_json::to_value(capture(&mut machine)).unwrap();
+        let expected = if turbo { 216 } else { 72 };
+        assert_eq!(wire["cpu"]["dram_refresh_cycle_period"], expected);
+        assert_eq!(wire["bus"]["pit"]["channels"][1]["reload_value"]["val"], 18);
+        let mut restored = fixture_timing_profile(None, false, turbo, true)
+            .prepare_snapshot_restore(&serde_json::from_value(wire).unwrap(), [None,None]).unwrap();
+        let mut peer = ExecutionControl::new();
+        peer.set_state(ExecutionState::Running);
+        assert_eq!(machine.run(4096, &mut control), restored.run(4096, &mut peer));
+        assert_eq!(serde_json::to_value(capture(&mut machine)).unwrap(),
+                   serde_json::to_value(capture(&mut restored)).unwrap());
+    }
+}
+
+#[test]
+fn timer_interval_conversion_covers_selected_divisors_multipliers_and_zero_reload() {
+    let mut machine = fixture();
+    for (factor, expected) in [
+        (ClockFactor::Divisor(1), 216), (ClockFactor::Divisor(2), 108),
+        (ClockFactor::Divisor(3), 72), (ClockFactor::Divisor(5), 44),
+        (ClockFactor::Multiplier(2), 432),
+    ] {
+        machine.set_cpu_factor(factor);
+        assert_eq!(machine.timer_ticks_to_cpu_cycles(18), expected);
+        assert_eq!(machine.timer_ticks_to_cpu_cycles(0), 0);
+        let ticks: u32 = 65536 * 12; // PIT zero reload means65536, resolved by the caller.
+        let expected = match factor {
+            ClockFactor::Divisor(n) => ticks.div_ceil(u32::from(n)),
+            ClockFactor::Multiplier(n) => ticks * u32::from(n),
+        };
+        assert_eq!(machine.timer_ticks_to_cpu_cycles(65536), expected);
     }
 }

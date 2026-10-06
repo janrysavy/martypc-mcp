@@ -1,5 +1,14 @@
 # Shared observation, snapshots and native tracing, 2026-10-06
 
+FINISHED local timer-conversion fix: selected CPU factor now converts complete
+PIT intervals for refresh/interrupt hints. Old-source native reload18 probe fails
+turbo period72 versus216; fixed normal72/turbo216 and complete component replay
+pass. All324 core tests pass, including divisor/multiplier/zero-reload cases.
+Fresh original Pyro/BIOS boot, final review/CI and integration remain WIP.
+Runtime turbo switches after programming a timer remain an unproven path;
+alternate AT timer conversion remains explicitly unimplemented. No physical
+timing claim follows from a scheduler period alone. This depends on PR42.
+
 FINISHED local turbo initialization fix: Machine CPU clock changes now synchronize
 the bus factor/CGA write lookup table, including construction. The original
 configured XT turbo/CGA boot panicked (ticks_advanced30 > clocks15); all322 core

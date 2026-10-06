@@ -1818,22 +1818,12 @@ impl Machine {
     }
 
     fn timer_ticks_to_cpu_cycles(&self, timer_ticks: u32) -> u32 {
-        let timer_multiplier = if let Some(_timer_crystal) = self.machine_desc.timer_crystal {
-            // We have an alternate
+        if self.machine_desc.timer_crystal.is_some() {
             todo!("Unimplemented conversion for AT timer");
-            //1
         }
-        else {
-            match self.machine_desc.cpu_factor {
-                ClockFactor::Divisor(n) => self.machine_desc.timer_divisor / (n as u32),
-                ClockFactor::Multiplier(_n) => {
-                    todo!("unimplemented conversion for CPU multiplier");
-                    //1
-                }
-            }
-        };
-
-        timer_ticks * timer_multiplier
+        // PIT and CPU share the system crystal. Convert the entire interval
+        // using the selected clock, not the descriptor's normal-speed factor.
+        self.system_ticks_to_cpu_cycles(timer_ticks * self.machine_desc.timer_divisor)
     }
 
     /// Called to update machine once per frame. This can be used to update the state of devices that don't require
