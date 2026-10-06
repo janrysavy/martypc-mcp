@@ -22,6 +22,7 @@ use std::{
 };
 
 pub mod snapshot;
+mod observation;
 
 #[cfg(test)]
 mod keyboard_tests;
@@ -32,6 +33,8 @@ const METHODS: &[&str] = &[
     "session.status",
     "state.get",
     "state.get_registers",
+    "state.observe",
+    "video.text",
     "state.set_registers",
     "memory.read",
     "memory.write",
@@ -447,13 +450,15 @@ impl Agent {
                 "endpoint":format!("127.0.0.1:{}",self.port),"methods":METHODS,
                 "cpu":cpu.trim_start_matches("Intel"),"memory_bytes":0x100000,
                 "address_spaces":["physical","linear","segmented"],
+                "video_text_modes":["Text40","Text80"],
                 "limits":{"max_memory_bytes":65536,"max_keyboard_events":32,"max_keyboard_queue":4096,
-                    "memory_write":"installed writable RAM only","completed_operations":64},
+                    "memory_write":"installed writable RAM only","completed_operations":64,
+                    "max_observation_windows":16,"max_observation_memory_bytes":65536},
                 "clock":{"unit":"cpu_cycle","frequency_hz":machine.get_cpu_mhz()*1_000_000.0},
                 "execution_step_unit":"native machine boundary (including device/interrupt work)",
                 "breakpoint_kinds":["execution"],"step_modes":["into"],
                 "time_base":"system crystal ticks (independent of turbo)",
-                "unsupported":["trace","hardware.trace","video","vnc","serial","io","machine.snapshot",
+                "unsupported":["trace","hardware.trace","video.snapshot","video.history","vnc","serial","io","machine.snapshot",
                     "memory_read_breakpoints","memory_write_breakpoints","memory_access_breakpoints",
                     "interrupt_breakpoints","step_over","frontend_file_transfer",
                     "frontend_speed_control","frontend_cursor_control","ppi_software_turbo"]}),
@@ -499,6 +504,8 @@ impl Agent {
                 self.revision += 1;
                 Ok(json!({"accepted":bytes.len(),"state_revision":self.revision}))
             }
+            "state.observe" => observation::observe(self, machine, p),
+            "video.text" => observation::text(machine, p, self.revision),
             "input.joystick.state" => Ok(joystick_state(machine, self.revision)),
             "input.joystick" => {
                 self.paused()?;

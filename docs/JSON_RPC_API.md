@@ -283,3 +283,31 @@ owners remain explicitly subject to core snapshot preflight/refusal.
 Native GUI snapshot methods also require CPU trace/on/file and disassembly
 recording/file settings disabled; these external sinks are not persistent state.
 The cold candidate factory independently rejects such settings.
+
+## Coherent paused observation
+
+`state.observe` shares the PyPC schema. Pass required `expected_state_revision`,
+optional `memory` (up to16 `{address,length}` windows, at most65536 bytes total),
+optional `video_text` (`{}`, or `page`/byte `display_address`) and boolean
+`video_memory`. Unknown fields, stale revisions, running targets and malformed
+later windows/options are refused with `-32602` before copying. Memory addresses
+use the existing physical/linear/segmented conventions, and `length` defaults to1.
+
+The result has one `state_revision`, `registers` in the existing register shape,
+and ordered `memory` descriptors identical to `memory.read` (address, byte count,
+hex/base64, SHA256 and revision). Requested video components carry that revision.
+`video_memory` is the full16384-byte CGA backing VRAM with address `0xb8000` and
+adapter `CGA`; it is not a rendered frame/font/graphics-plane snapshot.
+RAM/ROM and native CGA VRAM are inspected through immutable native peeks.
+Other MMIO is explicitly refused. Inspection does not execute CPU/device work,
+flush prefetch, consume events or modify Machine state.
+
+`video.text` returns the shared PyPC text schema: adapter, columns/rows,
+page size/count, selected/active page, byte display address, mode/control byte,
+CP437 text rows and raw cells with code/character/attribute/foreground/background/
+blink. CRTC start words are converted to byte addresses, and cell reads wrap in
+CGA's16KiB backing. Control characters are replaced by spaces only in text rows;
+raw cells preserve codes. Rows are25, columns40 or80 from actual CGA mode control.
+Only CGA text is supported; graphics and other adapters are refused rather than
+being decoded as text. These are memory interpretations, not raster/font evidence.
+The optional VGA cursor object that PyPC provides is absent for CGA on both backends.

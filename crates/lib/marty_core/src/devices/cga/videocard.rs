@@ -199,6 +199,10 @@ impl VideoCard for CGACard {
     }
 
     /// Return the 16-bit value computed from the CRTC's pair of Page Address registers.
+    fn cga_mode_control(&self) -> Option<u8> {
+        Some(self.mode_byte)
+    }
+
     fn start_address(&self) -> u16 {
         self.crtc.start_address()
     }

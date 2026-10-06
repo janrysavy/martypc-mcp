@@ -315,6 +315,34 @@ impl BusInterface {
         }
     }
 
+    /// Observation supports backing RAM/ROM and native CGA VRAM, never an
+    /// arbitrary MMIO device (whose guest read may latch or consume state).
+    pub fn is_observable_memory(&self, address: usize) -> bool {
+        if address >= self.memory.len() {
+            return false;
+        }
+        if self.memory_mask[address] & MEM_MMIO_BIT == 0 {
+            return address < self.conventional_size || self.memory_mask[address] & MEM_ROM_BIT != 0;
+        }
+        match self.mmio_map_fast[address >> MMIO_MAP_SHIFT].device {
+            MmioDeviceType::Video(id) => self.videocards.get(&id)
+                .is_some_and(|card| matches!(card, crate::device_traits::videocard::VideoCardDispatch::Cga(_))),
+            _ => self.is_writable_ram(address),
+        }
+    }
+
+    /// Prove a debugger video window belongs to the primary native CGA card.
+    pub fn is_primary_cga_memory(&self, address: usize) -> bool {
+        if address >= self.memory.len() || self.memory_mask[address] & MEM_MMIO_BIT == 0 {
+            return false;
+        }
+        match self.mmio_map_fast[address >> MMIO_MAP_SHIFT].device {
+            MmioDeviceType::Video(id) if self.videocard_ids.first() == Some(&id) => self.videocards.get(&id)
+                .is_some_and(|card| matches!(card, crate::device_traits::videocard::VideoCardDispatch::Cga(_))),
+            _ => false,
+        }
+    }
+
     pub fn peek_u8(&self, address: usize) -> Result<u8, MemError> {
         if address < self.memory.len() {
             return if self.memory_mask[address] & MEM_MMIO_BIT == 0 {
