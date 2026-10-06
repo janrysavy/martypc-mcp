@@ -150,6 +150,7 @@ pub struct Keyboard {
     kb_buffer: Vec<u8>, // Keyboard buffer. Variable length depending on keyboard model.
     kb_buffer_overflow: bool,
     reset_buffer: Vec<u8>, // Keyboard buffer to hold queued reset scancodes on keyboard reset.
+    rpc_scancodes: VecDeque<u8>, // Raw XT wire bytes; delivered only when the PPI latch is ready.
     #[serde(with = "state::mapping_table")]
     keycode_mappings: Vec<KeycodeMapping>,
 }
@@ -168,6 +169,7 @@ impl Default for Keyboard {
             kb_buffer: Vec::new(),
             kb_buffer_overflow: false,
             reset_buffer: Vec::new(),
+            rpc_scancodes: VecDeque::new(),
             keycode_mappings: Vec::new(),
         }
     }
@@ -236,6 +238,28 @@ impl Keyboard {
 
     pub fn get_type(&self) -> KeyboardType {
         self.kb_type
+    }
+
+    /// Queue raw Model-F wire bytes without host layout/macros or typematic.
+    /// Preflight the whole batch before mutation. The bus delivers them through
+    /// the ordinary PPI/PIC path, at native keyboard update boundaries.
+    pub fn queue_rpc_scancodes(&mut self, bytes: &[u8]) -> Result<()> {
+        if self.kb_type != KeyboardType::ModelF {
+            bail!("raw XT injection requires a Model-F keyboard");
+        }
+        if bytes.is_empty() || self.rpc_scancodes.len() + bytes.len() > 4096 {
+            bail!("raw keyboard queue capacity exceeded");
+        }
+        self.rpc_scancodes.extend(bytes.iter().copied());
+        Ok(())
+    }
+
+    pub fn pending_rpc_scancodes(&self) -> usize {
+        self.rpc_scancodes.len()
+    }
+
+    pub(crate) fn recv_rpc_scancode(&mut self) -> Option<u8> {
+        self.rpc_scancodes.pop_front()
     }
 
     pub fn set_type(&mut self, kb_type: KeyboardType) {

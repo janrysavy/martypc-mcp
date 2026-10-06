@@ -23,6 +23,9 @@ use std::{
 
 pub mod snapshot;
 
+#[cfg(test)]
+mod keyboard_tests;
+
 const METHODS: &[&str] = &[
     "agent.capabilities",
     "emulator.info",
@@ -32,6 +35,8 @@ const METHODS: &[&str] = &[
     "state.set_registers",
     "memory.read",
     "memory.write",
+    "input.keyboard",
+    "keyboard.scancode",
     "input.joystick",
     "input.joystick.state",
     "breakpoints.create",
@@ -442,12 +447,13 @@ impl Agent {
                 "endpoint":format!("127.0.0.1:{}",self.port),"methods":METHODS,
                 "cpu":cpu.trim_start_matches("Intel"),"memory_bytes":0x100000,
                 "address_spaces":["physical","linear","segmented"],
-                "limits":{"max_memory_bytes":65536,"memory_write":"installed writable RAM only","completed_operations":64},
+                "limits":{"max_memory_bytes":65536,"max_keyboard_events":32,"max_keyboard_queue":4096,
+                    "memory_write":"installed writable RAM only","completed_operations":64},
                 "clock":{"unit":"cpu_cycle","frequency_hz":machine.get_cpu_mhz()*1_000_000.0},
                 "execution_step_unit":"native machine boundary (including device/interrupt work)",
                 "breakpoint_kinds":["execution"],"step_modes":["into"],
                 "time_base":"system crystal ticks (independent of turbo)",
-                "unsupported":["trace","hardware.trace","video","vnc","serial","input.keyboard","io","machine.snapshot",
+                "unsupported":["trace","hardware.trace","video","vnc","serial","io","machine.snapshot",
                     "memory_read_breakpoints","memory_write_breakpoints","memory_access_breakpoints",
                     "interrupt_breakpoints","step_over","frontend_file_transfer",
                     "frontend_speed_control","frontend_cursor_control","ppi_software_turbo"]}),
@@ -466,6 +472,33 @@ impl Agent {
                 )
             }
             "state.get" | "state.get_registers" => Ok(registers(machine, self.revision)),
+            "input.keyboard" | "keyboard.scancode" => {
+                self.paused()?;
+                let events = if method == "keyboard.scancode" {
+                    vec![p.clone()]
+                } else {
+                    p["events"].as_array().ok_or(("events array required", -32602))?.clone()
+                };
+                if !(1..=32).contains(&events.len()) {
+                    return invalid("1..32 keyboard events required");
+                }
+                let mut bytes = Vec::with_capacity(events.len());
+                for event in events {
+                    let code = number(&event["scan_code"])?;
+                    let pressed = event["pressed"].as_bool().ok_or(("pressed boolean required", -32602))?;
+                    if code > 0x7f {
+                        return invalid("XT make code must be 0..127");
+                    }
+                    bytes.push(code as u8 | if pressed { 0 } else { 0x80 });
+                }
+                if !machine.bus_mut().ppi_mut().as_ref().is_some_and(|ppi| ppi.supports_raw_xt()) {
+                    return invalid("raw XT input requires a supported PPI controller");
+                }
+                let keyboard = machine.bus_mut().keyboard_mut().ok_or(("no keyboard configured", -32602))?;
+                keyboard.queue_rpc_scancodes(&bytes).map_err(|_| ("unsupported keyboard or full queue", -32602))?;
+                self.revision += 1;
+                Ok(json!({"accepted":bytes.len(),"state_revision":self.revision}))
+            }
             "input.joystick.state" => Ok(joystick_state(machine, self.revision)),
             "input.joystick" => {
                 self.paused()?;
@@ -917,7 +950,7 @@ mod tests {
         machine_types::{MachineType, OnHaltBehavior},
     };
 
-    fn machine() -> Machine {
+    pub(super) fn machine() -> Machine {
         machine_with_ppi_turbo(None)
     }
     fn machine_with_ppi_turbo(ppi_turbo: Option<bool>) -> Machine {
@@ -930,13 +963,26 @@ mod tests {
         machine_with_ram(ppi_turbo, halt, game_port, 0)
     }
     fn machine_with_ram(ppi_turbo: Option<bool>, halt: OnHaltBehavior, game_port: bool, ram_size: u32) -> Machine {
+        machine_with_profile(ppi_turbo, halt, game_port, ram_size, false, MachineType::Ibm5160)
+    }
+    pub(super) fn machine_with_keyboard() -> Machine {
+        machine_with_keyboard_on(MachineType::Ibm5160)
+    }
+    pub(super) fn machine_with_keyboard_on(kind: MachineType) -> Machine {
+        machine_with_profile(None, OnHaltBehavior::Warn, false, 0, true, kind)
+    }
+    fn machine_with_profile(ppi_turbo: Option<bool>, halt: OnHaltBehavior, game_port: bool, ram_size: u32, keyboard: bool, kind: MachineType) -> Machine {
         let mut config =
             marty_config::read_config(include_str!("../../../../install/martypc.toml"), Default::default()).unwrap();
         assert!(config.emulator.rpc_port.is_none()); // Missing Option keys deserialize as None.
         config.machine.no_roms = true;
         config.machine.cpu.on_halt = Some(halt);
         let description = MachineConfiguration {
-            machine_type: MachineType::Ibm5160,
+            machine_type: kind,
+            keyboard: keyboard.then_some(marty_core::machine_config::KeyboardConfig {
+                kb_type: marty_core::device_types::keyboard::KeyboardType::ModelF,
+                layout: "US".to_owned(), typematic: false, typematic_delay: None, typematic_rate: None,
+            }),
             ppi_turbo,
             conventional_expansion: if ram_size > 0 {
                 vec![marty_core::machine_config::ConventionalExpansionConfig {

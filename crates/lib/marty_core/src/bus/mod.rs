@@ -1534,8 +1534,20 @@ impl BusInterface {
 
     pub fn process_keyboard_input(&mut self) {
         if let Some(keyboard) = &mut self.keyboard {
+            // On supported XT controllers, do not remove either native or RPC
+            // bytes before the guest acknowledges the occupied PPI latch.
+            if self.ppi.as_ref().is_some_and(|ppi| ppi.supports_raw_xt() && !ppi.keyboard_latch_ready()) {
+                return;
+            }
             // Read a byte from the keyboard
-            if let Some(kb_byte) = keyboard.recv_scancode() {
+            let byte = keyboard.recv_scancode().or_else(|| {
+                if self.ppi.as_ref().is_some_and(|ppi| ppi.supports_raw_xt() && ppi.keyboard_latch_ready()) {
+                    keyboard.recv_rpc_scancode()
+                } else {
+                    None
+                }
+            });
+            if let Some(kb_byte) = byte {
                 //log::debug!("Received keyboard byte: {:02X}", kb_byte);
 
                 // Do we have a PPI? if so, send the scancode to the PPI

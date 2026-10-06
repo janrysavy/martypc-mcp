@@ -372,7 +372,7 @@ mod tests {
                 2 => invalid["bus"]["version"] = 2.into(),
                 3 => invalid["bus"]["keyboard_type"] = "Pcjr".into(),
                 4 => invalid["bus"]["keyboard"] = serde_json::Value::Null,
-                5 => invalid["bus"]["keyboard"]["version"] = 2.into(),
+                5 => invalid["bus"]["keyboard"]["version"] = (saved["bus"]["keyboard"]["version"].as_u64().unwrap() + 1).into(),
                 6 => invalid["bus"]["keyboard"]["keyboard"]["kb_type"] = "Pcjr".into(),
                 _ => invalid["bus"]["keyboard"]["keyboard"]["kb_buffer_size"] = 0.into(),
             }

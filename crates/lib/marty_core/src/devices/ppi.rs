@@ -872,6 +872,18 @@ impl Ppi {
         }
     }
 
+    /// Controllers whose native byte latch/PIC path can carry raw XT bytes.
+    pub fn supports_raw_xt(&self) -> bool {
+        matches!(self.machine_type, MachineType::Ibm5150v64K | MachineType::Ibm5150v256K |
+            MachineType::Ibm5160 | MachineType::CompaqPortable | MachineType::CompaqDeskpro)
+    }
+
+    /// Raw debugger input must wait for the guest's normal PB7 acknowledgement.
+    /// Do not infer readiness from the data byte: zero is a valid wire byte.
+    pub fn keyboard_latch_ready(&self) -> bool {
+        self.kb_enabled() && self.ksr_cleared && !self.keyboard_clear_scheduled && !self.kb_do_reset
+    }
+
     pub fn calc_port_c_value(&self) -> u8 {
         let cassette_bit = if self.cassette_relay_state() == Some(true) {
             (self.cassette_in as u8) << 4
@@ -1152,6 +1164,7 @@ impl Ppi {
                         self.kb_resets_counter.update((*self.kb_resets_counter).wrapping_add(1));
 
                         log::trace!("PPI: Sending keyboard reset byte");
+                        self.ksr_cleared = false;
                         self.kb_byte.update(0xAA);
 
                         if self.kb_enabled {
