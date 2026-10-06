@@ -875,14 +875,10 @@ impl CGACard {
     /// until we are back in phase with the character clock.
     #[inline]
     fn calc_cycles_owed(&mut self) -> u32 {
-        if !self.ticks_advanced.is_multiple_of(CGA_LCHAR_CLOCK as u32) {
-            // We have advanced the CGA card out of phase with the character clock. Count
-            // how many pixel clocks we need to tick by to be back in phase.
-            ((!self.cycles).wrapping_add(1) & 0x0F) as u32
-        }
-        else {
-            0
-        }
+        // An integral number of access ticks does not establish clock alignment:
+        // catch-up may have started partway through a character. Align the actual
+        // pixel clock to LCLOCK, which is also a boundary in high-clock mode.
+        self.calc_phase_offset()
     }
 
     #[inline]
@@ -1928,7 +1924,7 @@ mod snapshot_phase_tests {
             assert_eq!(card.calc_phase_offset(),expected,"phase at {cycles}");
             assert_eq!(card.calc_cycles_owed(),expected,"owed at {cycles}");
             card.ticks_advanced=16;
-            assert_eq!(card.calc_cycles_owed(),0);
+            assert_eq!(card.calc_cycles_owed(),expected);
         }
     }
 
@@ -1940,4 +1936,24 @@ mod snapshot_phase_tests {
         assert_eq!(card.start_address(),0x1200);
         assert_eq!(card.cycles,0);
     }
+    #[test]
+    fn cga_integral_character_catchup_realigns_actual_pixel_phase() {
+        use crate::device_traits::videocard::VideoCard;
+        for divisor in [1, 2] {
+            let mut card = CGACard::new(TraceLogger::None, ClockingMode::Dynamic, false);
+            card.clock_divisor = divisor;
+            card.char_clock = 8 * u32::from(divisor);
+            card.char_clock_mask = u64::from(card.char_clock - 1);
+            // Actual turbo BIOS failure: a 16-tick access finishes at pixel phase 3.
+            card.cycles = 5623739;
+            card.ticks_advanced = 16;
+            card.pixel_clocks_owed = card.calc_cycles_owed();
+            let before = card.cycles;
+            VideoCard::run(&mut card, DeviceRunTimeUnit::SystemTicks(48), &mut None, None);
+            assert_eq!(card.cycles & card.char_clock_mask, 0);
+            // Remaining 32 ticks are executed pixels or retained in the accumulator.
+            assert_eq!(card.cycles + u64::from(card.clocks_accum), before + 32);
+        }
+    }
+
 }

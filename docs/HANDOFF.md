@@ -1,9 +1,17 @@
 # Shared observation, snapshots and native tracing, 2026-10-06
 
+FINISHED local CGA phase correction: an integral16-tick access can still end at
+pixel phase3. The old-source native regression reproduces the turbo BIOS panic;
+owed pixels now use the actual clock's LCLOCK phase, preserving all clock ticks.
+Both8/16-pixel character modes are covered; all325 core tests pass.
+Fresh Pyro boot, review and CI remain
+WIP; no physical CGA or turbo gameplay parity claim follows from this test.
+
 FINISHED local timer-conversion fix: selected CPU factor now converts complete
 PIT intervals for refresh/interrupt hints. Old-source native reload18 probe fails
 turbo period72 versus216; fixed normal72/turbo216 and complete component replay
-pass. All324 core tests pass, including divisor/multiplier/zero-reload cases.
+pass. All324 core tests pass, including divisor/multiplier/65536-tick conversion.
+Actual PIT zero-reload programming and physical refresh cadence remain unproven.
 Fresh original Pyro/BIOS boot, final review/CI and integration remain WIP.
 Runtime turbo switches after programming a timer remain an unproven path;
 alternate AT timer conversion remains explicitly unimplemented. No physical
