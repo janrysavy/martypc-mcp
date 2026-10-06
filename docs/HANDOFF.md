@@ -39,8 +39,15 @@ disk size and missing-file controls preserve complete Machine/revision, caller
 VHD bytes and absent output roots; positive reference import matches. Local44
 RPC +10 config +5 headless and319 serial/sound core tests pass; a new executable
 binds604 source inputs. Two existing TCP digest assertions now require -32602.
-WIP: fresh original-Pyro cold reference proof, actual-main rebase/final-head CI.
-The older cold witness used -32000 and does not prove this corrected contract.
+The review accepts typed classification; its missing candidate-factory failure
+control is now populated and refuses -32000 before output or live mutation.
+Fresh original-Pyro natural boot verifies86064 original code bytes. Reference
+and embedded cold restarts now preserve every Machine field and both full VHDs
+immediately/after200ms; both incorrect digest controls refuse -32602 atomically.
+The native witness predates only the added backend-control test, with identical
+production code. Owned guests are closed. WIP: final combined PR37 source/CI/live
+proof and linear integration; parent evidence publication is being finalized.
+The older cold witness used -32000 and remains historical.
 
 # Shared snapshot contract slice, 2026-10-06
 
@@ -58,8 +65,9 @@ A separate embedded snapshot cold restart matches every Machine field and both
 VHDs immediately and after200ms; wrong digest leaves cold state unchanged.
 Evidence: https://github.com/janrysavy/pyro221_next/tree/master/docs/evidence/emulator_rpc_portability_20261006
 Owned native guests are closed. WIP: actual-main rebase, final-head CI and PR39
-integration. Reference-files cold restart and whole-game/timing parity remain
-unproved; the reference-policy witness is same-process. See JSON_RPC_API.md.
+integration. This older reference-policy witness was same-process; the corrected
+cold proof is described above. Whole-game/timing parity remains unproved.
+See JSON_RPC_API.md.
 
 # Coherent observation slice, 2026-10-06
 
