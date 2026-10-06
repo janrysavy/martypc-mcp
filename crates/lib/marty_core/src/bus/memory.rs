@@ -325,7 +325,7 @@ impl BusInterface {
             return address < self.conventional_size || self.memory_mask[address] & MEM_ROM_BIT != 0;
         }
         match self.mmio_map_fast[address >> MMIO_MAP_SHIFT].device {
-            MmioDeviceType::Video(id) => self.videocards.get(&id)
+            MmioDeviceType::Video(id) => (0xb8000..0xc0000).contains(&address) && self.videocards.get(&id)
                 .is_some_and(|card| matches!(card, crate::device_traits::videocard::VideoCardDispatch::Cga(_))),
             _ => self.is_writable_ram(address),
         }
