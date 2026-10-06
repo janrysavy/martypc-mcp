@@ -8,10 +8,12 @@ before/after bytes, effects contain memory/I/O only, PIC dispatch is top-level.
 Word I/O wraps FFFFh to 0000h and reports either mapped byte. Any active native
 host journal refuses snapshot capture. Native queue/timing are not substituted;
 NEC observation refused. Scope and phase limits: docs/JSON_RPC_API.md.
-Rebased on tested keyboard 9059a86f: 48 RPC, 10 config, 5 headless and 323 core tests pass,
+Rebased on tested keyboard 9059a86f: 49 RPC, 10 config, 5 headless and 323 core tests pass,
 including complete serialized Machine equality with observation enabled.
 IRQ 8..15 and unavailable memory phases are refused; lost journal/effect counts
-are separate and incomplete CPU traces stop. Original-Pyro proof, frozen review and
+are separate and incomplete CPU traces stop. Independent review corrections include
+stopping at exactly 65536 effects; its native-store capacity regression passes.
+Original-Pyro proof and
 final-head CI/rebase integration remain WIP. Rebase after observation
 slices. Full original-game/physical timing equivalence remains OPEN.
 

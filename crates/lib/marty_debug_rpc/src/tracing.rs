@@ -219,7 +219,10 @@ impl Agent {
             }
             self.trace.events.push(event);
             self.trace.remaining -= 1;
-            self.trace.active = self.trace.remaining > 0 && retained == effects.len() && dropped == 0;
+            self.trace.active = self.trace.remaining > 0
+                && self.trace.effect_count < 65536
+                && retained == effects.len()
+                && dropped == 0;
         }
         if self.hardware.active {
             for event in events {
