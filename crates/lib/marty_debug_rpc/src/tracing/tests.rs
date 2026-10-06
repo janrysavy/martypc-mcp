@@ -353,3 +353,37 @@ fn exact_effect_capacity_stops_recording_without_a_later_boundary() {
     assert_eq!(data["active"], false);
     assert_eq!(data["events"].as_array().unwrap().last().unwrap()["dropped_effect_count"], 0);
 }
+
+#[test]
+fn pending_rom_reload_stops_without_a_fabricated_native_boundary() {
+    for method in ["execution.step", "execution.continue"] {
+        let mut m = machine();
+        let mut a = Agent::new(2301);
+        call(&mut a, &mut m, "trace.start", json!({"instruction_count":4}));
+        call(&mut a, &mut m, "hardware.trace.start", json!({"capacity":16}));
+        call(&mut a, &mut m, "breakpoints.create", json!({"kind":"memory_write","address":0x200}));
+        m.set_reload_pending(true);
+        let before = serde_json::to_value(m.snapshot_state_quiesced(marty_core::vhd::DiskCaptureMode::Embed,0).unwrap().0).unwrap();
+        let revision = a.revision;
+        let op = a.handle(&mut m, method, &json!({})).unwrap();
+        a.advance(&mut m);
+        assert!(!a.running, "native zero-progress operation must complete immediately");
+        let done = call(&mut a, &mut m, "execution.wait", json!({"operation_id":op["operation_id"]}));
+        assert_eq!(done["stop_reason"]["kind"], "backend_no_progress");
+        assert_eq!(done["stop_reason"]["executed_instruction_count"], 0);
+        assert_eq!(a.revision, revision);
+        assert!(a.trace.events.is_empty());
+        assert!(a.hardware.events.is_empty());
+        assert!(!m.bus().debug_observing());
+        let after = serde_json::to_value(m.snapshot_state_quiesced(marty_core::vhd::DiskCaptureMode::Embed,0).unwrap().0).unwrap();
+        assert_eq!(before, after, "CPU, queue, RAM and devices must retain the refused boundary");
+        m.set_reload_pending(false);
+        let op = a.handle(&mut m, "execution.step", &json!({})).unwrap();
+        a.advance(&mut m);
+        let done = call(&mut a, &mut m, "execution.wait", json!({"operation_id":op["operation_id"]}));
+        assert_eq!(done["stop_reason"]["kind"], "step");
+        assert_eq!(a.revision, revision + 1);
+        assert_eq!(a.trace.events.len(), 1);
+        assert!(!m.bus().debug_observing());
+    }
+}
