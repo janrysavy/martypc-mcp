@@ -43,6 +43,7 @@ pub struct Event {
 pub struct Observation {
     pub(crate) events: Vec<Event>,
     pub(crate) dropped: usize,
+    pub(crate) dropped_effects: usize,
 }
 
 impl BusInterface {
@@ -70,14 +71,18 @@ impl BusInterface {
             record(journal, event);
         }
     }
-    pub fn debug_end(&mut self) -> (Vec<Event>, usize) {
+    pub fn debug_end(&mut self) -> (Vec<Event>, usize, usize) {
         self.debug_classes = 0;
         if let Some(pic) = self.pic1.as_mut() {
             pic.debug_journal = None;
         }
         let journal = self.debug_observation.take().unwrap();
         let mut observation = journal.lock().unwrap();
-        (std::mem::take(&mut observation.events), observation.dropped)
+        (
+            std::mem::take(&mut observation.events),
+            observation.dropped,
+            observation.dropped_effects,
+        )
     }
 }
 
@@ -87,12 +92,46 @@ pub(crate) fn record(journal: &Journal, event: Event) {
         observation.events.push(event);
     } else {
         observation.dropped += 1;
+        if event.kind.starts_with("memory_") || event.kind.starts_with("io_") {
+            observation.dropped_effects += 1;
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn full_journal_counts_memory_io_losses_separately_from_opcode_and_pic_losses() {
+        let journal = Journal::default();
+        let mut event = Event {
+            kind: "instruction_byte",
+            clock: 0,
+            cs: 0,
+            ip: 0,
+            address: 0,
+            width: 1,
+            value: 0,
+            old: None,
+            interrupt_kind: None,
+            ah: 0,
+            al: 0,
+            irq: None,
+            handled: None,
+            registers: None,
+        };
+        for _ in 0..65536 {
+            record(&journal, event.clone());
+        }
+        for kind in ["instruction_byte", "irq_raise", "memory_write", "io_read"] {
+            event.kind = kind;
+            record(&journal, event.clone());
+        }
+        let state = journal.lock().unwrap();
+        assert_eq!(state.events.len(), 65536);
+        assert_eq!(state.dropped, 4);
+        assert_eq!(state.dropped_effects, 2);
+    }
     #[test]
     fn native_word_io_wraps_second_port_without_overflow_or_device_invention() {
         let mut bus = BusInterface::default();
