@@ -182,3 +182,35 @@ fn overridden_cga_mapping_is_refused_before_copying_video() {
     assert_eq!(registers(&mut m, 0), before);
     assert_eq!(m.system_ticks(), ticks);
 }
+
+#[test]
+fn remapped_cga_outside_native_aperture_is_refused_without_underflow() {
+    use marty_core::bus::{MemRangeDescriptor, MmioDeviceType};
+    let mut m = fixture();
+    let a = Agent::new(1);
+    let id = m.bus().enumerate_videocards()[0];
+    m.bus_mut().register_map(
+        MmioDeviceType::Video(id),
+        MemRangeDescriptor {
+            address: 0xa0000,
+            size: 8192,
+            cycle_cost: 0,
+            read_only: false,
+            priority: 0,
+        },
+    );
+    let before = registers(&mut m, 0);
+    let ticks = m.system_ticks();
+    assert_eq!(
+        observe(
+            &a,
+            &mut m,
+            &json!({"expected_state_revision":0,"memory":[{"address":0xa0000}]})
+        )
+        .unwrap_err()
+        .1,
+        -32602
+    );
+    assert_eq!(registers(&mut m, 0), before);
+    assert_eq!(m.system_ticks(), ticks);
+}

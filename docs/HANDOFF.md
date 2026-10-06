@@ -2,9 +2,10 @@
 
 FINISHED source: shared paused `state.observe` and native CGA `video.text`.
 Whole-request preflight, revision guards and immutable peeks avoid mixed captures.
-FINISHED local36 RPC tests, including complete Machine equality and actual JSON
+FINISHED local37 RPC tests, including complete Machine equality and actual JSON
 dispatch. Initial review mapping defects were corrected; CP437127 claim disproved.
-WIP: follow-up review, common parent live contract, publication and CI; do not
+Follow-up review found an off-aperture CGA mapping panic; it is now refused.
+WIP: final scoped review, common parent live contract, publication and CI; do not
 assume integration passed. See JSON_RPC_API.md.
 
 # Raw XT keyboard RPC, 2026-10-06
