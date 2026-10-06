@@ -8,7 +8,7 @@ pub(super) struct CpuTrace {
     effect_count: usize,
     remaining: usize,
     detail: String,
-    events: Vec<Value>,
+    pub(super) events: Vec<Value>,
 }
 #[derive(Default)]
 pub(super) struct HardwareTrace {
@@ -34,7 +34,12 @@ fn effect(event: &Event) -> Value {
         out["address"] = json!({"space":"linear","offset":event.address});
         out["instruction_address"] = instruction(event);
         out["byte_count"] = json!(event.width);
-        out["data_base64"] = json!(STANDARD.encode(data));
+        if event.kind == "memory_read" {
+            out["data_base64"] = json!(STANDARD.encode(data));
+        } else {
+            out["before_base64"] = json!(event.old.as_ref().map(|old| STANDARD.encode(old)));
+            out["after_base64"] = json!(STANDARD.encode(data));
+        }
     } else if event.kind.starts_with("io_") {
         out["port"] = json!(event.address & 0xffff);
         out["byte_count"] = json!(event.width);
@@ -177,7 +182,7 @@ impl Agent {
                 .collect::<Vec<_>>();
             let effects = events
                 .iter()
-                .filter(|e| e.kind != "instruction_byte")
+                .filter(|e| e.kind.starts_with("memory_") || e.kind.starts_with("io_"))
                 .collect::<Vec<_>>();
             let available = 65536usize.saturating_sub(self.trace.effect_count);
             let retained = effects.len().min(available);
@@ -198,6 +203,12 @@ impl Agent {
                 "clock_before":before["clock"],"clock_after":after["clock"],
                 "clock_delta":after["clock"].as_u64().unwrap()-before["clock"].as_u64().unwrap(),
                 "effects":effects[..retained].iter().map(|e|effect(e)).collect::<Vec<_>>(),"dropped_effect_count":dropped+effects.len()-retained});
+            if let Some(dispatch) = events.iter().find(|e| e.kind == "irq_dispatch") {
+                event["interrupt"] = json!({"source":"pic","irq":dispatch.irq,"vector":dispatch.address});
+            } else if let Some(dispatch) = events.iter().find(|e| e.interrupt_kind.as_deref() == Some("Hardware")) {
+                // The vector is native; do not invent a PIC line when its source is unavailable.
+                event["interrupt"] = json!({"source":"hardware","vector":dispatch.address});
+            }
             self.trace.effect_count += retained;
             if self.trace.detail != "csip" {
                 event["registers_before"] = before.clone();
@@ -223,7 +234,7 @@ impl Agent {
         }
         for event in events {
             let mut found = None;
-            for bp in self.breakpoints.values_mut() {
+            for bp in self.ordered_breakpoints_mut() {
                 if skip == Some(bp.id.as_str()) {
                     continue;
                 }

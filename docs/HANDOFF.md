@@ -1,15 +1,18 @@
 # Native observation slice, 2026-10-06
 
-FINISHED local Intel8088/8086 data watchpoints and bounded CPU/I/O/PIC traces.
-Actual BIU accesses identify owner/value; native PIC edges/accepted lines are
-ordered. Async execution.step returns entry+operation_id; execution.wait owns
-completed-state inspection. Docs state native boundary/interrupt-phase and PIC
-clock-interval limits, actual consumed prefetch bytes, overflow and snapshot
-journal clearing. No prefetch/timing substitution; NEC observation refused.
-Fresh37 RPC +10 config +5 headless checks pass. Native serial/sound suite,
-independent review, original-Pyro live witness, final-head CI/rebase integration
-are WIP: do not assume they passed. Integration must rebase after keyboard and
-observation/snapshot slices. Full original-game/physical timing remains OPEN.
+FINISHED Intel8088/8086 BIU data watchpoints and bounded CPU/I/O/PIC traces.
+Async step accepts entry+operation_id; read completion at stop_reason.registers.
+Memory and dispatched interrupts never skip their next access on resume;
+overlapping hits/listing follow numeric creation order. Trace writes carry
+before/after bytes, effects contain memory/I/O only, PIC dispatch is top-level.
+Word I/O wraps FFFFh to 0000h and reports either mapped byte. Any active native
+host journal refuses snapshot capture. Native queue/timing are not substituted;
+NEC observation refused. Scope and phase limits: docs/JSON_RPC_API.md.
+Fresh 41 RPC +10 config +5 headless and 321 serial/sound core tests pass,
+including complete serialized Machine equality with observation enabled.
+Review corrections are implemented; original-Pyro live proof, second review and
+final-head CI/rebase integration remain WIP. Rebase after keyboard/observation
+slices. Full original-game/physical timing equivalence remains OPEN.
 
 ## Earlier handoff (historical)
 

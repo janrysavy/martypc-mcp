@@ -169,7 +169,7 @@ impl BusInterface {
 
     pub fn io_read_u16(&mut self, port: u16, cycles: u32) -> u16 {
         let low_byte = self.io_read_u8(port, cycles);
-        let high_byte = self.io_read_u8(port + 1, cycles);
+        let high_byte = self.io_read_u8(port.wrapping_add(1), cycles);
         (low_byte as u16) | ((high_byte as u16) << 8)
     }
 
@@ -391,6 +391,6 @@ impl BusInterface {
         let high_byte = (data >> 8) as u8;
 
         self.io_write_u8(port, low_byte, cycles, None);
-        self.io_write_u8(port + 1, high_byte, cycles, None);
+        self.io_write_u8(port.wrapping_add(1), high_byte, cycles, None);
     }
 }

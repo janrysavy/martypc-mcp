@@ -100,11 +100,11 @@ limitations and full-machine snapshot gaps still apply.
 | `input.joystick.state` | Configured `joysticks` with index `joystick`, normalized `x`/`y`, boolean `buttons`, and revision. An absent game port reports an empty array. |
 | `input.joystick` | Paused only. Complete `joystick`, finite `x`/`y` in -1..1 and `buttons` matching the configured layout (two buttons per stick, or four on a single stick). Entire request preflighted before native potentiometer/button mutation; guest clock does not advance. Returns the same state schema. |
 | `breakpoints.create` | Optional `kind:"execution"` (default), `memory_read`, `memory_write`, `memory_access`, or `interrupt`; `address` for execution/memory, `event` for interrupt; optional boolean `once`, `condition`, `hit_filter`, bounded `length` (default 1). Returns `breakpoint_id` and descriptor. Maximum 256 persistent breakpoints. |
-| `breakpoints.list` | Returns `breakpoints` array. |
+| `breakpoints.list` | Returns `breakpoints` array in creation order, also used for selecting overlapping hits. |
 | `breakpoints.delete` | `breakpoint_id`; unknown IDs are errors. |
 | `execution.continue`, `execution.go` | Paused, powered-on machine required. Exact aliases; registers, `operation_id`, `state:"running"`, `paused:false`. |
 | `execution.run_until` | Same precondition; private one-shot execution, memory or software-interrupt `predicate`, optional positive `max_emulated_ns` (at most 60 seconds). Returns operation and predicate IDs. |
-| `execution.wait` | `operation_id`, optional `timeout_ms` in 0..60000. Nonblocking poll, as in PyPC. Returns `running:true` or stopped registers and `stop_reason`. Last 64 completed operations retained in completion order. |
+| `execution.wait` | `operation_id`, optional `timeout_ms` in 0..60000. Nonblocking poll, as in PyPC. Returns `running:true` or `state:"stopped"` and `stop_reason`; read completed registers from `stop_reason.registers` (shared PyPC contract). Flat completed register fields are retained for compatibility. Last 64 completed operations retained in completion order. |
 | `execution.pause` | Stops current operation. An already stopped machine retains its previous stop reason. Returns paused registers. |
 | `execution.step` | Paused, powered-on machine; optional `mode:"into"`. Returns accepted entry registers, `stepping:true` and `operation_id`; poll `execution.wait` for actual completed registers and stop reason. Step-over is unsupported. |
 
@@ -114,6 +114,9 @@ Addresses accept an unsigned integer or numeric string (decimal, `0x`, `0b`,
 Segmented addresses wrap at 20 bits; ranges crossing the end of 1 MiB are
 refused. A segmented execution breakpoint requires the actual CS:IP pair;
 physical/linear breakpoints match its physical address including aliases.
+Resuming an execution stop suppresses that breakpoint once so its instruction
+can execute. Memory and native interrupt dispatches have already completed;
+resuming never suppresses the next matching access or nested interrupt.
 For execution breakpoints, `length` is validated descriptor metadata and does
 not widen exact-address matching, matching PyPC's `matches_address` behavior.
 String separators such as
@@ -197,7 +200,8 @@ all memory traffic. Native transient journals are disabled outside execution.
 
 Memory predicates use `kind`, `address` and optional contiguous `length`,
 `once` and `hit_filter`. Register conditions are refused. The actual completed
-BIU transfer is recorded, excluding instruction fetches and host inspection.
+Intel CPU BIU transfer is recorded, excluding instruction fetches, host
+inspection and device-originated DMA writes.
 A stop has `access.kind`, normalized linear `address`, `byte_count`, integer
 `new_value`, optional integer `old_value`, and segmented `instruction_address`.
 Reads report identical old/new values; unavailable side-effect-free old bytes
@@ -206,8 +210,8 @@ reports the transfer value, not a guarantee that ROM/MMIO retained that value.
 Execution stops **after the completed native machine boundary**, with actual
 stop registers and `phase:"after_native_boundary"`; later transfers belonging
 to that boundary have already happened. A one-shot/private predicate stops on
-its first selected recorded access. Continuing skips that persistent breakpoint
-for one boundary, matching the shared resume convention.
+its first selected recorded access. Continuing from a completed access never
+suppresses the next matching access.
 
 Software-interrupt selectors use `event:{type:"software_interrupt",number:N}`
 and optional Byte `ah`/`al`. Conditions are evaluated on native registers at
@@ -221,7 +225,10 @@ CPU trace starts while paused, with `instruction_count`1..65536 (default256)
 and `detail` csip/short/normal/long. The budget counts native machine boundaries,
 including REP continuations, HLT and interrupt work. Events have `sequence`,
 `kind`, segmented `address`, `physical`, `opcode_hex`, native CPU
-`clock_before/after/delta`, and ordered `effects`. Opcode bytes are **actual
+`clock_before/after/delta`, and ordered memory/I/O `effects`. Reads carry
+`data_base64`; writes carry nullable `before_base64` and `after_base64`.
+PIC dispatch is a top-level `interrupt:{source:"pic",irq,vector}` rather than
+an effect; PIC edge events belong to the hardware trace. Opcode bytes are **actual
 consumed prefetch bytes**, not a RAM peek that can differ from a stale queue.
 `opcode_scope` identifies this; REP continuation boundaries may have no new
 opcode bytes and are marked `native_boundary`. Normal/long include actual
@@ -232,7 +239,8 @@ Read/stop before start and start while active are errors.
 Hardware trace accepts capacity1..65536 (default4096), boolean `include_io`
 and `include_irq`, port ranges `{first,last}` and IRQ-line filters. At least
 one class is required; empty filters mean all. Native port transfers report
-kind, address, port, byte_count, value, device `handled`, CPU-cycle
+kind, address, port, byte_count, value, device `handled` (at least one byte
+port has a native mapping, including word transfers), CPU-cycle
 `emulated_time` and sequence. Native PIC hooks report exact ordered
 `irq_raise`, `irq_lower` and accepted `irq_dispatch` with actual line/vector.
 A pulse records both edges. Duplicate high requests are not new line edges.

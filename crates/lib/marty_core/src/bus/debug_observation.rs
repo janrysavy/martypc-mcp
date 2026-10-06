@@ -46,8 +46,8 @@ pub struct Observation {
 }
 
 impl BusInterface {
-    pub fn debug_port_handled(&self, port: u16) -> bool {
-        self.io_map.contains_key(&port)
+    pub fn debug_port_handled(&self, port: u16, width: usize) -> bool {
+        (0..width).any(|offset| self.io_map.contains_key(&port.wrapping_add(offset as u16)))
     }
     pub fn debug_class(&self, class: u8) -> bool {
         self.debug_classes & class != 0
@@ -93,6 +93,22 @@ pub(crate) fn record(journal: &Journal, event: Event) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn native_word_io_wraps_second_port_without_overflow_or_device_invention() {
+        let mut bus = BusInterface::default();
+        assert_eq!(bus.io_read_u16(0xffff, 0), 0xffff);
+        bus.io_write_u16(0xffff, 0x1234, 0, None);
+        assert!(!bus.debug_port_handled(0xffff, 2));
+    }
+    #[test]
+    fn word_io_handled_reports_either_half_including_port_wrap() {
+        let mut bus = BusInterface::default();
+        bus.io_map.insert(0, super::super::IoDeviceType::PicPrimary);
+        assert!(!bus.debug_port_handled(0xffff, 1));
+        assert!(bus.debug_port_handled(0xffff, 2));
+        assert!(bus.debug_port_handled(0, 2));
+        assert!(!bus.debug_port_handled(1, 2));
+    }
     #[test]
     fn bounded_shared_pic_journal_preserves_native_lines_and_refuses_active_snapshots() {
         let mut pic = crate::devices::pic::Pic::new();

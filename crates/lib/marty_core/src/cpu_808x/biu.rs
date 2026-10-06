@@ -1328,7 +1328,7 @@ impl Intel808x {
                     kind, clock: self.cycle_num, cs: self.cs, ip: self.instruction_ip,
                     address: self.address_latch, width,
                     value, old, interrupt_kind: None, ah: self.a.h(), al: self.a.l(), irq: None,
-                    handled: if kind.starts_with("io_") {Some(self.bus.debug_port_handled(self.address_latch as u16))} else {None},
+                    handled: if kind.starts_with("io_") {Some(self.bus.debug_port_handled(self.address_latch as u16, width))} else {None},
                     registers:None,
                 });
             }
