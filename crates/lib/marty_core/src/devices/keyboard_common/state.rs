@@ -118,6 +118,41 @@ scancodes = []
     }
 
     #[test]
+    fn raw_xt_fifo_restart_requires_queue_and_refuses_invalid_queue_atomically() {
+        let mut kb = configured(KeyboardType::ModelF);
+        kb.queue_rpc_scancodes(&[0, 0x80, 0x1e, 0x9e]).unwrap();
+        let saved = kb.snapshot_state().unwrap();
+        for expected in [0, 0x80, 0x1e, 0x9e] {
+            let mut restored = restore(&kb);
+            assert_eq!(kb.recv_rpc_scancode(), Some(expected));
+            assert_eq!(restored.recv_rpc_scancode(), Some(expected));
+            assert_eq!(restored.snapshot_state().unwrap(), kb.snapshot_state().unwrap());
+        }
+        kb.restore_state(&saved).unwrap();
+        for invalid in [
+            { let mut q = saved.clone(); q.keyboard.rpc_scancodes = vec![0; 4097].into(); q },
+            { let mut q = saved.clone(); q.keyboard.kb_type = KeyboardType::Pcjr; q },
+            { let mut q = saved.clone(); q.version = 1; q },
+        ] {
+            assert!(kb.restore_state(&invalid).is_err());
+            assert_eq!(kb.snapshot_state().unwrap(), saved);
+        }
+        let mut missing = serde_json::to_value(&saved).unwrap();
+        missing["keyboard"].as_object_mut().unwrap().remove("rpc_scancodes");
+        assert!(serde_json::from_value::<KeyboardSnapshot>(missing).is_err());
+        let mut full = configured(KeyboardType::ModelF);
+        full.queue_rpc_scancodes(&vec![0x1e; 4096]).unwrap();
+        let before = full.snapshot_state().unwrap();
+        assert!(full.queue_rpc_scancodes(&[0x9e]).is_err());
+        assert_eq!(full.snapshot_state().unwrap(), before);
+        for kind in [KeyboardType::Tandy1000, KeyboardType::Pcjr] {
+            let mut unsupported = configured(kind);
+            assert!(unsupported.queue_rpc_scancodes(&[0]).is_err());
+            assert_eq!(unsupported.pending_rpc_scancodes(), 0);
+        }
+    }
+
+    #[test]
     fn keyboard_json_restore_continues_native_input_repeat_reset_and_macros() {
         for kind in TYPES {
             let mut reference = configured(kind);
@@ -493,7 +528,7 @@ pub(crate) struct KeyboardSnapshot {
 impl Keyboard {
     pub(crate) fn snapshot_state(&self) -> Result<KeyboardSnapshot, &'static str> {
         let saved = KeyboardSnapshot {
-            version: 1,
+            version: 2,
             keyboard: self.clone(),
         };
         self.preflight_state(&saved)?;
@@ -502,12 +537,15 @@ impl Keyboard {
 
     pub(crate) fn preflight_state(&self, saved: &KeyboardSnapshot) -> Result<(), &'static str> {
         let kb = &saved.keyboard;
-        if saved.version != 1
+        if saved.version != 2
             || kb.kb_type != self.kb_type
             || kb.kb_type == KeyboardType::ModelM
             || kb.kb_buffer_size == 0
         {
             return Err("incompatible/unsupported keyboard version/type/buffer");
+        }
+        if kb.rpc_scancodes.len() > 4096 || (kb.kb_type != KeyboardType::ModelF && !kb.rpc_scancodes.is_empty()) {
+            return Err("invalid raw XT keyboard queue");
         }
         if !kb.typematic_delay.is_finite()
             || !kb.typematic_rate.is_finite()

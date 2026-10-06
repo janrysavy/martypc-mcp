@@ -60,7 +60,7 @@ are also ignored under RPC. Reboot/debug-step/menu hotkeys cannot take execution
 ownership even with manual input enabled. Looping audio pause follows RPC's
 actual running state. Live sound-output/input injection proof remains open.
 Deliberate RPC input remains available; snapshot commands require a supported
-profile. Hardware keyboard RPC remains OPEN.
+profile. Raw XT keyboard RPC is described below.
 
 The server binds only `127.0.0.1`. Send one JSON-RPC 2.0 object per newline over
 TCP; connections are persistent. Replies preserve request IDs. Notifications
@@ -93,6 +93,8 @@ limitations and full-machine snapshot gaps still apply.
 | `state.set_registers` | Paused only. Requires `expected_state_revision`, `expected` values and nonempty `set`. AX/BX/CX/DX/SP/BP/SI/DI/CS/DS/ES/SS/IP/FLAGS, lowercase. All guards and Word ranges checked before any write. Returns `before`/`after`. |
 | `memory.read` | `address`, optional `length` (default 1, maximum 65536). Returns physical address, byte count, hex, base64, SHA-256 and revision. Uses native bus peeks. |
 | `memory.write` | Paused only. `address`, `data_base64`, optional `expected_sha256` (case insensitive). Preflights the entire range; only installed writable RAM is writable (base RAM or configured conventional RAM expansion). ROM, video, EMS and other MMIO devices remain refused. Returns before/after hashes and revision. |
+| `input.keyboard` | Paused only. `events`:1..32 objects with `scan_code`0..127 and boolean `pressed`. Queues raw XT make/break bytes through a Model-F keyboard with IBM5150/5160 or Compaq Portable/Deskpro PPI, and native IRQ1; no BIOS-ring writes, host mappings or automatic typematic. Entire batch validates before mutation. Returns `accepted` and `state_revision`. Queue capacity4096; resume execution to deliver. |
+| `keyboard.scancode` | Single-event alias: `scan_code` and `pressed` at the parameter root. Same hardware queue and guards. |
 | `input.joystick.state` | Configured `joysticks` with index `joystick`, normalized `x`/`y`, boolean `buttons`, and revision. An absent game port reports an empty array. |
 | `input.joystick` | Paused only. Complete `joystick`, finite `x`/`y` in -1..1 and `buttons` matching the configured layout (two buttons per stick, or four on a single stick). Entire request preflighted before native potentiometer/button mutation; guest clock does not advance. Returns the same state schema. |
 | `breakpoints.create` | Optional `kind:"execution"` (default), `address`, optional boolean `once`, `condition`, `hit_filter`, bounded `length` (default 1). Returns `breakpoint_id` and descriptor. Maximum 256 persistent breakpoints. |
@@ -145,8 +147,25 @@ buttons remain native device behavior. This does not inject keys or alter Pyro
 memory. Configure `[machine.game_port]` with `io_base = 0x201` to attach a card.
 Host input is a paused boundary operation; explicitly resume after setting it.
 
+Raw keyboard bytes wait behind existing native keyboard output. IBM PC/XT and
+Compaq Portable controllers require the enabled PPI, high keyboard clock and
+acknowledged previous latch. Zero is a valid wire byte: readiness uses the latch
+state, not its value. Delivery uses existing bus keyboard service: periodic
+updates when its accumulator exceeds5000 microseconds, and native host-key event
+boundaries. A host event producing no native byte can therefore service an RPC
+byte earlier. This is native emulator scheduling, not measured physical wire
+timing. The cold IBM5160 probe brackets its first delivery at4997142..5000914ns.
+The existing Deskpro native `kb_enabled()` policy is always true: queued bytes
+still wait for latch acknowledgement, but PB7/clock inhibition is not modeled
+there. The IBM5160 proofs do not establish Deskpro hardware behavior.
+Press/release are explicit bytes; holding a raw make event does not trigger host typematic.
+Use the ordinary scan codes for modifiers and their explicit break events.
+The FIFO is mandatory in keyboard snapshot version2; earlier component snapshots
+are refused rather than silently losing pending input. Complete machine imports
+still require the exact executable/configuration/ROM/disk identities.
+
 **Unsupported:** instruction/hardware tracing, memory/interrupt watchpoints,
-step-over, video/VNC, keyboard injection, serial channels,
+step-over, video/VNC, serial channels,
 frontend file-transfer services and frontend speed/cursor controls. Unsupported
 PPI software-turbo configurations are refused before the listener starts:
 their native `frame_update` housekeeping is not scheduled by this frontend.
