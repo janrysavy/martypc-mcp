@@ -1,6 +1,8 @@
 # Shared observation, snapshots and native tracing, 2026-10-06
 
 FINISHED local VGA owner and native text-path fixes: all336 core tests pass,
+with a paired malformed 65536x65536 field control and checked area multiplication
+so wasm32 cannot wrap past raster validation. Corrected-code review otherwise passes.
 including exact JSON restore/native bus continuation, injected font-plane byte
 reads, nonmutating selected/compare-mode peeks and native character-tick A/B
 selection. BIOS boot aperture underflow, palette address/select, full128KiB
