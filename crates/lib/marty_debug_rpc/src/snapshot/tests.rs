@@ -52,7 +52,7 @@ fn ui_snapshot_pump_handles_persistent_tcp_export_import_and_refusal() {
         let refused = exchange(5,"machine.snapshot.import",json!({"path":path,
             "expected_sha256":"00".repeat(32),"disk_root":root.join("wrong-digest"),
             "expected_state_revision":1}));
-        assert_eq!(refused["error"]["code"], -32000);
+        assert_eq!(refused["error"]["code"], -32602);
         let inspected = exchange(6,"state.get",json!({}));
         assert_eq!(inspected["result"]["state_revision"], 1);
         assert!(!root.join("wrong-digest").exists());
@@ -200,7 +200,7 @@ fn ui_snapshot_pump_refusal_does_not_signal_restore_or_block_inspection() {
         .unwrap();
     assert!(!rpc.pump_with_snapshots(&mut m, 10000, &mut host));
     let result = refused.recv().unwrap().unwrap();
-    assert_eq!(result["error"]["code"], -32000);
+    assert_eq!(result["error"]["code"], -32602);
     assert_eq!(rpc.agent.restore_generation, 0);
     assert!(!scratch.0.join("must-not-exist").exists());
     // A large refused atomic request may exhaust the soft budget; the next
@@ -696,4 +696,53 @@ fn shared_import_policy_preserves_host_breakpoints_and_rejects_ambiguous_hashes(
             assert_eq!(a.handle(&mut m, "breakpoints.list", &json!({})).unwrap(), definitions);
         }
     }
+}
+
+#[test]
+fn dependency_hash_and_size_errors_are_invalid_parameters_but_host_io_is_not() {
+    let scratch = Scratch::new();
+    let mut m = cold(true);
+    let controller = m.bus_mut().xtide_mut().as_mut().unwrap();
+    let g = controller.get_supported_formats()[0].geometry;
+    let source = scratch.0.join("source.vhd");
+    let file = create_vhd(source.clone().into_os_string(), g.c(), g.h(), g.s()).unwrap();
+    file.sync_all().unwrap();
+    drop(file);
+    let disk = VirtualHardDisk::parse(Box::new(SnapshotRwFile::open(&source).unwrap()), false).unwrap();
+    controller.set_vhd(0, disk).unwrap();
+    let source_bytes = fs::read(&source).unwrap();
+    let baseline = saved(&mut m);
+    let mut factory = || Ok(cold(true));
+    let mut host = SnapshotHost::for_rw_files(&mut factory).unwrap();
+    let mut a = Agent::new(2301);
+    let path = scratch.0.join("reference.zip");
+    let export = invoke(&mut a, &mut m, &mut host, "machine.snapshot.export",
+        json!({"path":path,"disk_mode":"reference-files","expected_state_revision":0})).unwrap();
+    let wrong_hash = scratch.0.join("wrong-hash.vhd");
+    let mut mutant = source_bytes.clone();
+    mutant[0] ^= 1; // DELIBERATE INPUT MUTANT: same length, incorrect digest.
+    fs::write(&wrong_hash, &mutant).unwrap();
+    let wrong_size = scratch.0.join("wrong-size.vhd");
+    fs::write(&wrong_size, &source_bytes[..source_bytes.len()-1]).unwrap();
+    for (label, reference, digest, expected_code) in [
+        ("archive-digest", source.clone(), json!("00".repeat(32)), -32602),
+        ("disk-digest", wrong_hash, export["sha256"].clone(), -32602),
+        ("disk-size", wrong_size, export["sha256"].clone(), -32602),
+        ("host-io", scratch.0.join("absent.vhd"), export["sha256"].clone(), -32000),
+    ] {
+        let disk_root = scratch.0.join(label);
+        let result = invoke(&mut a, &mut m, &mut host, "machine.snapshot.import",
+            json!({"path":path,"expected_sha256":digest,"references":{"0":reference},
+                "disk_root":disk_root,"expected_state_revision":0}));
+        assert_eq!(result.unwrap_err().1, expected_code, "{label}");
+        assert!(!disk_root.exists(), "{label} created disk output");
+        assert_eq!(saved(&mut m), baseline, "{label} changed complete Machine");
+        assert_eq!(a.revision, 0, "{label} changed revision");
+        assert_eq!(fs::read(&source).unwrap(), source_bytes, "{label} changed source disk");
+    }
+    invoke(&mut a, &mut m, &mut host, "machine.snapshot.import",
+        json!({"path":path,"expected_sha256":export["sha256"],"references":{"0":source},
+            "disk_root":scratch.0.join("positive"),"expected_state_revision":0})).unwrap();
+    assert_eq!(saved(&mut m), baseline);
+    println!("RPC_SNAPSHOT_SHARED_ERRORS: archive/disk checksum and disk length refuse -32602 before live mutation/output; missing host file remains -32000; complete Machine, revision and source disk unchanged; positive reference import matches");
 }

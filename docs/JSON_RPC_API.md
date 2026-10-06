@@ -335,3 +335,7 @@ without changing the archive format. PyPC uses the same name for flat-file
 references plus embedded complete host-mapped filesystem state. MartyPC's missing
 host-mapped filesystem backend remains an explicit limitation. Referenced import
 still creates fresh writable disk copies; it never aliases the reference/live disk.
+
+Invalid snapshot archive/dependency checksum or length is an input refusal
+(-32602), before candidate creation or output files. Actual host I/O or backend
+failures remain -32000; callers must not identify these categories by message text.

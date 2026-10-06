@@ -1,3 +1,14 @@
+# Shared snapshot dependency refusals, 2026-10-06
+
+FINISHED source: typed archive/member size or checksum mismatch maps to -32602;
+actual host I/O/backend errors remain -32000. Named archive digest, disk digest,
+disk size and missing-file controls preserve complete Machine/revision, caller
+VHD bytes and absent output roots; positive reference import matches. Local44
+RPC +10 config +5 headless and319 serial/sound core tests pass; a new executable
+binds604 source inputs. Two existing TCP digest assertions now require -32602.
+WIP: fresh original-Pyro cold reference proof, actual-main rebase/final-head CI.
+The older cold witness used -32000 and does not prove this corrected contract.
+
 # Shared snapshot contract slice, 2026-10-06
 
 FINISHED source: reference-files for File VHDs, expected_sha256 with legacy

@@ -20,6 +20,18 @@ const MANIFEST: &str = "manifest.json";
 const MACHINE: &str = "machine.json";
 const DISKS: [&str; 2] = ["disks/0.vhd", "disks/1.vhd"];
 
+/// Invalid authenticated input, distinguishable from actual host I/O failures.
+/// RPC callers map this category to invalid parameters without parsing text.
+#[derive(Debug)]
+pub struct SnapshotDependencyMismatch(pub &'static str);
+
+impl std::fmt::Display for SnapshotDependencyMismatch {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.0)
+    }
+}
+impl std::error::Error for SnapshotDependencyMismatch {}
+
 /// Host resource budgets, not guest emulation constants. Reference bytes count
 /// towards the total as well. The caller may explicitly increase these limits.
 #[derive(Clone, Copy, Debug)]
@@ -55,7 +67,7 @@ impl Blob {
     }
     fn verify(&self, bytes: &[u8]) -> Result<()> {
         if self.bytes != bytes.len() as u64 || self.sha256 != digest(bytes) {
-            bail!("snapshot member length/checksum mismatch");
+            return Err(SnapshotDependencyMismatch("snapshot member length/checksum mismatch").into());
         }
         Ok(())
     }
@@ -185,7 +197,7 @@ pub fn decode_snapshot_archive(
     limits: SnapshotArchiveLimits,
 ) -> Result<DecodedSnapshot> {
     if bytes.len() as u64 > limits.archive_bytes || digest(bytes) != expected_sha256 {
-        bail!("snapshot archive size/checksum mismatch");
+        return Err(SnapshotDependencyMismatch("snapshot archive size/checksum mismatch").into());
     }
     let count = archive_member_count(bytes)?;
     let mut zip = ZipArchive::new(Cursor::new(bytes))?;
