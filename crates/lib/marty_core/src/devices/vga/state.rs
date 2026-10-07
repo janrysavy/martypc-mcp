@@ -212,3 +212,86 @@ mod read_tests {
         }
     }
 }
+
+#[cfg(test)]
+mod geometry_tests {
+    use super::*;
+
+    // Registers captured from original Pyro mode1 after its custom 8-dot font
+    // load. Device counters, font pixels and raster products are freshly made.
+    fn text_card(clocking: u8) -> VGACard {
+        let params: serde_json::Value = serde_json::from_str(include_str!("text_geometry_registers.json")).unwrap();
+        let mut card = VGACard::default();
+        let mut crtc = serde_json::to_value(card.crtc.snapshot_state()).unwrap();
+        for (key, value) in params["crtc"].as_object().unwrap() { crtc[key] = value.clone(); }
+        card.crtc = VgaCrtc::prepare_state(&serde_json::from_value(crtc).unwrap()).unwrap();
+        card.misc_output_register = EMiscellaneousOutputRegister::from_bytes([params["misc_output_register"].as_u64().unwrap() as u8]);
+        card.sequencer.write_address(1); card.sequencer.write_data(clocking);
+        card.sequencer.write_address(2); card.sequencer.write_data(params["sequencer"]["map_mask"].as_u64().unwrap() as u8);
+        card.sequencer.write_address(3); card.sequencer.write_data(params["sequencer"]["character_map_select"].as_u64().unwrap() as u8);
+        card.sequencer.write_address(4); card.sequencer.write_data(params["sequencer"]["memory_mode"].as_u64().unwrap() as u8);
+        card.gc.write_address(5); card.gc.write_data(params["gc"]["graphics_mode"].as_u64().unwrap() as u8);
+        card.gc.write_address(6); card.gc.write_data(params["gc"]["graphics_micellaneous"].as_u64().unwrap() as u8);
+        card.ac.palette_registers[15].set(63);
+        // Distinct glyphs per column, with outside pixels set. A whole-cell
+        // shift cannot accidentally agree with another identical text cell.
+        for at in 0..65536 {
+            card.sequencer.vram.write_u8(0, at, ((at / 2) % 40 + 1) as u8);
+            card.sequencer.vram.write_u8(1, at, 15);
+        }
+        for glyph in 1..=40 {
+            for y in 0..16 { card.sequencer.vram.write_u8(2, glyph*32+y, ((glyph*37) as u8)|0x81); }
+        }
+        card
+    }
+
+    #[test]
+    fn cropped_text_matches_native_glyphs_without_extra_columns() {
+        for clocking in [1, 9, 0, 8] {
+            let mut card = text_card(clocking);
+            let mut pic = None;
+            for _ in 0..150000 {
+                card.tick(card.sequencer.char_clock as f64 + 0.001, &mut pic);
+                if card.frame >= 3 { break; }
+            }
+            assert!(card.frame >= 3, "native VGA must complete frames");
+            let dots = card.sequencer.char_clock;
+            let aperture = &card.extents.apertures[DisplayApertureType::Cropped as usize];
+            assert_eq!(aperture.w, 40 * dots, "clocking {clocking}");
+            assert_eq!(aperture.h, 400);
+            let raw = card.crtc.status.dynamic_aperture;
+            let expected_origin = raw.left + 3*dots;
+            assert_eq!(aperture.x, expected_origin, "native origin, clocking {clocking}");
+            let white = card.ac.color_registers_u32[63];
+            let black = card.ac.color_registers_u32[0];
+            let repeat = card.sequencer.clock_divisor;
+            let expected: Vec<_> = (1..=40).flat_map(|glyph| {
+                let bitmap = ((glyph*37) as u8)|0x81;
+                (0..dots/repeat).flat_map(move |bit| {
+                    std::iter::repeat(if bit<8 && bitmap & (0x80>>bit)!=0 {white} else {black}).take(repeat as usize)
+                })
+            }).collect();
+            let row = ((raw.top+7) as usize)*card.extents.row_stride + expected_origin as usize;
+            assert_eq!(&card.buf[card.front_buf][row..row+expected.len()], expected, "native crop origin, clocking {clocking}");
+            assert_eq!(card.buf[card.front_buf][row-1], black);
+            assert_eq!(card.buf[card.front_buf][row+expected.len()], black);
+            card.update_clock();
+            assert_eq!(card.crtc.status.dynamic_aperture, raw, "crop must not rewrite raw CRTC bounds");
+        }
+    }
+
+    #[test]
+    fn incomplete_text_boundaries_keep_the_last_nonempty_crop() {
+        for raw in [crtc::CrtcAperture::default(),
+            crtc::CrtcAperture {left:100,right:50,top:10,bottom:5}] {
+            let mut card = text_card(9);
+            card.update_clock();
+            let before = card.extents.apertures[DisplayApertureType::Cropped as usize].clone();
+            card.crtc.status.dynamic_aperture = raw;
+            card.update_clock();
+            let after = &card.extents.apertures[DisplayApertureType::Cropped as usize];
+            assert_eq!((after.x,after.y,after.w,after.h), (before.x,before.y,before.w,before.h));
+            assert_eq!(card.crtc.status.dynamic_aperture,raw);
+        }
+    }
+}

@@ -1524,30 +1524,39 @@ impl VGACard {
 
         // Update dynamic aperture per-frame
         let sync: u32 = self.vertical_sync().into();
-        self.crtc
-            .status
-            .dynamic_aperture
-            .adjust(self.sequencer.char_clock, self.gc.shift_mode());
+        // Presentation latency must not change the CRTC's measured boundaries.
+        let mut visible = self.crtc.status.dynamic_aperture;
+        visible.adjust(self.sequencer.char_clock, self.gc.shift_mode());
+        if self.ac.is_text_mode() && matches!(self.sequencer.char_clock, 8 | 16) {
+            // The native 8-dot text path fetches the next character before the
+            // AC pipeline emits it. Include that character of display latency.
+            visible.left += self.sequencer.char_clock;
+            visible.right += self.sequencer.char_clock;
+        }
 
-        for aperture in self.extents.apertures.iter_mut() {
+        for (index, aperture) in self.extents.apertures.iter_mut().enumerate() {
             if !aperture.debug {
                 if sync < aperture.h {
                     aperture.h = sync;
                 }
 
                 // Do auto-aperture
-                if self
-                    .crtc
-                    .status
-                    .dynamic_aperture
-                    .is_compatible_with((self.extents.field_w, self.extents.field_h))
+                if visible.is_compatible_with((self.extents.field_w, self.extents.field_h))
+                    && visible.left < visible.right && visible.top < visible.bottom
                 {
                     // log::debug!(
                     //     "update_clock: Updating aperture from dynamic aperture: {:?}",
                     //     self.crtc.status.dynamic_aperture
                     // );
-                    aperture.x = self.crtc.status.dynamic_aperture.left;
-                    aperture.y = self.crtc.status.dynamic_aperture.top;
+                    aperture.x = visible.left;
+                    aperture.y = visible.top;
+                    if index == DisplayApertureType::Cropped as usize && self.ac.is_text_mode()
+                        && visible.width() != 0 && visible.height() != 0 {
+                        // Clock28 also supports 8-dot custom fonts; its static
+                        // 720-pixel preset is not the programmed display width.
+                        aperture.w = visible.width();
+                        aperture.h = visible.height();
+                    }
 
                     // log::debug!(
                     //     "update_clock(): Set dynamic aperture: {}x{} x:{} y:{}",

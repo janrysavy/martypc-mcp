@@ -1,0 +1,49 @@
+{
+  "crtc": {
+    "crtc_horizontal_total": 47,
+    "crtc_horizontal_display_end": 39,
+    "crtc_start_horizontal_blank": 40,
+    "crtc_end_horizontal_blank": 144,
+    "crtc_end_horizontal_blank_norm": 48,
+    "crtc_start_horizontal_retrace": 44,
+    "crtc_end_horizontal_retrace": 145,
+    "crtc_end_horizontal_retrace_norm": 50,
+    "crtc_retrace_width": 6,
+    "crtc_vertical_total": 447,
+    "crtc_overflow": 31,
+    "crtc_preset_row_scan": 0,
+    "crtc_maximum_scanline": 79,
+    "crtc_cursor_start": 32,
+    "crtc_cursor_enabled": true,
+    "crtc_cursor_end": 0,
+    "crtc_cursor_skew": 0,
+    "crtc_start_address_ho": 0,
+    "crtc_start_address_lo": 0,
+    "crtc_start_address": 0,
+    "crtc_cursor_address_lo": 193,
+    "crtc_cursor_address_ho": 1,
+    "crtc_cursor_address": 449,
+    "crtc_vertical_retrace_start": 412,
+    "crtc_vertical_retrace_end": 142,
+    "crtc_vertical_retrace_end_norm": 414,
+    "crtc_vertical_display_end": 399,
+    "crtc_offset": 20,
+    "crtc_underline_location": 31,
+    "crtc_start_vertical_blank": 406,
+    "crtc_end_vertical_blank": 185,
+    "crtc_end_vertical_blank_norm": 441,
+    "crtc_mode_control": 163,
+    "crtc_line_compare": 1023
+  },
+  "sequencer": {
+    "clocking_mode": 9,
+    "memory_mode": 3,
+    "map_mask": 3,
+    "character_map_select": 0
+  },
+  "gc": {
+    "graphics_mode": 16,
+    "graphics_micellaneous": 14
+  },
+  "misc_output_register": 103
+}
