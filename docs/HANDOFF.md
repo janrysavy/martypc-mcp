@@ -1,4 +1,12 @@
-# Shared observation, snapshots and native tracing, 2026-10-06
+# Shared observation, snapshots and native tracing, 2026-10-07
+
+FINISHED local VGA crop correction: original Pyro's640-pixel image was shown
+through a720-pixel crop, with one extra cell left/four right. Native distinct-glyph
+tests cover8/9-dot normal/halfclock pixels/edges and raw CRTC ownership; an
+empty/reversed-boundary test preserves the last usable crop. See
+[VGA_TEXT_CROP](VGA_TEXT_CROP.md). Fresh GUI/original-game, final correction
+review and fork CI/integration remain WIP. Keep old RE checkpoints bound to
+their exact native executable; do not bypass the snapshot build guard.
 
 FINISHED local VGA owner and native text-path fixes: all336 core tests pass,
 with a paired malformed 65536x65536 field control and checked area multiplication
