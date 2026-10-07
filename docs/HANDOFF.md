@@ -1,5 +1,15 @@
 # Shared observation, snapshots and native tracing, 2026-10-07
 
+FINISHED local text palette correction: original gameplay has10752 wrong
+pixels in42 attribute06h stair cells despite the corrected640x400 crop.
+Text indices now reach palette_lookup once; both P54S modes preserve DAC
+bank bits7:6. The32-case native distinct-color regression covers8/9-dot
+normal/half clocks and both oscillators. See[VGA_TEXT_PALETTE](VGA_TEXT_PALETTE.md).
+All340 core/VGA tests pass; initial invalid timing fixture corrected through
+native CRTC/oscillator writes. Diagnostic palette now agrees with DAC lookup.
+WIP: final-code review, fresh GUI/gameplay/cold raster proof and fork CI.
+Preserve older exact-build checkpoints; do not infer general VGA parity.
+
 FINISHED local VGA crop correction: original Pyro's640-pixel image was shown
 through a720-pixel crop, with one extra cell left/four right. Native distinct-glyph
 tests cover8/9-dot normal/halfclock pixels/edges and raw CRTC ownership; an

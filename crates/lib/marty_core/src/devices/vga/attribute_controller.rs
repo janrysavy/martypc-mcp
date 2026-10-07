@@ -400,17 +400,17 @@ impl AttributeController {
 
     #[inline(always)]
     pub fn palette_lookup(&self, index: u8) -> u32 {
-        let color_index = match self.mode_control.internal_palette_size() {
+        let low = match self.mode_control.internal_palette_size() {
             0 => {
-                // Substitute bits 6-7 of the palette register with bits 0-1 of the color register
-                (self.palette_registers[(index & 0x0F) as usize].six | (self.color_select.c67() << 6)) as usize
+                self.palette_registers[(index & 0x0F) as usize].six
             }
             _ => {
                 // Substitute bits 4-5 of the palette register with bits 0-1 of the color register
-                ((self.palette_registers[(index & 0x0F) as usize].six & 0x0F) | (self.color_select.c45() << 4)) as usize
+                (self.palette_registers[(index & 0x0F) as usize].six & 0x0F) | (self.color_select.c45() << 4)
             }
         };
-
+        // Color Select bits3:2 supply DAC address bits7:6 in either P54S mode.
+        let color_index = (low | (self.color_select.c67() << 6)) as usize;
         self.color_registers_u32[color_index]
     }
 
@@ -698,7 +698,7 @@ impl AttributeController {
     }
 
     #[inline]
-    pub fn apply_attribute_8col(&self, glyph_row_base: u64, attribute: u8, clock_select: ClockSelect) -> u64 {
+    pub fn apply_attribute_8col(&self, glyph_row_base: u64, attribute: u8, _clock_select: ClockSelect) -> u64 {
         let mut fg_index = (attribute & 0x0F) as usize;
         let mut bg_index = (attribute >> 4) as usize;
 
@@ -715,22 +715,10 @@ impl AttributeController {
             }
         }
 
-        let fg_color;
-        let bg_color;
-
-        match clock_select {
-            ClockSelect::Clock25 => {
-                fg_color = self.palette_registers[fg_index].four_to_six as usize;
-                bg_color = self.palette_registers[bg_index].four_to_six as usize;
-            }
-            _ => {
-                fg_color = self.palette_registers[fg_index].six as usize;
-                bg_color = self.palette_registers[bg_index].six as usize;
-            }
-        }
-
-        // Combine glyph mask with foreground and background colors.
-        glyph_row_base & EGA_COLORS_U64[fg_color] | !glyph_row_base & EGA_COLORS_U64[bg_color]
+        // Carry logical attribute indices to the rasterizer, which performs
+        // the palette/Color Select/DAC lookup once. The oscillator changes
+        // pixel timing, not the programmed VGA palette mapping.
+        glyph_row_base & EGA_COLORS_U64[fg_index] | !glyph_row_base & EGA_COLORS_U64[bg_index]
     }
 
     #[inline]
@@ -739,7 +727,7 @@ impl AttributeController {
         glyph_row_base: u64,
         glyph_col_9: u8,
         attribute: u8,
-        clock_select: ClockSelect,
+        _clock_select: ClockSelect,
     ) -> (u64, u8) {
         let mut fg_index = (attribute & 0x0F) as usize;
         let mut bg_index = (attribute >> 4) as usize;
@@ -757,23 +745,9 @@ impl AttributeController {
             }
         }
 
-        let fg_color;
-        let bg_color;
-
-        match clock_select {
-            ClockSelect::Clock25 => {
-                fg_color = self.palette_registers[fg_index].four_to_six as usize;
-                bg_color = self.palette_registers[bg_index].four_to_six as usize;
-            }
-            _ => {
-                fg_color = self.palette_registers[fg_index].six as usize;
-                bg_color = self.palette_registers[bg_index].six as usize;
-            }
-        }
-
-        // Combine glyph mask with foreground and background colors.
-        let glyph_u64 = glyph_row_base & EGA_COLORS_U64[fg_color] | !glyph_row_base & EGA_COLORS_U64[bg_color];
-        let glyph_u8 = glyph_col_9 & fg_color as u8 | !glyph_col_9 & bg_color as u8;
+        // As in the eight-dot path, preserve the attribute index until draw.
+        let glyph_u64 = glyph_row_base & EGA_COLORS_U64[fg_index] | !glyph_row_base & EGA_COLORS_U64[bg_index];
+        let glyph_u8 = glyph_col_9 & fg_index as u8 | !glyph_col_9 & bg_index as u8;
         (glyph_u64, glyph_u8)
     }
 

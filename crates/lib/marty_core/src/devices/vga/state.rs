@@ -281,6 +281,65 @@ mod geometry_tests {
     }
 
     #[test]
+    fn native_text_maps_attributes_once_at_both_clocks_and_palette_banks() {
+        for clocking in [1, 9, 0, 8] {
+            for clock_select in [0, 4] {
+                for (mode, select) in [(4, 0), (4, 0x0d), (0x84, 0), (0x84, 0x0d)] {
+                    let mut card = text_card(clocking);
+                    // 40 doubled nine-dot cells plus borders exceed the
+                    // 25MHz800-pixel raster. Use32 visible cells at both
+                    // oscillators so every sampled aperture fits its buffer.
+                    card.crtc.write_crtc_register_address(0x11);
+                    card.crtc.write_crtc_register_data(0x0e); // Unlock timing registers.
+                    for (register, value) in [(0,39), (1,31), (2,32), (3,0x88), (4,36), (5,0x88)] {
+                        card.crtc.write_crtc_register_address(register);
+                        card.crtc.write_crtc_register_data(value);
+                    }
+                    let misc = card.misc_output_register.into_bytes()[0];
+                    card.write_external_misc_output_register((misc & !0x0c) | clock_select);
+                    card.ac.write_attribute_register(0x10); card.ac.write_attribute_register(mode);
+                    card.ac.write_attribute_register(0x14); card.ac.write_attribute_register(select);
+                    // A permutation with nonidentity lower nibbles and bits5:4
+                    // exposes both double lookup and accidental EGA remapping.
+                    for index in 0..16 { card.ac.palette_registers[index].set(((index*13+20)&63) as u8); }
+                    for index in 0..256 { card.ac.color_registers_u32[index] = 0xff000000 | index as u32; }
+                    for at in 0..65536 {
+                        let col = (at/2)%40;
+                        let fg = col%16; let bg = (col*3+5)%16;
+                        card.sequencer.vram.write_u8(1, at, (fg | bg<<4) as u8);
+                    }
+                    let mut pic = None;
+                    for _ in 0..150000 {
+                        card.tick(card.sequencer.char_clock as f64 + 0.001, &mut pic);
+                        if card.frame >= 3 { break; }
+                    }
+                    assert!(card.frame >= 3);
+                    let aperture = &card.extents.apertures[DisplayApertureType::Cropped as usize];
+                    let repeat = card.sequencer.clock_divisor as usize;
+                    let dots = card.sequencer.char_clock as usize;
+                    assert_eq!(aperture.w as usize, 32*dots);
+                    let expected: Vec<_> = (0..32).flat_map(|col| {
+                        let bitmap = (((col+1)*37) as u8)|0x81;
+                        (0..dots/repeat).flat_map(move |bit| {
+                            let index = if bit<8 && bitmap & (0x80>>bit)!=0 {col%16} else {(col*3+5)%16};
+                            let palette = ((index*13+20)&63) as u8;
+                            let low = if mode & 0x80 != 0 {(palette & 15) | ((select & 3)<<4)} else {palette};
+                            let dac = low | ((select & 12)<<4);
+                            std::iter::repeat(0xff000000 | dac as u32).take(repeat)
+                        })
+                    }).collect();
+                    let row = ((aperture.y+7) as usize)*card.extents.row_stride + aperture.x as usize;
+                    for (pixel, (actual, wanted)) in card.buf[card.front_buf][row..row+expected.len()].iter().zip(&expected).enumerate() {
+                        assert_eq!(actual, wanted,
+                            "pixel {pixel}, clocking {clocking}, oscillator {clock_select}, mode {mode:02x}, select {select:02x}, aperture {aperture:?}, raw {:?}, stride {}",
+                            card.crtc.status.dynamic_aperture, card.extents.row_stride);
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
     fn incomplete_text_boundaries_keep_the_last_nonempty_crop() {
         for raw in [crtc::CrtcAperture::default(),
             crtc::CrtcAperture {left:100,right:50,top:10,bottom:5}] {
