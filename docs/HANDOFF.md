@@ -3,9 +3,11 @@
 FINISHED local VGA crop correction: original Pyro's640-pixel image was shown
 through a720-pixel crop, with one extra cell left/four right. Native distinct-glyph
 tests cover8/9-dot normal/halfclock pixels/edges and raw CRTC ownership; an
-empty/reversed-boundary test preserves the last usable crop. See
-[VGA_TEXT_CROP](VGA_TEXT_CROP.md). Fresh GUI/original-game, final correction
-review and fork CI/integration remain WIP. Keep old RE checkpoints bound to
+empty/reversed-boundary test preserves the last usable crop. All339 core/VGA
+tests pass. Corrected review's sync-height clamp finding is fixed and tested;
+the actual Pyro witness has pel panning0 (broader panning remains open). See
+[VGA_TEXT_CROP](VGA_TEXT_CROP.md). Final fresh GUI/original-game witness,
+original-raster evidence publication and fork CI/integration remain WIP. Keep old RE checkpoints bound to
 their exact native executable; do not bypass the snapshot build guard.
 
 FINISHED local VGA owner and native text-path fixes: all336 core tests pass,

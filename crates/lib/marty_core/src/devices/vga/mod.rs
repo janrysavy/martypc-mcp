@@ -1555,7 +1555,7 @@ impl VGACard {
                         // Clock28 also supports 8-dot custom fonts; its static
                         // 720-pixel preset is not the programmed display width.
                         aperture.w = visible.width();
-                        aperture.h = visible.height();
+                        aperture.h = visible.height().min(sync);
                     }
 
                     // log::debug!(

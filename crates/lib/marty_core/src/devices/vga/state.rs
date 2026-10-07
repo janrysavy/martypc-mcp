@@ -294,4 +294,23 @@ mod geometry_tests {
             assert_eq!(card.crtc.status.dynamic_aperture,raw);
         }
     }
+
+    #[test]
+    fn measured_text_crop_keeps_sync_limit_and_survives_invalid_update() {
+        let mut card = text_card(9);
+        card.crtc.status.dynamic_aperture = crtc::CrtcAperture {left:80,right:720,top:33,bottom:433};
+        card.update_clock();
+        let aperture = &card.extents.apertures[DisplayApertureType::Cropped as usize];
+        assert_eq!((aperture.x,aperture.y,aperture.w,aperture.h), (128,33,640,400));
+        // Opposite H/V polarities select350 lines; a400-line measured display
+        // must retain the pre-existing sync clamp instead of expanding past it.
+        card.misc_output_register = EMiscellaneousOutputRegister::from_bytes([0xa7]);
+        card.update_clock();
+        let before = card.extents.apertures[DisplayApertureType::Cropped as usize].clone();
+        assert_eq!(before.h,350);
+        card.crtc.status.dynamic_aperture = crtc::CrtcAperture::default();
+        card.update_clock();
+        let after = &card.extents.apertures[DisplayApertureType::Cropped as usize];
+        assert_eq!((after.x,after.y,after.w,after.h), (before.x,before.y,before.w,before.h));
+    }
 }
