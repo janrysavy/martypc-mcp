@@ -14,7 +14,8 @@ The crop now uses the nonempty measured text extent and includes the native
 character-fetch/attribute-controller latency. A local copy preserves raw CRTC
 boundaries; empty or reversed boundaries cannot replace a usable crop. Graphics
 crop sizing and Accurate/Full preset widths retain their existing policy.
-No CPU/IRQ timing or guest RAM behavior is changed intentionally.
+The existing vertical sync height clamp is retained. No CPU/IRQ timing or guest
+RAM behavior is changed intentionally.
 
 `text_geometry_registers.json` retains the original programmed register values,
 without live counters or captured raster products. Native tests execute fresh
@@ -30,5 +31,10 @@ cargo +1.98.0 test -p marty_core --no-default-features --features vga,ega --lib 
 
 The old source fails the native width test (720 instead of320 in its first
 8-dot case). The initial review found an empty-boundary bug in the correction;
-the guard and independent column/edge checks were added. Fresh GUI/original-game
-validation and final-head Windows/Linux CI are required before integration.
+the guard and independent column/edge checks were added. Corrected review's
+sync-clamp finding is fixed with a separate350-line control and a test that
+invalid bounds preserve a previously measured dynamic crop. All339 tests pass.
+The measured original Pyro scene has pel panning0; captures with nonzero panning
+are outside this witness. Fresh GUI/original-game validation, publication of
+the original raster packet and final-head Windows/Linux CI are required before
+integration.
