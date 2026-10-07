@@ -256,14 +256,9 @@ impl VideoCard for VGACard {
 
         let mut attribute_pal_vec = Vec::new();
         for i in 0..16 {
-            // Attribute palette entries are interpreted differently depending on the current clock speed
-            // Low resolution modes use 4BPP palette entries, high resolution modes use 6bpp.
-            let pal_resolved = match self.misc_output_register.clock_select() {
-                ClockSelect::Clock25 => self.ac.palette_registers[i].four_to_six,
-                _ => self.ac.palette_registers[i].six,
-            };
-
-            let (r, g, b) = VGACard::ega_to_rgb(pal_resolved);
+            // Show the programmed VGA palette/Color Select/DAC result used
+            // by the renderer, independently of the selected oscillator.
+            let [r, g, b, _] = self.ac.palette_lookup(i as u8).to_le_bytes();
             attribute_pal_vec.push((
                 format!("{}", i),
                 VideoCardStateEntry::Color(format!("{:06b}", self.ac.palette_registers[i].six), r, g, b),
