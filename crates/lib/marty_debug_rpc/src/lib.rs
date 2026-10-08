@@ -897,6 +897,15 @@ impl Agent {
 }
 
 type Message = (Vec<u8>, Sender<Option<Value>>);
+fn write_reply(writer: &mut impl Write, value: &Value) -> std::io::Result<()> {
+    // Serializing nested trace events directly to TCP makes each JSON token a
+    // socket write. Frame the complete reply first, as the PyPC server does.
+    let mut frame = serde_json::to_vec(value)?;
+    frame.push(b'\n');
+    writer.write_all(&frame)?;
+    writer.flush()
+}
+
 fn connection(mut stream: TcpStream, sender: SyncSender<Message>) -> std::io::Result<()> {
     // Windows accepted sockets can inherit the listener's nonblocking mode.
     // Transport readers are dedicated threads and must wait for complete lines.
@@ -921,9 +930,7 @@ fn connection(mut stream: TcpStream, sender: SyncSender<Message>) -> std::io::Re
             return Ok(());
         }
         if let Ok(Some(value)) = receive.recv() {
-            serde_json::to_writer(&mut stream, &value)?;
-            stream.write_all(b"\n")?;
-            stream.flush()?;
+            write_reply(&mut stream, &value)?;
         }
     }
 }
@@ -1894,5 +1901,119 @@ mod tests {
         drop(reader);
         transport.join().unwrap();
         worker.join().unwrap();
+    }
+
+    #[test]
+    fn tcp_large_replies_preserve_pipelined_ids_and_escaped_lines() {
+        let listener = TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0)).unwrap();
+        let endpoint = listener.local_addr().unwrap();
+        let (sender, receive) = mpsc::sync_channel(64);
+        let transport = thread::spawn(move || connection(listener.accept().unwrap().0, sender).unwrap());
+        let events = vec![json!({"opcode_hex":"b83412","message":"line\nquoted \"unicode λ\"", "clock":123456789}); 2048];
+        let expected = json!({"jsonrpc":"2.0","id":1,"result":{"events":events,"next_cursor":"trace-2048"}});
+        let reply = expected.clone();
+        let worker = thread::spawn(move || {
+            let (_, response) = receive.recv().unwrap();
+            response.send(None).unwrap(); // Notification produces no frame.
+            let (_, response) = receive.recv().unwrap();
+            response.send(Some(reply)).unwrap();
+            let (_, response) = receive.recv().unwrap();
+            response.send(Some(json!({"jsonrpc":"2.0","id":"next","error":{"code":-32602,"message":"bad params"}}))).unwrap();
+        });
+        let mut client = TcpStream::connect(endpoint).unwrap();
+        client.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+        client.write_all(b"{\"jsonrpc\":\"2.0\",\"method\":\"state.get\"}\n{\"jsonrpc\":\"2.0\",\"method\":\"trace.read\",\"id\":1}\n{\"jsonrpc\":\"2.0\",\"method\":\"trace.read\",\"id\":\"next\"}\n").unwrap();
+        let mut reader = BufReader::new(client);
+        let mut line = Vec::new();
+        reader.read_until(b'\n', &mut line).unwrap();
+        let mut exact = serde_json::to_vec(&expected).unwrap();
+        exact.push(b'\n');
+        assert!(exact.len() > 65536);
+        assert_eq!(line, exact);
+        line.clear();
+        reader.read_until(b'\n', &mut line).unwrap();
+        let response: Value = serde_json::from_slice(&line).unwrap();
+        assert_eq!(response["id"], "next");
+        assert_eq!(response["error"]["code"], -32602);
+        drop(reader);
+        worker.join().unwrap();
+        transport.join().unwrap();
+    }
+
+    #[test]
+    fn reply_handles_short_writes_and_propagates_failure() {
+        struct ShortWriter { bytes: Vec<u8>, fail_after: usize }
+        impl Write for ShortWriter {
+            fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+                if self.bytes.len() >= self.fail_after {
+                    return Err(std::io::Error::new(std::io::ErrorKind::BrokenPipe, "test peer closed"));
+                }
+                let n = bytes.len().min(3).min(self.fail_after - self.bytes.len());
+                self.bytes.extend_from_slice(&bytes[..n]);
+                Ok(n)
+            }
+            fn flush(&mut self) -> std::io::Result<()> { Ok(()) }
+        }
+        let value = json!({"jsonrpc":"2.0","id":1,"result":"line\nλ"});
+        let mut expected = serde_json::to_vec(&value).unwrap();
+        expected.push(b'\n');
+        let mut writer = ShortWriter { bytes: Vec::new(), fail_after: usize::MAX };
+        write_reply(&mut writer, &value).unwrap();
+        assert_eq!(writer.bytes, expected);
+        let mut writer = ShortWriter { bytes: Vec::new(), fail_after: 12 };
+        assert_eq!(write_reply(&mut writer, &value).unwrap_err().kind(), std::io::ErrorKind::BrokenPipe);
+        assert_eq!(writer.bytes, expected[..12]);
+    }
+
+    #[test]
+    #[ignore = "set MARTY_RPC_REPLY_BENCH_PAYLOAD to a captured JSON response"]
+    fn benchmark_captured_reply_socket_writes() {
+        struct CountedWriter { stream: TcpStream, writes: usize }
+        impl Write for CountedWriter {
+            fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+                self.writes += 1;
+                self.stream.write(bytes)
+            }
+            fn flush(&mut self) -> std::io::Result<()> { self.stream.flush() }
+        }
+        let path = std::env::var_os("MARTY_RPC_REPLY_BENCH_PAYLOAD").expect("captured reply path");
+        let value: Value = serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
+        let mut exact = serde_json::to_vec(&value).unwrap();
+        exact.push(b'\n');
+        for sample in 0..3 {
+            for buffered in [false, true] {
+                let listener = TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0)).unwrap();
+                let endpoint = listener.local_addr().unwrap();
+                let reply = value.clone();
+                let server = thread::spawn(move || {
+                    let mut writer = CountedWriter { stream: listener.accept().unwrap().0, writes: 0 };
+                    let mut reader = BufReader::new(writer.stream.try_clone().unwrap());
+                    let mut request = String::new();
+                    reader.read_line(&mut request).unwrap();
+                    let start = Instant::now();
+                    if buffered {
+                        write_reply(&mut writer, &reply).unwrap();
+                    } else {
+                        serde_json::to_writer(&mut writer, &reply).unwrap();
+                        writer.write_all(b"\n").unwrap();
+                        writer.flush().unwrap();
+                    }
+                    (writer.writes, start.elapsed().as_secs_f64())
+                });
+                let mut stream = TcpStream::connect(endpoint).unwrap();
+                stream.set_read_timeout(Some(Duration::from_secs(10))).unwrap();
+                let start = Instant::now();
+                stream.write_all(b"request\n").unwrap();
+                let mut reader = BufReader::new(stream);
+                let mut line = Vec::new();
+                reader.read_until(b'\n', &mut line).unwrap();
+                let roundtrip = start.elapsed().as_secs_f64();
+                assert_eq!(line, exact);
+                let (writes, seconds) = server.join().unwrap();
+                println!("{}", json!({"sample":sample,"buffered":buffered,"bytes":exact.len(),
+                    "sha256":format!("{:x}",Sha256::digest(&exact)),"socket_writes":writes,
+                    "writer_seconds":seconds,"roundtrip_seconds":roundtrip}));
+            }
+        }
     }
 }
