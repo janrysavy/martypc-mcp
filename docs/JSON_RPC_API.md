@@ -67,7 +67,11 @@ TCP; connections are persistent. Replies preserve request IDs. Notifications
 execute without replies. Batches are unsupported. Lines are limited to 1 MiB;
 an oversized or unterminated line closes that connection. All machine work runs
 on one thread; transport threads never inspect or mutate the machine. Host
-polling does not advance a paused machine.
+polling does not advance a paused machine. Each reply is serialized into one
+complete JSON line before TCP transmission, avoiding a socket write per token
+in nested trace pages. Wire bytes, pagination and stop semantics are unchanged;
+the existing five-second socket write timeout and transport error propagation
+remain in effect. PyPC already uses complete serialized reply frames.
 
 This is a **subset** of the PyPC debugger contract. The existing PyPC
 `guest.dos_control.RPC` transport, `read` and `write` methods work unchanged for
