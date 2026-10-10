@@ -294,6 +294,28 @@ impl Cpu for NecVx0 {
         // Rewind PC to the start of the instruction before flushing, so we will re-fetch it
         self.pc = self.pc.wrapping_sub(self.queue.len_p() as u16);
         self.queue.flush();
+        // Debugger flush: discard an in-flight fetch from the old address too.
+        // Guest branch microcode keeps its own timing; no cycles run here.
+        if self.bus_status_latch == BusStatus::CodeFetch {
+            self.biu_bus_end();
+            self.i8288.ale = false;
+            self.bus_status = BusStatus::Passive;
+            self.bus_status_latch = BusStatus::Passive;
+            self.t_cycle = TCycle::Ti;
+            self.bus_wait_states = 0;
+            self.ready = true;
+        }
+        if self.pl_status == BusStatus::CodeFetch {
+            self.pl_status = BusStatus::Passive;
+            self.ta_cycle = TaCycle::Td;
+        }
+        self.queue_op = QueueOp::Flush;
+        self.last_queue_op = QueueOp::Idle;
+        self.last_queue_len = 0;
+        if !self.halted {
+            self.fetch_state = FetchState::Normal;
+            self.biu_fetch_start();
+        }
     }
 
     #[inline]
@@ -575,5 +597,41 @@ impl Cpu for NecVx0 {
     }
     fn bus_and_analyzer_mut(&mut self) -> (&mut BusInterface, Option<&mut LogicAnalyzer>) {
         (&mut self.bus, None)
+    }
+}
+
+#[cfg(all(test, not(feature = "cpu_validator")))]
+mod debugger_tests {
+    use super::*;
+    use crate::{cpu_common::CpuArch, cpu_vx0::{QueueReader, QueueType}, tracelogger::TraceLogger};
+
+    #[test]
+    fn debugger_redirect_discards_nec_fetch_from_every_native_bus_phase() {
+        let mut phases = std::collections::HashSet::new();
+        for elapsed in 0..80 {
+            let mut cpu = NecVx0::new(CpuType::NecV20(CpuArch::I86), TraceMode::None, TraceLogger::None);
+            cpu.bus.copy_from(&[0x90; 16], 0xFFFF0, 0, false).unwrap();
+            cpu.bus.copy_from(&[0x90; 256], 0, 0, false).unwrap();
+            cpu.bus.copy_from(&[0xB8, 0x56, 0x34, 0x90], 0x201, 0, false).unwrap();
+            for n in 0..elapsed {
+                if n % 3 == 0 && cpu.queue.len() > 0 {
+                    cpu.queue.pop();
+                }
+                cpu.cycle();
+            }
+            phases.insert(format!("{:?}", cpu.t_cycle));
+            let clock = cpu.cycle_num;
+            cpu.flush_piq();
+            cpu.set_register16(Register16::CS, 0);
+            cpu.set_register16(Register16::PC, 0x201);
+            assert_eq!(cpu.cycle_num, clock);
+            for expected in [0xB8, 0x56, 0x34] {
+                assert_eq!(cpu.biu_queue_read(QueueType::First, QueueReader::Biu), expected,
+                    "stale NEC fetch after {elapsed} cycles");
+            }
+        }
+        for phase in ["T1", "T2", "T3", "T4"] {
+            assert!(phases.contains(phase), "untested NEC bus phase {phase}");
+        }
     }
 }
