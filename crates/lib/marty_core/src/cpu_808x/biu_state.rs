@@ -209,6 +209,9 @@ mod tests {
     fn debugger_redirect_discards_fetch_from_every_native_bus_phase() {
         for word in [false, true] {
             let mut phases = std::collections::HashSet::new();
+            let mut address_phases = std::collections::HashSet::new();
+            let mut saw_preload = false;
+            let mut saw_pending_address = false;
             for elapsed in 0..80 {
                 let mut cpu = cpu(word);
                 cpu.bus.copy_from(&[0xB8, 0x56, 0x34, 0x90], 0x201, 0, false).unwrap();
@@ -218,9 +221,20 @@ mod tests {
                     }
                     cpu.cycle();
                 }
+                if elapsed % 2 == 0 && cpu.queue.len() > 0 {
+                    cpu.queue.set_preload();
+                }
                 phases.insert(format!("{:?}", cpu.t_cycle));
+                address_phases.insert(format!("{:?}", cpu.ta_cycle));
+                saw_preload |= cpu.queue.has_preload();
+                saw_pending_address |= cpu.pl_status == BusStatus::CodeFetch;
                 let clock = cpu.cycle_num;
+                let microcode = (cpu.mc_pc, cpu.nx, cpu.rni, cpu.in_rep, cpu.rep_init,
+                    std::mem::discriminant(&cpu.rep_type), cpu.instruction_reentrant);
                 cpu.flush_piq();
+                assert!(!cpu.queue.has_preload());
+                assert_eq!(microcode, (cpu.mc_pc, cpu.nx, cpu.rni, cpu.in_rep, cpu.rep_init,
+                    std::mem::discriminant(&cpu.rep_type), cpu.instruction_reentrant));
                 cpu.set_register16(Register16::CS, 0);
                 cpu.set_register16(Register16::PC, 0x201);
                 assert_eq!(cpu.cycle_num, clock, "debugger must not run the guest");
@@ -232,6 +246,10 @@ mod tests {
             for phase in ["T1", "T2", "T3", "T4"] {
                 assert!(phases.contains(phase), "untested bus phase {phase}");
             }
+            for phase in ["Ts", "T0", "Td"] {
+                assert!(address_phases.contains(phase), "untested address phase {phase}");
+            }
+            assert!(saw_preload && saw_pending_address);
         }
     }
 
