@@ -303,7 +303,8 @@ impl Cpu for NecVx0 {
             self.bus_status_latch = BusStatus::Passive;
             self.t_cycle = TCycle::Ti;
             self.bus_wait_states = 0;
-            self.ready = true;
+            self.wait_states = 0;
+            self.ready = self.dma_wait_states == 0;
         }
         if self.pl_status == BusStatus::CodeFetch {
             self.pl_status = BusStatus::Passive;
@@ -608,6 +609,9 @@ mod debugger_tests {
     #[test]
     fn debugger_redirect_discards_nec_fetch_from_every_native_bus_phase() {
         let mut phases = std::collections::HashSet::new();
+        let mut address_phases = std::collections::HashSet::new();
+        let mut saw_preload = false;
+        let mut saw_pending_address = false;
         for elapsed in 0..80 {
             let mut cpu = NecVx0::new(CpuType::NecV20(CpuArch::I86), TraceMode::None, TraceLogger::None);
             cpu.bus.copy_from(&[0x90; 16], 0xFFFF0, 0, false).unwrap();
@@ -619,9 +623,20 @@ mod debugger_tests {
                 }
                 cpu.cycle();
             }
+            if elapsed % 2 == 0 && cpu.queue.len() > 0 {
+                cpu.queue.set_preload();
+            }
             phases.insert(format!("{:?}", cpu.t_cycle));
+            address_phases.insert(format!("{:?}", cpu.ta_cycle));
+            saw_preload |= cpu.queue.has_preload();
+            saw_pending_address |= cpu.pl_status == BusStatus::CodeFetch;
             let clock = cpu.cycle_num;
+            let continuation = (cpu.nx, cpu.rni, cpu.in_rep, cpu.rep_init,
+                std::mem::discriminant(&cpu.rep_type), cpu.instruction_reentrant);
             cpu.flush_piq();
+            assert!(!cpu.queue.has_preload());
+            assert_eq!(continuation, (cpu.nx, cpu.rni, cpu.in_rep, cpu.rep_init,
+                std::mem::discriminant(&cpu.rep_type), cpu.instruction_reentrant));
             cpu.set_register16(Register16::CS, 0);
             cpu.set_register16(Register16::PC, 0x201);
             assert_eq!(cpu.cycle_num, clock);
@@ -632,6 +647,43 @@ mod debugger_tests {
         }
         for phase in ["T1", "T2", "T3", "T4"] {
             assert!(phases.contains(phase), "untested NEC bus phase {phase}");
+        }
+        for phase in ["Ts", "T0", "Td"] {
+            assert!(address_phases.contains(phase), "untested NEC address phase {phase}");
+        }
+        assert!(saw_preload && saw_pending_address);
+    }
+
+    #[test]
+    fn debugger_flush_cancels_nec_fetch_waits_but_keeps_refresh_waits() {
+        for waiting in [false, true] {
+            let mut cpu = NecVx0::new(CpuType::NecV20(CpuArch::I86), TraceMode::None, TraceLogger::None);
+            cpu.bus.copy_from(&[0x90; 16], 0xFFFF0, 0, false).unwrap();
+            cpu.bus.copy_from(&[0xB8, 0x56, 0x34], 0x201, 0, false).unwrap();
+            cpu.enable_wait_states = true;
+            while cpu.t_cycle != TCycle::T3 || cpu.bus_status_latch != BusStatus::CodeFetch {
+                cpu.cycle();
+            }
+            // Controlled slow-memory response on an actual native fetch.
+            cpu.bus_wait_states = 4;
+            cpu.wait_states = 4;
+            cpu.ready = false;
+            if waiting {
+                cpu.cycle();
+                assert_eq!(cpu.t_cycle, TCycle::Tw);
+            }
+            cpu.dma_wait_states = 7;
+            let clock = cpu.cycle_num;
+            cpu.flush_piq();
+            assert_eq!(cpu.wait_states, 0, "cancelled fetch must not delay the target");
+            assert_eq!(cpu.bus_wait_states, 0);
+            assert_eq!(cpu.dma_wait_states, 7, "refresh waits are independent of the fetch");
+            assert_eq!(cpu.cycle_num, clock);
+            cpu.set_register16(Register16::CS, 0);
+            cpu.set_register16(Register16::PC, 0x201);
+            for expected in [0xB8, 0x56, 0x34] {
+                assert_eq!(cpu.biu_queue_read(QueueType::First, QueueReader::Biu), expected);
+            }
         }
     }
 }
