@@ -678,6 +678,7 @@ mod debugger_tests {
             assert_eq!(cpu.wait_states, 0, "cancelled fetch must not delay the target");
             assert_eq!(cpu.bus_wait_states, 0);
             assert_eq!(cpu.dma_wait_states, 7, "refresh waits are independent of the fetch");
+            assert!(!cpu.ready, "pending refresh must keep READY low");
             assert_eq!(cpu.cycle_num, clock);
             cpu.set_register16(Register16::CS, 0);
             cpu.set_register16(Register16::PC, 0x201);
