@@ -1043,6 +1043,32 @@ impl Intel808x {
         // Rewind PC to the start of the instruction before flushing, so we will re-fetch it
         self.pc = self.pc.wrapping_sub(self.queue.len_p() as u16);
         self.queue.flush();
+
+        // This is a debugger operation, not the guest FLUSH microcode. A fetch
+        // already in flight belongs to the discarded queue; completing it after
+        // an IP/CS edit would prepend an old byte and advance the new PC.
+        // Cancel only instruction fetches, without cycling CPU or devices.
+        if self.bus_status_latch == BusStatus::CodeFetch {
+            self.biu_bus_end();
+            self.i8288.ale = false;
+            self.bus_status = BusStatus::Passive;
+            self.bus_status_latch = BusStatus::Passive;
+            self.t_cycle = TCycle::Ti;
+            self.bus_wait_states = 0;
+            self.ready = !self.have_wait_states();
+            self.ready_next = self.ready;
+        }
+        if self.pl_status == BusStatus::CodeFetch {
+            self.pl_status = BusStatus::Passive;
+            self.ta_cycle = TaCycle::Td;
+        }
+        self.queue_op = QueueOp::Flush;
+        self.last_queue_op = QueueOp::Idle;
+        self.last_queue_len = 0;
+        if !self.halted {
+            self.fetch_state = FetchState::Normal;
+            self.biu_fetch_start();
+        }
     }
 
     /// Calculate the value of IP as needed. The IP register on the 808X is not a physical register,

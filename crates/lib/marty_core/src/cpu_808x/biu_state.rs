@@ -206,6 +206,36 @@ mod tests {
     }
 
     #[test]
+    fn debugger_redirect_discards_fetch_from_every_native_bus_phase() {
+        for word in [false, true] {
+            let mut phases = std::collections::HashSet::new();
+            for elapsed in 0..80 {
+                let mut cpu = cpu(word);
+                cpu.bus.copy_from(&[0xB8, 0x56, 0x34, 0x90], 0x201, 0, false).unwrap();
+                for n in 0..elapsed {
+                    if n % 3 == 0 && cpu.queue.len() > 0 {
+                        cpu.queue.pop();
+                    }
+                    cpu.cycle();
+                }
+                phases.insert(format!("{:?}", cpu.t_cycle));
+                let clock = cpu.cycle_num;
+                cpu.flush_piq();
+                cpu.set_register16(Register16::CS, 0);
+                cpu.set_register16(Register16::PC, 0x201);
+                assert_eq!(cpu.cycle_num, clock, "debugger must not run the guest");
+                for expected in [0xB8, 0x56, 0x34] {
+                    assert_eq!(cpu.biu_queue_read(QueueType::First, QueueReader::Biu), expected,
+                        "stale prefetch: word={word}, elapsed={elapsed}");
+                }
+            }
+            for phase in ["T1", "T2", "T3", "T4"] {
+                assert!(phases.contains(phase), "untested bus phase {phase}");
+            }
+        }
+    }
+
+    #[test]
     fn biu_refusals_precede_any_component_mutation() {
         let mut cpu = cpu(false);
         let before = cpu.snapshot_biu_state();

@@ -1448,6 +1448,42 @@ mod tests {
             .is_err());
         assert_eq!(m.cpu().get_register16(Register16::AX), 9);
     }
+
+    #[test]
+    fn register_redirect_executes_target_instead_of_old_prefetch() {
+        for change in ["ip", "cs", "both", "same_ip"] {
+            for steps in 0..12 {
+                let mut m = machine();
+                let mut a = Agent::new(2301);
+                for _ in 0..steps {
+                    call(&mut a, &mut m, "execution.step", json!({}));
+                }
+                let before = registers(&mut m, a.revision);
+                let old_ip = before["ip"].as_u64().unwrap() as u16;
+                let (cs, ip, changes) = match change {
+                    "ip" => (0, 0x321, json!({"ip": 0x321})),
+                    "cs" => (0x20, old_ip, json!({"cs": 0x20})),
+                    "both" => (0x20, 0x121, json!({"cs": 0x20, "ip": 0x121})),
+                    _ => (0, old_ip, json!({"ip": old_ip})),
+                };
+                m.bus_mut().copy_from(&[0xB8, 0x78, 0x56, 0x90], (cs * 16 + ip) as usize, 0, false).unwrap();
+                let clock = m.cpu().get_cycle_ct();
+                let ticks = m.system_ticks();
+                let revision = a.revision;
+                call(&mut a, &mut m, "state.set_registers", json!({
+                    "expected_state_revision": revision,
+                    "expected": {"cs": before["segments"]["cs"], "ip": before["ip"]},
+                    "set": changes
+                }));
+                assert_eq!(m.cpu().get_cycle_ct(), clock);
+                assert_eq!(m.system_ticks(), ticks);
+                call(&mut a, &mut m, "execution.step", json!({}));
+                assert_eq!(m.cpu().get_register16(Register16::AX), 0x5678, "{change} after {steps} source steps");
+                assert_eq!(m.cpu_mut().get_ip(), ip + 3);
+                assert_eq!(m.cpu().get_register16(Register16::CS), cs);
+            }
+        }
+    }
     #[test]
     fn writable_expansion_range_excludes_rom_and_both_boundaries() {
         use marty_core::devices::conventional_memory::ConventionalMemory;

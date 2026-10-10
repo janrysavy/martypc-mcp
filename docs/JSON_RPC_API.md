@@ -112,6 +112,12 @@ limitations and full-machine snapshot gaps still apply.
 | `execution.pause` | Stops current operation. An already stopped machine retains its previous stop reason. Returns paused registers. |
 | `execution.step` | Paused, powered-on machine; optional `mode:"into"`. Returns accepted entry registers, `stepping:true` and `operation_id`; poll `execution.wait` for actual completed registers and stop reason. Step-over is unsupported. |
 
+At an ordinary paused instruction boundary, setting CS or IP discards queued,
+preloaded and in-flight instruction fetches. The next step fetches from the
+requested CS:IP; a CS-only write preserves the logical IP. The setter itself
+runs no CPU/device cycles. This debugger flush is separate from guest branch
+microcode. It does not wake HLT or cancel a REP continuation.
+
 If native CPU cycles and device system ticks do not advance, the accepted
 operation completes without an executed boundary. Native breakpoint, step-over
 and program-end stops retain `native_breakpoint`, `native_step_over` or
