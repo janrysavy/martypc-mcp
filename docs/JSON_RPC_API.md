@@ -268,6 +268,20 @@ opcode bytes and are marked `native_boundary`. Normal/long include actual
 nullable `trace-N` cursors and limit1..256. Stop preserves retained events.
 Read/stop before start and start while active are errors.
 
+Memory-effect and data-watchpoint `instruction_address` retains the executing
+opcode's original CS:IP, even when a far CALL/RETF changes CS during a transfer.
+REP effects retain the REP opcode origin across continuation boundaries; the
+top-level native boundary can report the following IP. The origin comes from
+the existing latched instruction physical address/IP, including 20-bit wrap,
+and is retained by a tested same-build mid-REP serialized restore. The snapshot
+fields/format are unchanged; cross-build snapshot import is not certified.
+Native RPC regressions
+exercise direct/indirect FAR CALL, RETF, wrapped origins, REP and a late stack
+watchpoint, comparing observed versus untraced complete native continuation.
+Historical builds that sampled current CS may contain mixed coordinates; their
+raw traces are not repaired retroactively. PyPC already latches the opcode
+origin before executing a Tick; the parent's shared probe confirms that behavior.
+
 Hardware trace accepts capacity1..65536 (default4096), boolean `include_io`
 and `include_irq`, port ranges `{first,last}` and primary-PIC IRQ-line
 filters 0..7; secondary lines 8..15 are refused and are not

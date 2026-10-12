@@ -55,6 +55,14 @@ impl Intel808x {
         (((segment as u32) << 4) + offset as u32) & 0xFFFFFu32
     }
 
+    /// Recover the opcode's CS from its latched physical address and IP. Current
+    /// CS may already have changed during a far transfer. Both latches survive
+    /// REP continuation and snapshots; subtraction must wrap on the 20-bit bus.
+    #[inline]
+    pub(super) fn debug_instruction_cs(&self) -> u16 {
+        ((self.instruction_address.wrapping_sub(self.instruction_ip as u32) & 0xFFFFF) >> 4) as u16
+    }
+
     #[inline]
     pub fn relative_offset_u16(base: u16, offset: i16) -> u16 {
         base.wrapping_add(offset as u16)

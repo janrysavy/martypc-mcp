@@ -10,6 +10,139 @@ fn finish(a: &mut Agent, m: &mut Machine) {
     }
     panic!("probe did not stop");
 }
+
+#[test]
+fn far_call_and_return_effects_keep_the_executing_instruction_segment() {
+    // Test immediate and memory-indirect CALL FAR, including 20-bit address wrap.
+    for caller in [0x0f63u16, 0xffff] {
+        for indirect in [false, true] {
+            let entry = if caller == 0xffff { 0x110 } else { 0x100 };
+            let mut observed = machine();
+            let mut native = machine();
+            for m in [&mut observed, &mut native] {
+                m.load_program(&[0xb8, 0xaa, 0x55, 0xcb], 0x229d, 0x200, 0x229d, 0x200).unwrap();
+                m.load_program(&[0x00, 0x02, 0x9d, 0x22], 0, 0x220, 0, 0x220).unwrap();
+                let code: &[u8] = if indirect { &[0xff, 0x1e, 0x20, 0x02] }
+                    else { &[0x9a, 0x00, 0x02, 0x9d, 0x22] };
+                m.load_program(code, caller, entry, caller, entry).unwrap();
+                m.cpu_mut().set_register16(Register16::DS, 0);
+                m.cpu_mut().set_register16(Register16::SS, 0);
+                m.cpu_mut().set_register16(Register16::SP, 0x9000);
+            }
+            let mut a = Agent::new(2301);
+            call(&mut a, &mut observed, "trace.start", json!({"instruction_count":3,"detail":"normal"}));
+            let mut control = ExecutionControl::new();
+            for _ in 0..3 {
+                call(&mut a, &mut observed, "execution.step", json!({}));
+                control.set_op(ExecutionOperation::Step);
+                native.run(1, &mut control);
+                assert_eq!(registers(&mut native, 0), registers(&mut observed, 0));
+                assert_eq!(format!("{:?}", native.cpu().get_string_state()), format!("{:?}", observed.cpu().get_string_state()));
+                assert_eq!(native.system_ticks(), observed.system_ticks());
+                for start in (0..0x100000).step_by(65536) {
+                    assert_eq!(peek(&native, start, 65536).unwrap(), peek(&observed, start, 65536).unwrap());
+                }
+            }
+            let data = call(&mut a, &mut observed, "trace.read", json!({"limit":3}));
+            let events = data["events"].as_array().unwrap();
+            assert_eq!(events.len(), 3);
+            for (event, (cs, ip, effect_count)) in events.iter().zip([
+                (caller, entry, if indirect {8} else {4}), (0x229d, 0x200, 0), (0x229d, 0x203, 4),
+            ]) {
+                assert_eq!(event["address"]["segment"], cs);
+                assert_eq!(event["address"]["offset"], ip);
+                let effects = event["effects"].as_array().unwrap();
+                assert_eq!(effects.len(), effect_count);
+                for effect in effects {
+                    assert_eq!(effect["instruction_address"], json!({"space":"segmented","segment":cs,"offset":ip,
+                        "physical":(((cs as u32)<<4)+ip as u32)&0xfffff}), "caller={caller:04x}, indirect={indirect}, effect={effect}");
+                }
+            }
+            assert_eq!(observed.cpu().get_register16(Register16::CS), caller);
+            assert_eq!(observed.cpu_mut().get_ip(), entry + if indirect {4} else {5});
+            assert_eq!(observed.cpu().get_register16(Register16::SP), 0x9000);
+            assert_eq!(observed.cpu().get_register16(Register16::AX), 0x55aa);
+            assert_eq!(
+                serde_json::to_value(observed.snapshot_state_quiesced(marty_core::vhd::DiskCaptureMode::Embed, 0).unwrap().0).unwrap(),
+                serde_json::to_value(native.snapshot_state_quiesced(marty_core::vhd::DiskCaptureMode::Embed, 0).unwrap().0).unwrap()
+            );
+        }
+    }
+}
+
+#[test]
+fn rep_effects_keep_the_opcode_origin_until_the_next_instruction() {
+    let mut observed = machine();
+    let mut native = machine();
+    for m in [&mut observed, &mut native] {
+        m.load_program(&[1, 2, 3], 0, 0x220, 0, 0x220).unwrap();
+        // REP MOVSB; MOV byte [0304],55; JMP $.
+        m.load_program(&[0xf3, 0xa4, 0xc6, 0x06, 0x04, 0x03, 0x55, 0xeb, 0xfe], 0x0f63, 0x100, 0x0f63, 0x100).unwrap();
+        for (reg, value) in [(Register16::DS, 0), (Register16::ES, 0), (Register16::CX, 3),
+            (Register16::SI, 0x220), (Register16::DI, 0x300)] {
+            m.cpu_mut().set_register16(reg, value);
+        }
+    }
+    let mut a = Agent::new(2301);
+    call(&mut a, &mut observed, "trace.start", json!({"instruction_count":8,"detail":"normal"}));
+    let mut control = ExecutionControl::new();
+    for boundary in 0..8 {
+        call(&mut a, &mut observed, "execution.step", json!({}));
+        control.set_op(ExecutionOperation::Step);
+        native.run(1, &mut control);
+        assert_eq!(registers(&mut native, 0), registers(&mut observed, 0));
+        assert_eq!(format!("{:?}", native.cpu().get_string_state()), format!("{:?}", observed.cpu().get_string_state()));
+        assert_eq!(native.system_ticks(), observed.system_ticks());
+        for start in (0..0x100000).step_by(65536) {
+            assert_eq!(peek(&native, start, 65536).unwrap(), peek(&observed, start, 65536).unwrap());
+        }
+        if boundary == 1 {
+            assert!(observed.cpu().get_register16(Register16::CX) > 0);
+            // Same-build serialized restart in the middle of REP, not a
+            // cross-product import or a new historical compatibility claim.
+            let state = observed.snapshot_state_quiesced(marty_core::vhd::DiskCaptureMode::Embed, 0).unwrap().0;
+            let encoded = serde_json::to_vec(&state).unwrap();
+            let decoded = serde_json::from_slice(&encoded).unwrap();
+            observed = machine().prepare_snapshot_restore(&decoded, [None, None]).unwrap();
+        }
+    }
+    let data = call(&mut a, &mut observed, "trace.read", json!({"limit":8}));
+    let effects = data["events"].as_array().unwrap().iter()
+        .flat_map(|e| e["effects"].as_array().unwrap()).collect::<Vec<_>>();
+    assert_eq!(effects.len(), 7); // Three source reads, three copies, one next-op write.
+    for effect in &effects {
+        let ip = if effect["address"]["offset"] == 0x304 {0x102} else {0x100};
+        assert_eq!(effect["instruction_address"], json!({"space":"segmented","segment":0x0f63,"offset":ip,
+            "physical":0x0f630+ip}));
+    }
+    assert_eq!(peek(&observed, 0x300, 5).unwrap(), vec![1, 2, 3, 0, 0x55]);
+    assert_eq!(
+        serde_json::to_value(observed.snapshot_state_quiesced(marty_core::vhd::DiskCaptureMode::Embed, 0).unwrap().0).unwrap(),
+        serde_json::to_value(native.snapshot_state_quiesced(marty_core::vhd::DiskCaptureMode::Embed, 0).unwrap().0).unwrap()
+    );
+}
+
+#[test]
+fn late_far_call_stack_watchpoint_reports_caller_not_destination() {
+    let mut m = machine();
+    m.load_program(&[0x9a, 0x00, 0x02, 0x9d, 0x22], 0x0f63, 0x100, 0x0f63, 0x100).unwrap();
+    m.cpu_mut().set_register16(Register16::SS, 0);
+    m.cpu_mut().set_register16(Register16::SP, 0x9000);
+    let mut a = Agent::new(2301);
+    let bp = call(&mut a, &mut m, "breakpoints.create", json!({"kind":"memory_write","address":0x8fff}));
+    call(&mut a, &mut m, "execution.step", json!({}));
+    assert_eq!(a.last_stop["breakpoint_id"], bp["breakpoint_id"]);
+    assert_eq!(a.last_stop["access"]["kind"], "memory_write");
+    assert_eq!(a.last_stop["access"]["address"], json!({"space":"linear","offset":0x8fff}));
+    assert_eq!(a.last_stop["access"]["byte_count"], 1);
+    assert_eq!(a.last_stop["access"]["old_value"], 0);
+    assert_eq!(a.last_stop["access"]["new_value"], 0x0f);
+    assert_eq!(a.last_stop["access"]["instruction_address"], json!({"space":"segmented","segment":0x0f63,
+        "offset":0x100,"physical":0x0f730}));
+    assert_eq!(a.last_stop["registers"]["segments"]["cs"], 0x229d);
+    assert_eq!(a.last_stop["registers"]["ip"], 0x200);
+    assert_eq!(peek(&m, 0x8ffc, 4).unwrap(), vec![5, 1, 0x63, 0x0f]);
+}
 #[test]
 fn native_write_stop_reports_actual_byte_transition_and_owner() {
     let mut m = machine();
