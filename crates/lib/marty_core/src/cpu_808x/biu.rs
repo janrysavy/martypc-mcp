@@ -1325,7 +1325,7 @@ impl Intel808x {
                     self.data_bus >> 8
                 } else { self.data_bus };
                 self.bus.debug_record(debug_observation::Event {
-                    kind, clock: self.cycle_num, cs: self.cs, ip: self.instruction_ip,
+                    kind, clock: self.cycle_num, cs: self.debug_instruction_cs(), ip: self.instruction_ip,
                     address: self.address_latch, width,
                     value, old, interrupt_kind: None, ah: self.a.h(), al: self.a.l(), irq: None,
                     handled: if kind.starts_with("io_") {Some(self.bus.debug_port_handled(self.address_latch as u16, width))} else {None},
