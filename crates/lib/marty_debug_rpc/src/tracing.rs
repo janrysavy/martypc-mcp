@@ -174,7 +174,11 @@ impl Agent {
         skip: Option<&str>,
     ) {
         let before = before.unwrap();
-        let after = registers(machine, self.revision);
+        let after = if self.trace.active {
+            registers(machine, self.revision)
+        } else {
+            json!({"clock":machine.cpu().get_cycle_ct().0})
+        };
         if self.trace.active {
             let opcodes = events
                 .iter()
@@ -215,7 +219,7 @@ impl Agent {
                 event["registers_before"] = before.clone();
             }
             if ["normal", "long"].contains(&self.trace.detail.as_str()) {
-                event["registers_after"] = registers(machine, self.revision);
+                event["registers_after"] = after.clone();
             }
             self.trace.events.push(event);
             self.trace.remaining -= 1;

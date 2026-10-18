@@ -348,6 +348,55 @@ fn native_io_filters_overflow_and_expired_cursor_are_explicit() {
 }
 
 #[test]
+fn hardware_only_boundary_context_matches_full_cpu_trace_and_native_state() {
+    // The same PIT I/O, empty boundaries and PIC transitions must survive the
+    // lightweight path, including the transition when CPU tracing expires.
+    let mut fast = machine();
+    let mut full = machine();
+    let mut a = Agent::new(2301);
+    let mut b = Agent::new(2301);
+    for (agent, m) in [(&mut a, &mut fast), (&mut b, &mut full)] {
+        m.load_program(&[0xb0, 0x36, 0xe6, 0x43, 0xb0, 2, 0xe6, 0x40,
+            0xb0, 0, 0xe6, 0x40, 0x90, 0xe4, 0x40, 0xeb, 0xfb], 0, 0x100, 0, 0x100).unwrap();
+        call(agent, m, "hardware.trace.start", json!({"capacity":4096}));
+    }
+    call(&mut b, &mut full, "trace.start", json!({"instruction_count":80,"detail":"normal"}));
+    a.start(&mut fast); b.start(&mut full);
+    for _ in 0..256 {
+        a.step(&mut fast, None); b.step(&mut full, None);
+    }
+    assert!(!b.trace.active);
+    assert_eq!(b.trace.events.len(), 80);
+    assert!(b.trace.events[0]["registers_before"]["general"].is_object());
+    assert!(b.trace.events[0]["registers_after"]["general"].is_object());
+    assert_eq!(a.hardware.events, b.hardware.events);
+    assert!(a.hardware.events.iter().any(|e| e["kind"] == "io_read"));
+    assert!(a.hardware.events.iter().any(|e| e["kind"] == "io_write"));
+    assert!(a.hardware.events.iter().any(|e| e.get("irq").is_some()));
+    assert_eq!(a.revision, b.revision);
+    let snapshot = |m: &mut Machine| serde_json::to_value(
+        m.snapshot_state_quiesced(marty_core::vhd::DiskCaptureMode::Embed, 0).unwrap().0).unwrap();
+    assert_eq!(snapshot(&mut fast), snapshot(&mut full));
+}
+
+#[test]
+#[ignore = "manual release throughput measurement; no wall-time assertions"]
+fn hardware_only_boundary_throughput() {
+    let mut m = machine();
+    m.load_program(&[0x90, 0xe4, 0x40, 0xeb, 0xfb], 0, 0x100, 0, 0x100).unwrap();
+    let mut a = Agent::new(2301);
+    call(&mut a, &mut m, "hardware.trace.start", json!({"capacity":4096}));
+    a.start(&mut m);
+    let start = Instant::now();
+    for _ in 0..100_000 { a.step(&mut m, None); }
+    let elapsed = start.elapsed();
+    let snapshot = serde_json::to_vec(&m.snapshot_state_quiesced(marty_core::vhd::DiskCaptureMode::Embed, 0).unwrap().0).unwrap();
+    let hardware = serde_json::to_vec(&a.hardware.events).unwrap();
+    println!("hardware-only boundaries=100000 elapsed={elapsed:?} state_sha256={:x} hardware_sha256={:x} cycles={} revision={}",
+        Sha256::digest(snapshot), Sha256::digest(hardware), m.cpu_cycles(), a.revision);
+}
+
+#[test]
 fn resume_data_watchpoint_observes_immediately_following_matching_access() {
     let mut m = machine();
     let mut a = Agent::new(2301);

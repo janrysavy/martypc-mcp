@@ -474,7 +474,15 @@ impl Agent {
             if bp.kind=="interrupt" {classes|=INTERRUPT;}
         }
         let observing=classes!=0;
-        let before = observing.then(|| registers(machine, self.revision));
+        // Hardware events need only the boundary address and cycle count.
+        // Full reports also format the entire CPU display state; constructing
+        // them per instruction makes long hardware-only captures needlessly slow.
+        let before = observing.then(|| if self.trace.active {
+            registers(machine, self.revision)
+        } else {
+            json!({"segments":{"cs":machine.cpu().get_register16(Register16::CS)},
+                "ip":machine.cpu_mut().get_ip(),"clock":machine.cpu().get_cycle_ct().0})
+        });
         if observing { machine.bus_mut().debug_begin(classes); }
         let before_cycles = machine.cpu_cycles();
         let before_ticks = machine.system_ticks();
