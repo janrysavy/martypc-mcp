@@ -447,9 +447,11 @@ encoded. Malformed nested storage/index/clock state and active VGA tracing are
 refused before live replacement. This extends the supported card inventory;
 snapshot RPC names and parameters remain the shared PyPC contract. It does not
 establish hardware timing or rendering parity for every VGA mode.
-Half-clock horizontal beam positions can extend beyond the image canvas before
-CRTC hsync. Snapshots preserve that native phase; the horizontal increment must
-remain representable. Raster storage and the other nested guards still apply.
+Before programmed VSYNC, beam coordinates and the linear raster cursor can
+extend beyond the image canvas. Half-clock horizontal positions can also exceed
+it before CRTC hsync. Snapshots preserve these native phases while requiring
+representable next-character/line arithmetic. Character rendering separately
+guards buffer accesses; raster storage sizes and other nested guards still apply.
 
 `video.text` returns the shared PyPC text schema: adapter, columns/rows,
 page size/count, selected/active page, byte display address, mode/control byte,

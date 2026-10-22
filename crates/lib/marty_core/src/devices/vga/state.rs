@@ -74,12 +74,14 @@ impl VGACard {
             || s.extents.row_stride != s.extents.field_w as usize
             || (s.extents.field_w as usize).checked_mul(s.extents.field_h as usize)
                 .map_or(true, |area| area > VGA_MAX_CLOCK28)
-            || s.rba > VGA_MAX_CLOCK28
-            // tick_lchar advances until native CRTC hsync, which can be beyond
-            // the monitor canvas. Drawing is separately guarded by rba; the
-            // next horizontal increment must fit, not the current image width.
+            // Before programmed VSYNC, or during a long frame, the beam and
+            // linear raster cursor can exceed the canvas. Both character paths
+            // guard drawing separately. Require safe next-character/line
+            // arithmetic rather than treating off-canvas counters as corruption.
+            || s.rba.checked_add(s.sequencer.char_clock as usize).is_none()
             || s.raster_x.checked_add(s.sequencer.char_clock).is_none()
-            || s.raster_y > s.extents.field_h
+            || s.raster_y.checked_add(1)
+                .and_then(|y| s.extents.row_stride.checked_mul(y as usize)).is_none()
             || s.extents.apertures.iter().any(|a|
                 a.w>s.extents.field_w || a.h>s.extents.field_h
                 || a.x.checked_add(a.w).is_none() || a.y.checked_add(a.h).is_none())
@@ -220,6 +222,54 @@ mod read_tests {
 #[cfg(test)]
 mod geometry_tests {
     use super::*;
+
+    #[test]
+    fn unsynced_native_beam_survives_snapshot_and_continuation() {
+        for (clocking, clock_select) in [
+            (0, 0), (1, 0), (8, 0), (9, 0),
+            (0, 4), (1, 4), (8, 4), (9, 4),
+        ] {
+            let mut card = VGACard::default();
+            card.sequencer.write_address(1);
+            card.sequencer.write_data(clocking);
+            let misc = card.misc_output_register.into_bytes()[0];
+            card.write_external_misc_output_register((misc & !0x0c) | clock_select);
+            let mut reached = false;
+            // No CRTC timing is programmed: like early BIOS execution, native
+            // counters can leave the canvas before the first vertical sync.
+            // Reach that state through clocks, never by injecting beam fields.
+            for _ in 0..150000 {
+                card.tick(card.sequencer.char_clock as f64 + 0.001, &mut None);
+                if card.rba > VGA_MAX_CLOCK28 {
+                    reached = true;
+                    break;
+                }
+            }
+            assert!(reached, "native unsynced raster must leave the canvas");
+            assert_eq!(card.frame, 0, "the controller has not produced VSYNC");
+            let saved = card.capture_state().expect("native off-canvas cursor is valid");
+            let loaded: VgaState = serde_json::from_slice(&serde_json::to_vec(&saved).unwrap()).unwrap();
+            let mut restored = VGACard::prepare_state(&loaded).unwrap();
+            assert_eq!(saved, restored.capture_state().unwrap());
+            for index in 0..3 {
+                let mut bad = saved.clone();
+                match index {
+                    0 => bad.rba = usize::MAX,
+                    1 => bad.raster_x = u32::MAX,
+                    _ => bad.raster_y = u32::MAX,
+                }
+                assert!(card.restore_state(&bad).is_err(), "overflow must be refused");
+                assert_eq!(saved, card.capture_state().unwrap(), "refusal must be atomic");
+            }
+            for _ in 0..10000 {
+                let ticks = card.sequencer.char_clock as f64 + 0.001;
+                card.tick(ticks, &mut None);
+                restored.tick(ticks, &mut None);
+            }
+            assert_eq!(card.capture_state().unwrap(), restored.capture_state().unwrap(),
+                       "all video registers, VRAM, pixels and counters must continue identically");
+        }
+    }
 
     // Registers captured from original Pyro mode1 after its custom 8-dot font
     // load. Device counters, font pixels and raster products are freshly made.
