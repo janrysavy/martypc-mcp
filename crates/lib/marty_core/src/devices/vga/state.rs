@@ -75,7 +75,11 @@ impl VGACard {
             || (s.extents.field_w as usize).checked_mul(s.extents.field_h as usize)
                 .map_or(true, |area| area > VGA_MAX_CLOCK28)
             || s.rba > VGA_MAX_CLOCK28
-            || s.raster_x > s.extents.field_w || s.raster_y > s.extents.field_h
+            // tick_lchar advances until native CRTC hsync, which can be beyond
+            // the monitor canvas. Drawing is separately guarded by rba; the
+            // next horizontal increment must fit, not the current image width.
+            || s.raster_x.checked_add(s.sequencer.char_clock).is_none()
+            || s.raster_y > s.extents.field_h
             || s.extents.apertures.iter().any(|a|
                 a.w>s.extents.field_w || a.h>s.extents.field_h
                 || a.x.checked_add(a.w).is_none() || a.y.checked_add(a.h).is_none())
@@ -243,6 +247,39 @@ mod geometry_tests {
             for y in 0..16 { card.sequencer.vram.write_u8(2, glyph*32+y, ((glyph*37) as u8)|0x81); }
         }
         card
+    }
+
+    #[test]
+    fn halfclock_beam_outside_canvas_survives_snapshot_and_continuation() {
+        for clocking in [8, 9] {
+            let mut card = text_card(clocking);
+            let mut pic = None;
+            let mut reached = false;
+            for _ in 0..2000 {
+                card.tick(card.sequencer.char_clock as f64 + 0.001, &mut pic);
+                if card.raster_x > card.extents.field_w {
+                    reached = true;
+                    break;
+                }
+            }
+            assert!(reached, "native halfclock must reach outside the canvas");
+            let saved = card.capture_state().expect("a reachable beam phase must be exportable");
+            let wire = serde_json::to_vec(&saved).unwrap();
+            let loaded: VgaState = serde_json::from_slice(&wire).unwrap();
+            let mut restored = VGACard::prepare_state(&loaded).unwrap();
+            assert_eq!(saved, restored.capture_state().unwrap());
+            let mut malformed = saved.clone();
+            malformed.raster_x = u32::MAX;
+            assert!(card.restore_state(&malformed).is_err());
+            assert_eq!(saved, card.capture_state().unwrap(), "refusal must be atomic");
+            for _ in 0..10000 {
+                let ticks = card.sequencer.char_clock as f64 + 0.001;
+                card.tick(ticks, &mut pic);
+                restored.tick(ticks, &mut None);
+            }
+            assert_eq!(card.capture_state().unwrap(), restored.capture_state().unwrap(),
+                       "complete video state, pixels and counters must continue identically");
+        }
     }
 
     #[test]
