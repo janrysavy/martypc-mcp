@@ -255,7 +255,9 @@ mod geometry_tests {
             let mut card = text_card(clocking);
             let mut pic = None;
             let mut reached = false;
-            for _ in 0..2000 {
+            // Include a complete vertical blank: CRTC can suppress the monitor
+            // hsync edge on its final blank line, extending this beam span.
+            for _ in 0..150000 {
                 card.tick(card.sequencer.char_clock as f64 + 0.001, &mut pic);
                 if card.raster_x > card.extents.field_w {
                     reached = true;
