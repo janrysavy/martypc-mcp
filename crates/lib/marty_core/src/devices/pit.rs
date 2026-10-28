@@ -785,7 +785,17 @@ impl Channel {
                 ChannelMode::SquareWaveGenerator => {
                     // Gate controls counting.
                     if *self.gate {
-                        if (*self.count_register & 1) == 0 {
+                        // A new reload can be written while the old half-cycle
+                        // is still counting. On the 8253, its odd first-clock
+                        // adjustment follows the active counting element, not
+                        // the newly written (or partial LSB/MSB) count register.
+                        let even_count = if self.ptype == PitType::Model8253 {
+                            (*self.counting_element & 1) == 0
+                        }
+                        else {
+                            (*self.count_register & 1) == 0
+                        };
+                        if even_count {
                             // Even reload value. Count decrements by two and reloads on terminal count.
                             self.count2();
                             if *self.counting_element == 0 {
@@ -1426,3 +1436,104 @@ impl ProgrammableIntervalTimer {
 
 mod state;
 pub(crate) use state::PitState;
+
+#[cfg(test)]
+mod square_wave_reload_tests {
+    use super::*;
+
+    fn counting_low(reload: u16, ptype: PitType) -> (Channel, BusInterface) {
+        let mut bus = BusInterface::default();
+        let mut channel = Channel::new(2, ptype);
+        channel.set_mode(ChannelMode::SquareWaveGenerator, RwMode::LsbMsb, false, &mut bus);
+        channel.set_gate(true, &mut bus);
+        channel.write_byte(reload as u8, false, &mut bus);
+        channel.write_byte((reload >> 8) as u8, false, &mut bus);
+        channel.tick(&mut bus, None); // Initial load, without decrement.
+        for _ in 0..(u32::from(reload) + 1) / 2 {
+            channel.tick(&mut bus, None);
+        }
+        assert!(!*channel.output);
+        assert_eq!(*channel.counting_element, reload);
+        (channel, bus)
+    }
+
+    #[test]
+    fn mode3_partial_even_reload_preserves_running_odd_half_cycle() {
+        let (mut channel, mut bus) = counting_low(19, PitType::Model8253);
+        channel.write_byte(198, false, &mut bus);
+        assert_eq!(*channel.count_register, 198);
+        assert_eq!(*channel.reload_value, 19); // MSB not written yet.
+        channel.tick(&mut bus, None);
+        assert_eq!(*channel.counting_element, 16); // Low/odd: subtract three.
+        channel.write_byte(0, false, &mut bus);
+        assert_eq!(*channel.counting_element, 16); // No immediate reload.
+        for _ in 0..8 {
+            channel.tick(&mut bus, None);
+        }
+        assert!(*channel.output);
+        assert_eq!(*channel.counting_element, 198);
+    }
+
+    #[test]
+    fn mode3_partial_even_reload_preserves_running_high_adjustment() {
+        let mut bus = BusInterface::default();
+        let mut channel = Channel::new(2, PitType::Model8253);
+        channel.set_mode(ChannelMode::SquareWaveGenerator, RwMode::LsbMsb, false, &mut bus);
+        channel.set_gate(true, &mut bus);
+        channel.write_byte(19, false, &mut bus);
+        channel.write_byte(0, false, &mut bus);
+        channel.tick(&mut bus, None);
+        assert!(*channel.output);
+        assert_eq!(*channel.counting_element, 19);
+        channel.write_byte(198, false, &mut bus);
+        channel.tick(&mut bus, None);
+        assert_eq!(*channel.counting_element, 18); // High/odd: subtract one.
+        assert!(*channel.output);
+        assert_eq!(*channel.reload_value, 19); // Partial write is not committed.
+    }
+
+    #[test]
+    fn mode3_8254_even_counter_keeps_existing_decrement() {
+        let (mut channel, mut bus) = counting_low(20, PitType::Model8254);
+        channel.write_byte(19, false, &mut bus);
+        channel.write_byte(0, false, &mut bus);
+        channel.tick(&mut bus, None);
+        assert_eq!(*channel.counting_element, 18);
+        assert!(!*channel.output);
+    }
+
+    #[test]
+    fn mode3_complete_even_reload_does_not_wrap_the_running_odd_count() {
+        for reload in [0u16, 2, 18, 198, 65534] {
+            let (mut channel, mut bus) = counting_low(19, PitType::Model8253);
+            channel.write_byte(reload as u8, false, &mut bus);
+            channel.write_byte((reload >> 8) as u8, false, &mut bus);
+            for _ in 0..9 {
+                channel.tick(&mut bus, None);
+            }
+            assert!(*channel.output, "new reload {reload}");
+            assert_eq!(*channel.counting_element, reload);
+        }
+    }
+
+    #[test]
+    fn mode3_odd_reload_waits_for_even_half_cycle_then_keeps_odd_duty_cycle() {
+        let (mut channel, mut bus) = counting_low(20, PitType::Model8253);
+        channel.write_byte(19, false, &mut bus);
+        channel.write_byte(0, false, &mut bus);
+        for _ in 0..10 {
+            channel.tick(&mut bus, None);
+        }
+        assert!(*channel.output);
+        assert_eq!(*channel.counting_element, 19);
+        channel.tick(&mut bus, None);
+        assert_eq!(*channel.counting_element, 18); // High/odd: subtract one.
+        for _ in 0..9 {
+            channel.tick(&mut bus, None);
+        }
+        assert!(!*channel.output);
+        assert_eq!(*channel.counting_element, 19);
+        channel.tick(&mut bus, None);
+        assert_eq!(*channel.counting_element, 16);
+    }
+}

@@ -25,6 +25,8 @@ jobs:
       - name: Install Linux serial enumeration dependency
         if: runner.os == 'Linux'
         run: sudo apt-get update -qq && sudo apt-get install -y libudev-dev
+      - name: Prove PIT odd/even reload regression and restored positive
+        run: python util/test_pit_reload_regression.py
       - name: Test native CPU, devices and RPC transport
         run: cargo test -p marty_debug_rpc -p marty_config -p martypc_headless --no-default-features --lib --locked
       - name: Build headless debugger
