@@ -1,3 +1,25 @@
+# WIP — 8253 mode3 reload parity, 2026-10-28
+
+The Pyro original CRT.Sound(6000) call changes an active mode3 divisor19 to198.
+The old implementation chose decrement parity from the partly rewritten count
+register, so an odd low-phase running counter wrapped instead of terminating.
+The fix selects parity from the active 8253 counting element;8254 is unchanged.
+
+Five device controls cover partial/complete odd-to-even reloads, high/low phases,
+even-to-odd duty cycle and the existing8254 path. The CI regression runner first
+restores the old decision, requires exactly three named failures, restores exact
+positive bytes and requires all five tests to pass. Local compilation is not
+claimed: the parent workspace cannot admit another Cargo target under its20GB
+cap. Final-head Windows/Linux CI and a fresh corrected native product remain WIP.
+Old build-bound snapshots/diagnostics are not relabeled or migrated.
+
+Independent reference: Intel8253/8253-5 datasheet, mode3 description (odd count:
+first high clock subtracts1, first low clock subtracts3, subsequent clocks2):
+https://web.cecs.pdx.edu/~mpj/llp/references/8253.pdf
+This supports counter transitions, not physical XT duration certification.
+
+---
+
 # Shared observation, snapshots and native tracing, 2026-10-07
 
 FINISHED local text palette correction: original gameplay has10752 wrong
