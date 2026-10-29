@@ -1,6 +1,8 @@
 """Portable refusal controls; no Rust build, guest or fixture outside checkout."""
 import copy
+import os
 import struct
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -34,6 +36,25 @@ def fixture():
 
 
 class ReleaseWitness(unittest.TestCase):
+    def test_checkout_time_configuration_preserves_git_blob_bytes(self):
+        base = release.ROOT/'.ci-release'
+        base.mkdir(exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=base) as tmp:
+            path = Path(tmp)
+            env = dict(os.environ, GIT_CONFIG_COUNT='2', GIT_CONFIG_KEY_0='core.autocrlf',
+                       GIT_CONFIG_VALUE_0='false', GIT_CONFIG_KEY_1='core.eol', GIT_CONFIG_VALUE_1='lf')
+            def git(*args):
+                return subprocess.check_output(['git', *args], cwd=path, env=env, stderr=subprocess.DEVNULL)
+            git('init', '-q')
+            git('config', 'core.autocrlf', 'true')
+            (path/'input.txt').write_bytes(b'canonical\n')
+            git('add', 'input.txt')
+            git('-c', 'user.name=Test', '-c', 'user.email=test@example.invalid', 'commit', '-qm', 'fixture')
+            (path/'input.txt').unlink()
+            git('checkout-index', '--all', '--force')
+            self.assertEqual((path/'input.txt').read_bytes(), git('show', 'HEAD:input.txt'))
+            self.assertEqual(git('status', '--porcelain'), b'')
+
     def test_positive_json_round_trip(self):
         import json
         receipt, raw, source = fixture()
