@@ -11,6 +11,8 @@ on:
         default: false
 permissions:
   contents: read
+env:
+  RUSTUP_TOOLCHAIN: 1.98.0
 concurrency:
   group: debugger-${{ github.ref }}-${{ github.event_name == 'workflow_dispatch' && inputs.release_only || false }}
   cancel-in-progress: true

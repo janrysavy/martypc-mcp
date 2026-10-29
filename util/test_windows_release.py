@@ -105,7 +105,7 @@ class ReleaseWitness(unittest.TestCase):
                 source = release.source(path)
             self.assertEqual(source['files'], {'Cargo.lock': release.sha(b'locked')})
             with patch.object(release.subprocess, 'check_output', return_value=b'M Cargo.lock'):
-                with self.assertRaisesRegex(ValueError, 'checkout is dirty'):
+                with self.assertRaisesRegex(ValueError, 'checkout is dirty: M Cargo.lock'):
                     release.source(path)
 
 
