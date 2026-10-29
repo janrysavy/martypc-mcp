@@ -60,15 +60,15 @@ jobs:
     if: github.event_name == 'workflow_dispatch' && inputs.release_only
     runs-on: windows-latest
     timeout-minutes: 60
+    env:
+      GIT_CONFIG_COUNT: '2'
+      GIT_CONFIG_KEY_0: core.autocrlf
+      GIT_CONFIG_VALUE_0: 'false'
+      GIT_CONFIG_KEY_1: core.eol
+      GIT_CONFIG_VALUE_1: lf
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@1.98.0
-      - name: Materialize exact Git source bytes
-        shell: pwsh
-        run: |
-          git config core.autocrlf false
-          git -c core.eol=lf checkout-index --all --force
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Test release provenance guards
         run: python -B util/test_windows_release.py
       - name: Build and authenticate fresh release
