@@ -26,7 +26,8 @@ def sha(raw):
 
 def source(root):
     git = lambda *args: subprocess.check_output(['git', *args], cwd=root).decode('utf8').strip()
-    require(not git('status', '--porcelain'), 'release source checkout is dirty')
+    status = git('status', '--porcelain')
+    require(not status, 'release source checkout is dirty: '+status)
     files = {}
     names = subprocess.check_output(['git', 'ls-files', '-z'], cwd=root).decode('utf8')
     for name in filter(None, names.split('\0')):
