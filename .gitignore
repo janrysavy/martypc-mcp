@@ -6,6 +6,7 @@ Thumbs.db
 
 # Rust compiler output
 /target
+/.ci-release/
 
 # Python virtual environment
 /.venv/

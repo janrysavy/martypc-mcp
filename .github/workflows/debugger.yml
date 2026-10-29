@@ -4,13 +4,19 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+    inputs:
+      release_only:
+        description: Build an authenticated Windows release artifact only
+        type: boolean
+        default: false
 permissions:
   contents: read
 concurrency:
-  group: debugger-${{ github.ref }}
+  group: debugger-${{ github.ref }}-${{ github.event_name == 'workflow_dispatch' && inputs.release_only || false }}
   cancel-in-progress: true
 jobs:
   debugger:
+    if: github.event_name != 'workflow_dispatch' || !inputs.release_only
     strategy:
       fail-fast: false
       matrix:
@@ -22,6 +28,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@1.98.0
+      - name: Test release artifact provenance and refusal guards
+        run: python -B util/test_windows_release.py
       - name: Install Linux serial enumeration dependency
         if: runner.os == 'Linux'
         run: sudo apt-get update -qq && sudo apt-get install -y libudev-dev
@@ -45,3 +53,31 @@ jobs:
       - name: Test native GUI snapshot factory and refusal guards
         if: runner.os == 'Windows'
         run: cargo test -p martypc_eframe --lib --locked
+
+  windows-release:
+    if: github.event_name == 'workflow_dispatch' && inputs.release_only
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.98.0
+      - name: Materialize exact Git source bytes
+        shell: pwsh
+        run: |
+          git config core.autocrlf false
+          git -c core.eol=lf checkout-index --all --force
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Test release provenance guards
+        run: python -B util/test_windows_release.py
+      - name: Build and authenticate fresh release
+        run: python -B util/windows_release.py --out .ci-release/artifact
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-release-${{ github.sha }}
+          path: |
+            .ci-release/artifact/martypc.exe
+            .ci-release/artifact/receipt.json
+            .ci-release/artifact/LICENSE
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 1
